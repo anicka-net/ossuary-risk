@@ -1,0 +1,250 @@
+{
+  "timestamp": "2026-02-01T17:38:28.683199",
+  "total": 9,
+  "accuracy": 0.8888888888888888,
+  "precision": 1.0,
+  "recall": 0.6666666666666666,
+  "f1_score": 0.8,
+  "confusion_matrix": {
+    "TP": 2,
+    "TN": 6,
+    "FP": 0,
+    "FN": 1
+  },
+  "by_attack_type": {
+    "governance_failure": {
+      "total": 1,
+      "correct": 1
+    },
+    "maintainer_sabotage": {
+      "total": 1,
+      "correct": 1
+    },
+    "account_compromise": {
+      "total": 1,
+      "correct": 0
+    },
+    "control": {
+      "total": 6,
+      "correct": 6
+    }
+  },
+  "results": [
+    {
+      "case": {
+        "name": "event-stream",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "governance_failure",
+        "incident_date": "2018-09-16",
+        "cutoff_date": "2018-09-01",
+        "notes": "Abandoned package, malicious maintainer gained access via social engineering",
+        "repo_url": null
+      },
+      "score": 80,
+      "risk_level": "CRITICAL",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
+      "maintainer": "rolias",
+      "reputation_score": 15,
+      "reputation_tier": "UNKNOWN",
+      "concentration": 75.0,
+      "commits_last_year": 4,
+      "protective_factors_total": 0,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "colors",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "maintainer_sabotage",
+        "incident_date": "2022-01-08",
+        "cutoff_date": "2022-01-01",
+        "notes": "Marak intentionally sabotaged as protest against Fortune 500 companies",
+        "repo_url": null
+      },
+      "score": 100,
+      "risk_level": "CRITICAL",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
+      "maintainer": "Marak",
+      "reputation_score": 15,
+      "reputation_tier": "UNKNOWN",
+      "concentration": 100,
+      "commits_last_year": 0,
+      "protective_factors_total": -5,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "ua-parser-js",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "account_compromise",
+        "incident_date": "2021-10-22",
+        "cutoff_date": "2021-10-01",
+        "notes": "Maintainer account compromised via email hijacking. Active project - governance metrics won't catch this.",
+        "repo_url": null
+      },
+      "score": 25,
+      "risk_level": "LOW",
+      "predicted_outcome": "safe",
+      "correct": false,
+      "classification": "FN",
+      "maintainer": "faisalman",
+      "reputation_score": 15,
+      "reputation_tier": "UNKNOWN",
+      "concentration": 80.26315789473685,
+      "commits_last_year": 152,
+      "protective_factors_total": -25,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "chalk",
+        "ecosystem": "npm",
+        "expected_outcome": "safe",
+        "attack_type": null,
+        "incident_date": null,
+        "cutoff_date": null,
+        "notes": "High concentration but Sindre Sorhus has massive reputation and sponsors",
+        "repo_url": null
+      },
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
+      "maintainer": "sindresorhus",
+      "reputation_score": 90,
+      "reputation_tier": "TIER_1",
+      "concentration": 66.66666666666666,
+      "commits_last_year": 6,
+      "protective_factors_total": -60,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "lodash",
+        "ecosystem": "npm",
+        "expected_outcome": "safe",
+        "attack_type": null,
+        "incident_date": null,
+        "cutoff_date": null,
+        "notes": "Very popular, historically high concentration but visible and maintained",
+        "repo_url": null
+      },
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
+      "maintainer": "jdalton",
+      "reputation_score": 45,
+      "reputation_tier": "TIER_2",
+      "concentration": 42.857142857142854,
+      "commits_last_year": 35,
+      "protective_factors_total": -45,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "express",
+        "ecosystem": "npm",
+        "expected_outcome": "safe",
+        "attack_type": null,
+        "incident_date": null,
+        "cutoff_date": null,
+        "notes": "OpenJS Foundation, multiple maintainers, very active",
+        "repo_url": null
+      },
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
+      "maintainer": "dependabot[bot]",
+      "reputation_score": 30,
+      "reputation_tier": "TIER_2",
+      "concentration": 24.444444444444443,
+      "commits_last_year": 135,
+      "protective_factors_total": -65,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "requests",
+        "ecosystem": "pypi",
+        "expected_outcome": "safe",
+        "attack_type": null,
+        "incident_date": null,
+        "cutoff_date": null,
+        "notes": "Transitioned from Kenneth Reitz to PSF, successful community handoff",
+        "repo_url": null
+      },
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
+      "maintainer": "kennethreitz",
+      "reputation_score": 30,
+      "reputation_tier": "TIER_2",
+      "concentration": 36.36363636363637,
+      "commits_last_year": 66,
+      "protective_factors_total": -70,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "urllib3",
+        "ecosystem": "pypi",
+        "expected_outcome": "safe",
+        "attack_type": null,
+        "incident_date": null,
+        "cutoff_date": null,
+        "notes": "Org-owned, multiple maintainers, good governance",
+        "repo_url": null
+      },
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
+      "maintainer": "shazow",
+      "reputation_score": 30,
+      "reputation_tier": "TIER_2",
+      "concentration": 36.36363636363637,
+      "commits_last_year": 110,
+      "protective_factors_total": -80,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "django",
+        "ecosystem": "pypi",
+        "expected_outcome": "safe",
+        "attack_type": null,
+        "incident_date": null,
+        "cutoff_date": null,
+        "notes": "Django Software Foundation, many contributors, professional governance",
+        "repo_url": null
+      },
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
+      "maintainer": "nessita",
+      "reputation_score": 30,
+      "reputation_tier": "TIER_2",
+      "concentration": 16.666666666666664,
+      "commits_last_year": 1602,
+      "protective_factors_total": -45,
+      "error": null
+    }
+  ]
+}
