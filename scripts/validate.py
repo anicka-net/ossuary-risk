@@ -246,6 +246,51 @@ VALIDATION_CASES = [
         notes="Ancient package, minimal updates, high concentration. Widely depended upon.",
     ),
 
+    # isarray - extremely simple, unmaintained
+    ValidationCase(
+        name="isarray",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: Single function package, no updates needed but bus factor of 1.",
+    ),
+
+    # kind-of - type checking utility, mature
+    ValidationCase(
+        name="kind-of",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: Mature utility, minimal activity pattern.",
+    ),
+
+    # is-number - very simple, unmaintained
+    ValidationCase(
+        name="is-number",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: Trivial package, high concentration.",
+    ),
+
+    # extend - object extend utility
+    ValidationCase(
+        name="extend",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: Old utility, minimal maintenance.",
+    ),
+
+    # qs - query string parser, very widely used
+    ValidationCase(
+        name="qs",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: ljharb maintained, high concentration despite popularity.",
+    ),
+
     # =========================================================================
     # CONTROL CASES - Should score LOW (<=40) or VERY_LOW (<=20)
     # =========================================================================
@@ -600,6 +645,364 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="safe",
         notes="Sebastián Ramírez (FastAPI author), active development",
+    ),
+
+    # --- MORE NPM CONTROLS ---
+
+    # vue - frontend framework
+    ValidationCase(
+        name="vue",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Evan You, massive community, professional governance",
+    ),
+
+    # next - React framework
+    ValidationCase(
+        name="next",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Vercel, corporate backing, professional development",
+    ),
+
+    # eslint - linting
+    ValidationCase(
+        name="eslint",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="OpenJS Foundation, multiple maintainers, professional governance",
+    ),
+
+    # prettier - code formatter
+    ValidationCase(
+        name="prettier",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Active development, multiple maintainers",
+    ),
+
+    # jest - testing framework
+    ValidationCase(
+        name="jest",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Meta/Facebook, corporate backing",
+    ),
+
+    # mocha - testing framework
+    ValidationCase(
+        name="mocha",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="OpenJS Foundation, well maintained",
+    ),
+
+    # esbuild - fast bundler
+    ValidationCase(
+        name="esbuild",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Evan Wallace, active development, growing adoption",
+    ),
+
+    # rollup - module bundler
+    ValidationCase(
+        name="rollup",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Part of Vite ecosystem, active development",
+    ),
+
+    # vite - build tool
+    ValidationCase(
+        name="vite",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Evan You (Vue author), very active, professional development",
+    ),
+
+    # socket.io - real-time communication
+    ValidationCase(
+        name="socket.io",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Active project, multiple contributors",
+    ),
+
+    # mongoose - MongoDB ODM
+    ValidationCase(
+        name="mongoose",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Automattic (WordPress.com), corporate backing",
+    ),
+
+    # body-parser - Express middleware
+    ValidationCase(
+        name="body-parser",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Part of Express ecosystem, well maintained",
+    ),
+
+    # cors - CORS middleware
+    ValidationCase(
+        name="cors",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Simple focused utility, part of Express ecosystem",
+    ),
+
+    # jsonwebtoken - JWT implementation
+    ValidationCase(
+        name="jsonwebtoken",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Auth0, corporate backing, security-focused",
+    ),
+
+    # bcrypt - password hashing
+    ValidationCase(
+        name="bcrypt",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Security-critical, well maintained",
+    ),
+
+    # nanoid - ID generator
+    ValidationCase(
+        name="nanoid",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Andrey Sitnik, active maintainer, modern alternative to uuid",
+    ),
+
+    # date-fns - modern date utility
+    ValidationCase(
+        name="date-fns",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Modern alternative to moment, active development",
+    ),
+
+    # zod - TypeScript schema validation
+    ValidationCase(
+        name="zod",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Colin McDonnell, very active, growing adoption",
+    ),
+
+    # --- MORE PYPI CONTROLS ---
+
+    # pandas - data analysis
+    ValidationCase(
+        name="pandas",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="NumFOCUS sponsored, many contributors, institutional backing",
+    ),
+
+    # scipy - scientific computing
+    ValidationCase(
+        name="scipy",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="NumFOCUS sponsored, many contributors",
+    ),
+
+    # matplotlib - plotting
+    ValidationCase(
+        name="matplotlib",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="NumFOCUS sponsored, institutional backing",
+    ),
+
+    # scikit-learn - machine learning
+    ValidationCase(
+        name="scikit-learn",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="NumFOCUS sponsored, many contributors",
+    ),
+
+    # uvicorn - ASGI server
+    ValidationCase(
+        name="uvicorn",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="encode project, Tom Christie, active development",
+    ),
+
+    # gunicorn - WSGI server
+    ValidationCase(
+        name="gunicorn",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Mature project, multiple maintainers",
+    ),
+
+    # celery - task queue
+    ValidationCase(
+        name="celery",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Mature project, active community",
+    ),
+
+    # redis - Redis client
+    ValidationCase(
+        name="redis",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Redis official client, well maintained",
+    ),
+
+    # psycopg2 - PostgreSQL adapter
+    ValidationCase(
+        name="psycopg2",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Mature database adapter, active development",
+    ),
+
+    # alembic - database migrations
+    ValidationCase(
+        name="alembic",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="SQLAlchemy author (Mike Bayer), professional development",
+    ),
+
+    # werkzeug - WSGI toolkit
+    ValidationCase(
+        name="werkzeug",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Pallets project, same governance as Flask",
+    ),
+
+    # starlette - ASGI framework
+    ValidationCase(
+        name="starlette",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="encode project, foundation for FastAPI",
+    ),
+
+    # attrs - classes without boilerplate
+    ValidationCase(
+        name="attrs",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Hynek Schlawack, well maintained, Python core contributor",
+    ),
+
+    # tqdm - progress bars
+    ValidationCase(
+        name="tqdm",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Active project, multiple contributors",
+    ),
+
+    # pendulum - better datetime
+    ValidationCase(
+        name="pendulum",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Poetry author (Sébastien Eustace), active development",
+    ),
+
+    # --- FINAL ADDITIONS TO REACH 100 ---
+
+    # rxjs - reactive extensions
+    ValidationCase(
+        name="rxjs",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Google Angular team involvement, professional development",
+    ),
+
+    # svelte - frontend framework
+    ValidationCase(
+        name="svelte",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Rich Harris (Vercel), very active, growing adoption",
+    ),
+
+    # solid-js - reactive UI library
+    ValidationCase(
+        name="solid-js",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Ryan Carniato, active development, modern framework",
+    ),
+
+    # husky - git hooks
+    ValidationCase(
+        name="husky",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Popular git hooks tool, active development",
+    ),
+
+    # lint-staged - run linters on staged files
+    ValidationCase(
+        name="lint-staged",
+        ecosystem="npm",
+        expected_outcome="safe",
+        notes="Popular developer tool, active community",
+    ),
+
+    # ruff - fast Python linter
+    ValidationCase(
+        name="ruff",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Charlie Marsh (Astral), very active, fast-growing",
+    ),
+
+    # polars - fast dataframes
+    ValidationCase(
+        name="polars",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Ritchie Vink, very active, modern alternative to pandas",
+    ),
+
+    # loguru - logging made simple
+    ValidationCase(
+        name="loguru",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Delgan, popular logging library, active development",
+    ),
+
+    # tenacity - retry library
+    ValidationCase(
+        name="tenacity",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Julien Danjou, focused utility, well maintained",
+    ),
+
+    # structlog - structured logging
+    ValidationCase(
+        name="structlog",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Hynek Schlawack (attrs author), professional development",
+    ),
+
+    # orjson - fast JSON
+    ValidationCase(
+        name="orjson",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="ijl, very fast JSON library, active development",
     ),
 ]
 
