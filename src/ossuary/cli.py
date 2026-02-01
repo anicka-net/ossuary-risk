@@ -132,10 +132,14 @@ async def _score_package(
                     top_contributor_username = parts
             # Otherwise we'll rely on the git author name or repo owner
 
-        # Collect GitHub data (pass top contributor to get correct maintainer data)
+        # Collect GitHub data (pass top contributor info to get correct maintainer data)
         console.print("  Collecting GitHub data...")
         github_collector = GitHubCollector()
-        github_data = await github_collector.collect(repo_url, top_contributor_username)
+        github_data = await github_collector.collect(
+            repo_url,
+            top_contributor_username=top_contributor_username,
+            top_contributor_email=git_metrics.top_contributor_email,
+        )
         await github_collector.close()
 
         # Parse account created date

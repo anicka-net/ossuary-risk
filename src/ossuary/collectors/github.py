@@ -261,6 +261,48 @@ class GitHubCollector(BaseCollector):
             return []
         return [org.get("login", "") for org in orgs_data if org.get("login")]
 
+    async def search_user_by_email(self, email: str) -> Optional[str]:
+        """
+        Search for GitHub username by email address.
+
+        Args:
+            email: Email address to search for
+
+        Returns:
+            GitHub username if found, None otherwise
+        """
+        if not email:
+            return None
+
+        # GitHub search API for users by email
+        result = await self._get("/search/users", params={"q": f"{email} in:email"})
+        if result and result.get("total_count", 0) > 0:
+            items = result.get("items", [])
+            if items:
+                return items[0].get("login")
+
+        return None
+
+    async def get_repo_contributors(self, owner: str, repo: str, limit: int = 10) -> list[dict]:
+        """
+        Get top contributors for a repository.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            limit: Maximum number of contributors to return
+
+        Returns:
+            List of contributor dicts with login, contributions count
+        """
+        contributors = await self._get(
+            f"/repos/{owner}/{repo}/contributors",
+            params={"per_page": limit}
+        )
+        if not contributors or not isinstance(contributors, list):
+            return []
+        return contributors
+
     async def get_repo_info(self, owner: str, repo: str) -> Optional[dict]:
         """Get repository information."""
         return await self._get(f"/repos/{owner}/{repo}")
@@ -343,13 +385,19 @@ class GitHubCollector(BaseCollector):
 
         return issues
 
-    async def collect(self, repo_url: str, top_contributor_username: str = None) -> GitHubData:
+    async def collect(
+        self,
+        repo_url: str,
+        top_contributor_username: str = None,
+        top_contributor_email: str = None,
+    ) -> GitHubData:
         """
         Collect all GitHub data for a repository.
 
         Args:
             repo_url: GitHub repository URL
             top_contributor_username: Override maintainer username (e.g., from git history)
+            top_contributor_email: Top contributor's email for GitHub lookup
 
         Returns:
             GitHubData with all collected information
@@ -365,14 +413,42 @@ class GitHubCollector(BaseCollector):
         repo_info = await self.get_repo_info(owner, repo)
         if repo_info:
             data.owner_type = repo_info.get("owner", {}).get("type", "")
-            # Use provided top contributor or fall back to repo owner
-            data.maintainer_username = top_contributor_username or repo_info.get("owner", {}).get("login", owner)
 
-        # If owner is an org, we should use top_contributor_username if provided
-        if data.owner_type == "Organization" and top_contributor_username:
-            data.maintainer_username = top_contributor_username
+        # Determine the actual maintainer username
+        maintainer_username = None
 
-        logger.info(f"Fetching data for maintainer: {data.maintainer_username}...")
+        # Priority 1: Provided username
+        if top_contributor_username:
+            maintainer_username = top_contributor_username
+            logger.info(f"Using provided top contributor: {maintainer_username}")
+
+        # Priority 2: For orgs, get top contributor from GitHub API
+        if not maintainer_username and data.owner_type == "Organization":
+            logger.info(f"Repo is org-owned, finding top contributor...")
+            contributors = await self.get_repo_contributors(owner, repo, limit=1)
+            if contributors:
+                maintainer_username = contributors[0].get("login")
+                logger.info(f"Top contributor from GitHub API: {maintainer_username}")
+
+        # Priority 3: Search by email
+        if not maintainer_username and top_contributor_email:
+            logger.info(f"Searching GitHub for user with email: {top_contributor_email}")
+            maintainer_username = await self.search_user_by_email(top_contributor_email)
+            if maintainer_username:
+                logger.info(f"Found user by email: {maintainer_username}")
+
+        # Priority 4: Fall back to repo owner (if it's a user, not org)
+        if not maintainer_username:
+            if data.owner_type != "Organization":
+                maintainer_username = owner
+                logger.info(f"Using repo owner as maintainer: {maintainer_username}")
+            else:
+                # Last resort for orgs: try to get from repo info
+                maintainer_username = repo_info.get("owner", {}).get("login", owner) if repo_info else owner
+                logger.warning(f"Could not determine maintainer for org repo, using: {maintainer_username}")
+
+        data.maintainer_username = maintainer_username
+        logger.info(f"Final maintainer: {data.maintainer_username}")
 
         # Get user profile (for account age)
         user_profile = await self.get_user(data.maintainer_username)
