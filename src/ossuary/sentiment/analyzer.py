@@ -11,9 +11,9 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 logger = logging.getLogger(__name__)
 
 # Keywords indicating maintainer frustration/burnout
+# These should be specific enough to avoid false positives on normal development discussions
 FRUSTRATION_KEYWORDS = [
-    # Direct frustration
-    "mass resignation",
+    # Direct economic frustration (high signal)
     "not getting paid",
     "unpaid work",
     "free labor",
@@ -21,38 +21,26 @@ FRUSTRATION_KEYWORDS = [
     "donating my time",
     "corporate exploitation",
     "open source exploitation",
-    # Burnout signals
-    "burnout",
+    "mass resignation",
+    # Burnout signals (moderate signal)
     "burned out",
-    "exhausted",
-    "tired of",
-    "sick of",
-    "fed up",
-    "giving up",
+    "burnout",
     "stepping down",
-    "abandoning",
-    # Economic frustration
+    "giving up on this",
+    "abandoning this project",
+    # Economic frustration (moderate signal)
     "fortune 500",
-    "big companies",
-    "make millions",
     "pay developers",
     "fund open source",
-    "sponsor",
-    "donation",
-    # Protest/sabotage signals
+    "companies make millions",
+    # Protest signals (high signal)
     "protest",
-    "strike",
+    "on strike",
     "boycott",
-    "sabotage",
-    "breaking change",
-    "intentional",
-    # Negative emotions
-    "frustrated",
-    "angry",
+    # Explicit negative emotions (only strong ones)
     "resentment",
-    "bitter",
-    "unfair",
     "exploitation",
+    "taken advantage of",
 ]
 
 

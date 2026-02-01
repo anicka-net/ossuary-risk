@@ -43,7 +43,11 @@ class GitHubData:
     maintainer_username: str = ""
     maintainer_public_repos: int = 0
     maintainer_total_stars: int = 0
-    is_tier1_maintainer: bool = False
+    maintainer_account_created: str = ""  # ISO date string
+    maintainer_repos: list[dict] = field(default_factory=list)  # Full repo data for reputation
+    maintainer_sponsor_count: int = 0
+    maintainer_orgs: list[str] = field(default_factory=list)
+    is_tier1_maintainer: bool = False  # Deprecated, use reputation scorer
     has_github_sponsors: bool = False
 
     # Organization info
@@ -230,6 +234,33 @@ class GitHubCollector(BaseCollector):
         user = data.get("user", {})
         return user.get("hasSponsorsListing", False)
 
+    async def get_sponsor_count(self, username: str) -> int:
+        """Get count of sponsors for a user."""
+        query = """
+        query($login: String!) {
+            user(login: $login) {
+                sponsors {
+                    totalCount
+                }
+            }
+        }
+        """
+
+        data = await self._graphql(query, {"login": username})
+        if not data:
+            return 0
+
+        user = data.get("user", {})
+        sponsors = user.get("sponsors", {})
+        return sponsors.get("totalCount", 0)
+
+    async def get_user_orgs(self, username: str) -> list[str]:
+        """Get list of organizations a user belongs to."""
+        orgs_data = await self._get(f"/users/{username}/orgs")
+        if not orgs_data or not isinstance(orgs_data, list):
+            return []
+        return [org.get("login", "") for org in orgs_data if org.get("login")]
+
     async def get_repo_info(self, owner: str, repo: str) -> Optional[dict]:
         """Get repository information."""
         return await self._get(f"/repos/{owner}/{repo}")
@@ -312,12 +343,13 @@ class GitHubCollector(BaseCollector):
 
         return issues
 
-    async def collect(self, repo_url: str) -> GitHubData:
+    async def collect(self, repo_url: str, top_contributor_username: str = None) -> GitHubData:
         """
         Collect all GitHub data for a repository.
 
         Args:
             repo_url: GitHub repository URL
+            top_contributor_username: Override maintainer username (e.g., from git history)
 
         Returns:
             GitHubData with all collected information
@@ -333,20 +365,44 @@ class GitHubCollector(BaseCollector):
         repo_info = await self.get_repo_info(owner, repo)
         if repo_info:
             data.owner_type = repo_info.get("owner", {}).get("type", "")
-            data.maintainer_username = repo_info.get("owner", {}).get("login", owner)
+            # Use provided top contributor or fall back to repo owner
+            data.maintainer_username = top_contributor_username or repo_info.get("owner", {}).get("login", owner)
 
-        # Get maintainer reputation
-        logger.info(f"Fetching reputation for {data.maintainer_username}...")
-        rep = await self.get_maintainer_reputation(data.maintainer_username)
-        data.maintainer_public_repos = rep["public_repos"]
-        data.maintainer_total_stars = rep["total_stars"]
-        data.is_tier1_maintainer = rep["is_tier1"]
+        # If owner is an org, we should use top_contributor_username if provided
+        if data.owner_type == "Organization" and top_contributor_username:
+            data.maintainer_username = top_contributor_username
 
-        # Check sponsors
-        logger.info(f"Checking sponsors status for {data.maintainer_username}...")
+        logger.info(f"Fetching data for maintainer: {data.maintainer_username}...")
+
+        # Get user profile (for account age)
+        user_profile = await self.get_user(data.maintainer_username)
+        if user_profile:
+            data.maintainer_account_created = user_profile.get("created_at", "")
+            data.maintainer_public_repos = user_profile.get("public_repos", 0)
+
+        # Get full repo list for reputation scoring
+        logger.info(f"Fetching repos for {data.maintainer_username}...")
+        repos = await self.get_user_repos(data.maintainer_username)
+        data.maintainer_repos = repos
+        data.maintainer_total_stars = sum(r.get("stargazers_count", 0) for r in repos)
+
+        # Check sponsors status and count
+        logger.info(f"Checking sponsors for {data.maintainer_username}...")
         data.has_github_sponsors = await self.get_sponsors_status(data.maintainer_username)
+        if data.has_github_sponsors:
+            data.maintainer_sponsor_count = await self.get_sponsor_count(data.maintainer_username)
 
-        # Check organization
+        # Get user's organizations
+        logger.info(f"Fetching orgs for {data.maintainer_username}...")
+        data.maintainer_orgs = await self.get_user_orgs(data.maintainer_username)
+
+        # Legacy tier-1 check (deprecated, use ReputationScorer instead)
+        data.is_tier1_maintainer = (
+            data.maintainer_public_repos > self.TIER1_REPOS
+            or data.maintainer_total_stars > self.TIER1_STARS
+        )
+
+        # Check organization ownership of repo
         logger.info(f"Checking organization status for {owner}/{repo}...")
         org_info = await self.get_org_admins(owner, repo)
         data.is_org_owned = org_info["is_org"]

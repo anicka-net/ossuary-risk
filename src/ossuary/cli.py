@@ -19,6 +19,7 @@ from ossuary.collectors.pypi import PyPICollector
 from ossuary.db.session import init_db
 from ossuary.scoring.engine import PackageMetrics, RiskScorer
 from ossuary.scoring.factors import RiskLevel
+from ossuary.scoring.reputation import ReputationScorer
 from ossuary.sentiment.analyzer import SentimentAnalyzer
 
 app = typer.Typer(
@@ -117,11 +118,48 @@ async def _score_package(
         git_collector = GitCollector()
         git_metrics = await git_collector.collect(repo_url, cutoff)
 
-        # Collect GitHub data
+        # Try to find top contributor's GitHub username from git email
+        top_contributor_username = None
+        if git_metrics.top_contributor_email:
+            # Try to extract username from email (e.g., user@users.noreply.github.com)
+            email = git_metrics.top_contributor_email
+            if "noreply.github.com" in email:
+                # Format: username@users.noreply.github.com or 12345+username@users.noreply.github.com
+                parts = email.split("@")[0]
+                if "+" in parts:
+                    top_contributor_username = parts.split("+")[1]
+                else:
+                    top_contributor_username = parts
+            # Otherwise we'll rely on the git author name or repo owner
+
+        # Collect GitHub data (pass top contributor to get correct maintainer data)
         console.print("  Collecting GitHub data...")
         github_collector = GitHubCollector()
-        github_data = await github_collector.collect(repo_url)
+        github_data = await github_collector.collect(repo_url, top_contributor_username)
         await github_collector.close()
+
+        # Parse account created date
+        maintainer_account_created = None
+        if github_data.maintainer_account_created:
+            try:
+                maintainer_account_created = datetime.fromisoformat(
+                    github_data.maintainer_account_created.replace("Z", "+00:00")
+                )
+            except ValueError:
+                pass
+
+        # Calculate reputation score
+        console.print("  Calculating reputation...")
+        reputation_scorer = ReputationScorer()
+        reputation = reputation_scorer.calculate(
+            username=github_data.maintainer_username,
+            account_created=maintainer_account_created,
+            repos=github_data.maintainer_repos,
+            sponsor_count=github_data.maintainer_sponsor_count,
+            orgs=github_data.maintainer_orgs,
+            packages_maintained=[package],  # At minimum, they maintain this package
+            ecosystem=ecosystem,
+        )
 
         # Run sentiment analysis
         console.print("  Analyzing sentiment...")
@@ -141,12 +179,19 @@ async def _score_package(
             commits_last_year=git_metrics.commits_last_year,
             unique_contributors=git_metrics.unique_contributors,
             top_contributor_email=git_metrics.top_contributor_email,
+            top_contributor_name=git_metrics.top_contributor_name,
             last_commit_date=git_metrics.last_commit_date,
             weekly_downloads=weekly_downloads,
             maintainer_username=github_data.maintainer_username,
             maintainer_public_repos=github_data.maintainer_public_repos,
             maintainer_total_stars=github_data.maintainer_total_stars,
             has_github_sponsors=github_data.has_github_sponsors,
+            maintainer_account_created=maintainer_account_created,
+            maintainer_repos=github_data.maintainer_repos,
+            maintainer_sponsor_count=github_data.maintainer_sponsor_count,
+            maintainer_orgs=github_data.maintainer_orgs,
+            packages_maintained=[package],
+            reputation=reputation,
             is_org_owned=github_data.is_org_owned,
             org_admin_count=github_data.org_admin_count,
             average_sentiment=avg_sentiment,

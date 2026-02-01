@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from ossuary.scoring.factors import ProtectiveFactors, RiskBreakdown, RiskLevel
+from ossuary.scoring.reputation import ReputationBreakdown, ReputationScorer
 
 
 @dataclass
@@ -16,16 +17,27 @@ class PackageMetrics:
     commits_last_year: int = 0
     unique_contributors: int = 0
     top_contributor_email: str = ""
+    top_contributor_name: str = ""
     last_commit_date: Optional[datetime] = None
 
     # External API data
     weekly_downloads: int = 0
 
-    # Maintainer info
+    # Maintainer info (basic)
     maintainer_username: Optional[str] = None
     maintainer_public_repos: int = 0
     maintainer_total_stars: int = 0
     has_github_sponsors: bool = False
+
+    # Reputation data (for composite scoring)
+    maintainer_account_created: Optional[datetime] = None
+    maintainer_repos: list[dict] = None  # Full repo data
+    maintainer_sponsor_count: int = 0
+    maintainer_orgs: list[str] = None
+    packages_maintained: list[str] = None  # Packages by this maintainer
+
+    # Computed reputation
+    reputation: Optional[ReputationBreakdown] = None
 
     # Repository info
     is_org_owned: bool = False
@@ -40,6 +52,12 @@ class PackageMetrics:
     def __post_init__(self):
         if self.frustration_evidence is None:
             self.frustration_evidence = []
+        if self.maintainer_repos is None:
+            self.maintainer_repos = []
+        if self.maintainer_orgs is None:
+            self.maintainer_orgs = []
+        if self.packages_maintained is None:
+            self.packages_maintained = []
 
 
 class RiskScorer:
@@ -98,29 +116,44 @@ class RiskScorer:
         else:
             return 20  # Abandoned: increases risk critically
 
-    def calculate_protective_factors(self, metrics: PackageMetrics) -> ProtectiveFactors:
+    def calculate_protective_factors(
+        self, metrics: PackageMetrics, ecosystem: str = "npm"
+    ) -> ProtectiveFactors:
         """
         Calculate all protective factors.
 
         Args:
             metrics: Collected package metrics
+            ecosystem: Package ecosystem for reputation lookup
 
         Returns:
             ProtectiveFactors breakdown
         """
         pf = ProtectiveFactors()
 
-        # Factor 1: Tier-1 Maintainer Reputation (-25)
-        is_tier1 = (
-            metrics.maintainer_public_repos > self.TIER1_REPOS_THRESHOLD
-            or metrics.maintainer_total_stars > self.TIER1_STARS_THRESHOLD
-        )
-        if is_tier1:
-            pf.reputation_score = -25
+        # Factor 1: Maintainer Reputation (composite score)
+        if metrics.reputation:
+            # Use pre-calculated reputation
+            reputation = metrics.reputation
+        else:
+            # Calculate reputation on the fly
+            reputation_scorer = ReputationScorer()
+            reputation = reputation_scorer.calculate(
+                username=metrics.maintainer_username or "",
+                account_created=metrics.maintainer_account_created,
+                repos=metrics.maintainer_repos,
+                sponsor_count=metrics.maintainer_sponsor_count,
+                orgs=metrics.maintainer_orgs,
+                packages_maintained=metrics.packages_maintained,
+                ecosystem=ecosystem,
+            )
+
+        pf.reputation_score = reputation.tier.risk_reduction
+        if pf.reputation_score != 0:
             pf.reputation_evidence = (
-                f"{metrics.maintainer_username}: "
-                f"{metrics.maintainer_public_repos} repos, "
-                f"{metrics.maintainer_total_stars:,} stars"
+                f"{reputation.username}: {reputation.total_score} pts ({reputation.tier.value}) - "
+                f"tenure={reputation.tenure_score}, portfolio={reputation.portfolio_score}, "
+                f"stars={reputation.stars_score}, sponsors={reputation.sponsors_score}"
             )
 
         # Factor 2: Economic Sustainability (-15)
@@ -269,7 +302,7 @@ class RiskScorer:
         # Calculate components
         breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
         breakdown.activity_modifier = self.calculate_activity_modifier(metrics.commits_last_year)
-        breakdown.protective_factors = self.calculate_protective_factors(metrics)
+        breakdown.protective_factors = self.calculate_protective_factors(metrics, ecosystem)
 
         # Calculate final score (clamped to 0-100)
         raw_score = breakdown.base_risk + breakdown.activity_modifier + breakdown.protective_factors.total
