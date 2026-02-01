@@ -416,7 +416,7 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
             except ValueError:
                 pass
 
-        # Calculate reputation
+        # Calculate reputation (using cutoff date for T-1 analysis)
         reputation_scorer = ReputationScorer()
         reputation = reputation_scorer.calculate(
             username=github_data.maintainer_username,
@@ -426,6 +426,7 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
             orgs=github_data.maintainer_orgs,
             packages_maintained=[case.name],
             ecosystem=case.ecosystem,
+            as_of_date=cutoff,
         )
 
         # Run sentiment analysis

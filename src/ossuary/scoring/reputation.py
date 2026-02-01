@@ -241,6 +241,7 @@ class ReputationScorer:
         orgs: list[str],
         packages_maintained: list[str],
         ecosystem: str = "npm",
+        as_of_date: Optional[datetime] = None,
     ) -> ReputationBreakdown:
         """
         Calculate reputation score for a maintainer.
@@ -253,6 +254,7 @@ class ReputationScorer:
             orgs: List of organization logins user belongs to
             packages_maintained: List of package names maintained
             ecosystem: Package ecosystem for top-package lookup
+            as_of_date: Date to use as "now" for T-1 analysis (default: actual now)
 
         Returns:
             ReputationBreakdown with scores and evidence
@@ -262,9 +264,11 @@ class ReputationScorer:
         # Signal 1: Tenure (+15 for >5 years)
         if account_created:
             # Handle timezone-aware vs naive datetime comparison
-            now = datetime.now()
-            if account_created.tzinfo is not None:
+            now = as_of_date or datetime.now()
+            if account_created.tzinfo is not None and now.tzinfo is None:
                 now = datetime.now(account_created.tzinfo)
+            elif account_created.tzinfo is None and now.tzinfo is not None:
+                now = now.replace(tzinfo=None)
             age_years = (now - account_created).days / 365.25
             breakdown.account_age_years = round(age_years, 1)
             if age_years >= self.TENURE_YEARS:
