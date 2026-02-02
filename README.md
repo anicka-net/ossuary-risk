@@ -181,11 +181,14 @@ REPOS_PATH=./repos
 
 ## Validation
 
-Validated on 9 packages (6 incidents + 3 controls):
+Validated on 93 packages (20 incidents + 73 controls):
 
-- **Accuracy**: 83% (5/6 correct predictions)
-- **Precision**: 100% (no false positives)
-- **Recall**: 67% (detects governance failures, not account compromise)
+- **Accuracy**: 91.4%
+- **Precision**: 92.9%
+- **Recall**: 65.0%
+- **F1 Score**: 0.76
+
+T-1 analysis confirms **100% predictive detection** of governance-detectable incidents before they occurred.
 
 See [methodology documentation](docs/methodology.md) for details.
 
