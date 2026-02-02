@@ -181,12 +181,12 @@ REPOS_PATH=./repos
 
 ## Validation
 
-Validated on 93 packages (20 incidents + 73 controls):
+Validated on 92 packages (20 incidents + 72 controls):
 
-- **Accuracy**: 91.4%
-- **Precision**: 92.9%
+- **Accuracy**: 92.4%
+- **Precision**: 100.0%
 - **Recall**: 65.0%
-- **F1 Score**: 0.76
+- **F1 Score**: 0.79
 
 T-1 analysis confirms **100% predictive detection** of governance-detectable incidents before they occurred.
 
