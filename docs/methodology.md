@@ -357,6 +357,49 @@ Ossuary complements but does not replace:
 |-----------|---------|---------------------|
 | **SBOM tools** | Inventory what you have | Provides risk context |
 | **Vulnerability scanners** | Known CVEs | Different risk dimension |
+
+### 9.4 Comparison with OpenSSF Scorecard
+
+OpenSSF Scorecard is a widely-used security assessment tool. This section compares the two approaches on the same packages.
+
+#### Methodology Differences
+
+| Aspect | OpenSSF Scorecard | Ossuary |
+|--------|-------------------|---------|
+| **Focus** | Security best practices | Governance risk |
+| **Checks** | CI/CD, branch protection, fuzzing, SAST | Concentration, activity, frustration signals |
+| **Question answered** | "Does this project follow security hygiene?" | "Could this project be abandoned or compromised?" |
+| **Predictive vs. reactive** | Current security posture | Future governance failure risk |
+
+#### Comparative Analysis
+
+**event-stream** (compromised September 2018):
+
+| Tool | Score | Interpretation |
+|------|-------|----------------|
+| Scorecard | 2.4/10 | Low security hygiene |
+| Ossuary | 100 CRITICAL | Governance failure imminent |
+
+Scorecard correctly identifies poor security practices but doesn't specifically flag abandonment risk. Ossuary detected 75% concentration and "free work" frustration keywords.
+
+**express** (healthy control):
+
+| Tool | Score | Interpretation |
+|------|-------|----------------|
+| Scorecard | 8.2/10 | Good security hygiene |
+| Ossuary | 0 VERY_LOW | Healthy governance |
+
+Both tools agree this is a well-maintained project.
+
+#### Key Insight
+
+Scorecard's checks (CI/CD, branch protection, fuzzing) measure **security maturity** - whether a project follows defensive practices. However, they don't detect **governance risk** - whether the maintainer might abandon the project or be socially engineered.
+
+A package could have:
+- **High Scorecard, High Ossuary risk**: Good CI/CD but single burned-out maintainer
+- **Low Scorecard, Low Ossuary risk**: No formal security practices but healthy governance
+
+The tools measure orthogonal dimensions and should be used together for comprehensive supply chain risk assessment.
 | **License scanners** | Compliance risk | Orthogonal concern |
 | **Ossuary** | Governance/abandonment risk | Predictive, not reactive |
 
