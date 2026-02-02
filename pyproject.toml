@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ossuary"
+name = "ossuary-risk"
 version = "0.1.0"
 description = "OSS Supply Chain Risk Scoring - Where abandoned packages come to rest"
 readme = "README.md"
