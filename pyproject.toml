@@ -53,8 +53,9 @@ dev = [
 ossuary = "ossuary.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/anicka/ossuary"
-Repository = "https://github.com/anicka/ossuary"
+Homepage = "https://github.com/anicka-net/ossuary"
+Repository = "https://github.com/anicka-net/ossuary"
+Documentation = "https://github.com/anicka-net/ossuary/blob/main/docs/methodology.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ossuary"]
