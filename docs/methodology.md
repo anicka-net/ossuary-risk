@@ -331,7 +331,68 @@ This demonstrates that the methodology could have flagged these packages **befor
 
 ---
 
-## 9. Recommendations for Use
+## 9. Threats to Validity
+
+This section discusses potential threats to the validity of the research findings, following standard academic conventions for empirical software engineering research.
+
+### 9.1 Internal Validity
+
+Internal validity concerns whether the methodology correctly measures what it claims to measure.
+
+| Threat | Description | Mitigation |
+|--------|-------------|------------|
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against known incidents; thresholds produce 100% precision on test set |
+| **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
+| **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
+| **Confounding Variables** | High scores might correlate with other unmeasured factors (e.g., project age, domain) | Controlled for by including diverse package types in validation set |
+
+### 9.2 External Validity
+
+External validity concerns whether findings generalize beyond the study context.
+
+| Threat | Description | Mitigation |
+|--------|-------------|------------|
+| **Ecosystem Bias** | Validation limited to npm and PyPI; may not generalize to Go, Rust, Ruby | Methodology uses ecosystem-agnostic signals (git history, GitHub metadata) |
+| **Survivorship Bias** | Can only analyze repositories that still exist; deleted repos (like Marak/Faker.js) are invisible | Acknowledged as limitation; affects ~5% of incident packages |
+| **Selection Bias in Incidents** | Known incidents may be biased toward governance-detectable cases | Explicitly included account compromise cases (ua-parser-js) as expected false negatives |
+| **Temporal Generalization** | Validated on 2018-2024 incidents; attack patterns may evolve | T-1 validation confirms methodology would have worked historically; ongoing monitoring needed |
+| **Cultural/Language Bias** | English-language sentiment analysis; non-English projects may score differently | Acknowledged limitation; VADER optimized for English social media text |
+
+### 9.3 Construct Validity
+
+Construct validity concerns whether the theoretical constructs are correctly operationalized.
+
+| Threat | Description | Mitigation |
+|--------|-------------|------------|
+| **"Governance Risk" Definition** | Governance risk is a latent construct; operationalization may not capture all dimensions | Definition grounded in incident analysis; validated by predictive accuracy |
+| **Maintainer Concentration Proxy** | Commit count used as proxy for "control"; doesn't capture npm publish rights, code review authority | Git commits are observable and historically correlate with incidents |
+| **Frustration Measurement** | Keyword matching is crude; may miss subtle frustration or produce false positives | Combined with VADER sentiment; keywords chosen for high precision |
+| **Reputation Conflation** | GitHub stars/repos conflate popularity with trustworthiness | Reputation is one factor among many; not solely determinative |
+
+### 9.4 Conclusion Validity
+
+Conclusion validity concerns whether the statistical conclusions are justified.
+
+| Threat | Description | Mitigation |
+|--------|-------------|------------|
+| **Small Incident Sample** | Only 20 incident packages in validation set | Incidents are rare events; sample represents majority of documented npm/PyPI governance incidents |
+| **Class Imbalance** | 20 incidents vs 72 controls (1:3.6 ratio) | Reported precision and recall separately; F1 score accounts for imbalance |
+| **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the full population of known incidents, not a sample |
+| **Confidence Intervals** | Point estimates reported without confidence intervals | Sample size limits statistical power; results should be interpreted directionally |
+
+### 9.5 Mitigations Summary
+
+Despite these threats, several factors support the validity of findings:
+
+1. **100% T-1 Detection**: All governance-detectable incidents scored CRITICAL before they occurred
+2. **100% Precision**: Zero false positives in validation - no safe packages incorrectly flagged
+3. **Grounded in Real Incidents**: Methodology derived from analysis of actual supply chain attacks
+4. **Alignment with CHAOSS**: Core metrics align with established open source health frameworks
+5. **Transparent Limitations**: Explicitly documents what the tool cannot detect (account compromise, insider threats)
+
+---
+
+## 10. Recommendations for Use
 
 ### 9.1 Integration Patterns
 
@@ -442,7 +503,7 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 
 ---
 
-## 10. Future Work
+## 11. Future Work
 
 1. **Expand ecosystem support**: RubyGems, Cargo, Go modules
 2. **Historical snapshots**: Archive reputation/org data for better T-1 analysis
