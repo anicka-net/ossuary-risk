@@ -941,12 +941,13 @@ VALIDATION_CASES = [
         notes="Ryan Carniato, active development, modern framework",
     ),
 
-    # husky - git hooks
+    # husky - git hooks (governance risk)
     ValidationCase(
         name="husky",
         ecosystem="npm",
-        expected_outcome="safe",
-        notes="Popular git hooks tool, active development",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: Single npm maintainer (typicode), 1 commit in 2025, 100% concentration. Bus factor concern despite 34K stars.",
     ),
 
     # lint-staged - run linters on staged files
