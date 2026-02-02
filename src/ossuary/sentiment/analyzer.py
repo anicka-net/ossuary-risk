@@ -12,12 +12,29 @@ logger = logging.getLogger(__name__)
 
 # Keywords indicating maintainer frustration/burnout
 # These should be specific enough to avoid false positives on normal development discussions
+#
+# VALIDATION NOTE (Feb 2026):
+# Tested against Marak Squires' actual Nov 2020 rant before colors.js/faker.js sabotage:
+#   "No More Free Works from Marak – Pay Me or Fork It. With all due respect,
+#    I am no longer going to support the Fortune 500 (and other smaller companies)
+#    with my free work."
+#
+# Key finding: VADER scored this as +0.676 (positive!) due to words like "support"
+# and "opportunity". Keyword matching is essential - VADER alone would miss this.
+#
+# Added keywords based on this analysis:
+# - "free work" / "my free work" - exact phrase from Marak's rant
+# - "no longer support" - resignation signal
+# - "stop supporting" - variation
+#
 FRUSTRATION_KEYWORDS = [
     # Direct economic frustration (high signal)
     "not getting paid",
     "unpaid work",
     "free labor",
     "work for free",
+    "free work",  # Added: exact phrase from Marak's 2020 rant
+    "my free work",  # Added: more specific variant
     "donating my time",
     "corporate exploitation",
     "open source exploitation",
@@ -28,6 +45,9 @@ FRUSTRATION_KEYWORDS = [
     "stepping down",
     "giving up on this",
     "abandoning this project",
+    "no longer support",  # Added: from Marak's "no longer going to support"
+    "stop supporting",  # Added: variation
+    "stopping support",  # Added: verb form variation
     # Economic frustration (moderate signal)
     "fortune 500",
     "pay developers",
