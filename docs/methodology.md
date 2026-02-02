@@ -400,8 +400,45 @@ A package could have:
 - **Low Scorecard, Low Ossuary risk**: No formal security practices but healthy governance
 
 The tools measure orthogonal dimensions and should be used together for comprehensive supply chain risk assessment.
-| **License scanners** | Compliance risk | Orthogonal concern |
-| **Ossuary** | Governance/abandonment risk | Predictive, not reactive |
+
+### 9.5 Comparison with CHAOSS Metrics (Augur/GrimoireLab)
+
+The [CHAOSS project](https://chaoss.community/) (Community Health Analytics for Open Source Software) defines standardized metrics for open source health. Tools like [Augur](https://github.com/chaoss/augur) and [GrimoireLab](https://chaoss.github.io/grimoirelab/) implement these metrics.
+
+#### Relevant CHAOSS Metrics
+
+| CHAOSS Metric | Description | Ossuary Equivalent |
+|---------------|-------------|-------------------|
+| **Contributor Absence Factor** (Bus Factor) | Minimum contributors for 50% of commits | Maintainer Concentration |
+| **Elephant Factor** | Minimum *organizations* for 50% of commits | Not measured (individual focus) |
+| **Activity Dates and Times** | Commit frequency patterns | Activity Modifier |
+| **Change Request Closure Ratio** | PR/issue responsiveness | Not directly measured |
+
+#### Key Differences
+
+| Aspect | CHAOSS/Augur/GrimoireLab | Ossuary |
+|--------|--------------------------|---------|
+| **Output** | Individual metrics and dashboards | Single risk score (0-100) |
+| **Focus** | Community health broadly | Supply chain attack risk specifically |
+| **Sentiment** | Not included | Frustration/burnout detection |
+| **Actionability** | Requires interpretation | Direct risk level + recommendations |
+| **Historical** | Strong time-series support | Cutoff-based T-1 analysis |
+
+#### Complementary Relationship
+
+CHAOSS metrics provide **deep diagnostic data** for understanding community dynamics. Ossuary provides **rapid risk triage** for supply chain security decisions.
+
+Example workflow:
+1. **Ossuary** flags package as HIGH risk (score 75)
+2. **GrimoireLab** dashboard reveals *why*: declining contributor diversity, increasing response times
+3. Security team makes informed decision with full context
+
+#### Academic Foundation
+
+Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor](https://chaoss.community/kb/metric-bus-factor/), providing academic grounding for the approach. The key innovation is combining this with:
+- Sentiment analysis for frustration detection
+- Reputation scoring for maintainer assessment
+- Weighted scoring formula calibrated against known incidents
 
 ---
 
@@ -422,6 +459,11 @@ The tools measure orthogonal dimensions and should be used together for comprehe
 3. OpenSSF Scorecard - https://securityscorecards.dev/
 4. SLSA Framework - https://slsa.dev/
 5. Socket.dev Security Reports - https://socket.dev/blog
+6. CHAOSS Project - https://chaoss.community/
+7. CHAOSS Contributor Absence Factor (Bus Factor) - https://chaoss.community/kb/metric-bus-factor/
+8. CHAOSS Elephant Factor - https://chaoss.community/kb/metric-elephant-factor/
+9. Augur (CHAOSS implementation) - https://github.com/chaoss/augur
+10. GrimoireLab - https://chaoss.github.io/grimoirelab/
 
 ---
 
