@@ -125,8 +125,8 @@ Response:
 
 ```bash
 # Clone
-git clone https://github.com/anicka/ossuary.git
-cd ossuary
+git clone https://github.com/anicka-net/ossuary-risk.git
+cd ossuary-risk
 
 # Install with dev dependencies
 pip install -e ".[dev]"
