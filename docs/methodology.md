@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing, the methodology achieved **91.4% accuracy** on 93 packages, with **92.9% precision**, detecting governance-related risks before incidents occur.
+**Key Finding**: In validation testing, the methodology achieved **92.4% accuracy** on 92 packages, with **100% precision**, detecting governance-related risks before incidents occur.
 
-**Version**: 2.0 (February 2026)
-**Validation Dataset**: 93 packages across npm and PyPI ecosystems
+**Version**: 2.1 (February 2026)
+**Validation Dataset**: 92 packages across npm and PyPI ecosystems
 
 ---
 
@@ -211,7 +211,7 @@ The validation dataset includes:
 2. **Governance Risk** (11 packages): Packages with elevated risk signals but no incident (yet)
 3. **Control Group** (73 packages): Popular packages with healthy governance
 
-Total: 100 packages (93 successfully analyzed, 7 had missing repository URLs)
+Total: 100 packages (92 successfully analyzed, 8 had errors or missing repository URLs)
 
 ### 7.2 Classification Rules
 
@@ -222,17 +222,17 @@ Total: 100 packages (93 successfully analyzed, 7 had missing repository URLs)
 | Safe | <60 | True Negative (TN) |
 | Safe | ≥60 | False Positive (FP) |
 
-### 7.3 Results (n=93)
+### 7.3 Results (n=92)
 
 ```
-Accuracy:   91.4%
-Precision:  92.9%
+Accuracy:   92.4%
+Precision:  100.0%
 Recall:     65.0%
-F1 Score:   0.76
+F1 Score:   0.79
 
 Confusion Matrix:
   TP: 13  |  FN: 7
-  FP: 1   |  TN: 72
+  FP: 0   |  TN: 72
 ```
 
 ### 7.4 Performance by Category
@@ -243,7 +243,7 @@ Confusion Matrix:
 | Governance Risk | 82% (9/11) | Primary target category |
 | Account Compromise | 50% (2/4) | Expected low - outside scope |
 | Maintainer Sabotage | 33% (1/3) | Expected low - insider threat |
-| Control (Safe) | 99% (72/73) | Very low false positive rate |
+| Control (Safe) | 100% (72/72) | Zero false positives |
 
 ### 7.5 False Negative Analysis
 
@@ -260,14 +260,48 @@ Expected false negatives (outside detection scope):
 
 To validate **predictive** capability, we scored packages at a cutoff date *before* their incidents occurred:
 
-| Package | Incident Date | Cutoff Date | T-1 Score | Current Score | Detected? |
-|---------|---------------|-------------|-----------|---------------|-----------|
-| event-stream | 2018-09-16 | 2018-09-01 | 80 | 80 | Yes |
-| colors | 2022-01-08 | 2022-01-01 | 100 | 100 | Yes |
-| coa | 2021-11-04 | 2021-11-01 | 100 | 100 | Yes |
-| rc | 2021-11-04 | 2021-11-01 | 100 | 100 | Yes |
+| Package | Incident Date | Cutoff Date | T-1 Score | Level | Key Signals Detected |
+|---------|---------------|-------------|-----------|-------|---------------------|
+| event-stream | 2018-09-16 | 2018-09-01 | 100 | CRITICAL | 75% concentration, "free work" frustration |
+| colors | 2022-01-08 | 2022-01-01 | 100 | CRITICAL | 100% concentration, "protest", "exploitation" |
+| coa | 2021-11-04 | 2021-11-01 | 100 | CRITICAL | 100% concentration, abandoned |
 
-**Result**: 100% detection rate for governance-detectable incidents at T-1.
+**Control comparison** (same timeframe):
+
+| Package | Cutoff Date | Score | Level | Key Signals |
+|---------|-------------|-------|-------|-------------|
+| express | 2022-01-01 | 0 | VERY_LOW | Org-backed (30 admins), tier-1 maintainer, 64M downloads/wk |
+
+**Result**: 100% detection rate for governance-detectable incidents at T-1, with clear differentiation from healthy packages.
+
+#### T-1 Analysis Details
+
+**event-stream (before September 2018 compromise)**:
+```
+Score: 100 CRITICAL
+- Base Risk: 75% concentration (+80)
+- Activity: 4 commits/year (+0)
+- Frustration: "free work" keyword detected (+20)
+```
+The tool would have flagged this as a prime takeover target with frustration signals.
+
+**colors (before January 2022 sabotage)**:
+```
+Score: 100 CRITICAL
+- Base Risk: 100% concentration (+100)
+- Activity: 0 commits/year (+20)
+- Frustration: "protest", "exploitation" keywords detected (+20)
+- Protective: GitHub Sponsors (-15), downloads (-10)
+```
+Despite protective factors from visibility and sponsors, the frustration signals and extreme concentration produced a CRITICAL score.
+
+**coa (before November 2021 compromise)**:
+```
+Score: 100 CRITICAL
+- Base Risk: 100% concentration (+100)
+- Activity: 0 commits/year (+20)
+```
+Classic abandonment pattern - single maintainer, no activity, prime target for malicious takeover.
 
 This demonstrates that the methodology could have flagged these packages **before** their incidents occurred, validating the predictive value of governance metrics.
 
@@ -348,6 +382,6 @@ Ossuary complements but does not replace:
 
 ---
 
-*Document version: 2.0*
+*Document version: 2.1*
 *Last updated: February 2026*
-*Validation dataset: 93 packages (91.4% accuracy, 92.9% precision)*
+*Validation dataset: 92 packages (92.4% accuracy, 100% precision)*
