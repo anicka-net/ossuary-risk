@@ -90,6 +90,20 @@ Final Score = Base Risk + Activity Modifier + Protective Factors
 | CII Best Practices badge | -10 |
 | **Frustration signals detected** | **+20** |
 
+## Dashboard
+
+Run the interactive dashboard:
+
+```bash
+# Install dashboard dependencies
+pip install ossuary-risk[dashboard]
+
+# Run dashboard
+streamlit run dashboard.py
+```
+
+![Dashboard Screenshot](docs/dashboard-preview.png)
+
 ## API Usage
 
 Start the API server:
