@@ -195,7 +195,7 @@ def get_historical_data(package: str) -> tuple[pd.DataFrame, str, str]:
     # event-stream: Compromised September 2018
     # Shows gradual risk increase as maintainer became less active
     if package == "event-stream":
-        dates = pd.date_range(start="2016-10-01", end="2018-10-01", freq="MS")
+        dates = pd.date_range(start="2016-10-01", end="2018-09-01", freq="MS")  # 24 months
         # Simulated score evolution based on actual metrics:
         # - Concentration stayed high (~75%)
         # - Activity declined over time
@@ -221,7 +221,7 @@ def get_historical_data(package: str) -> tuple[pd.DataFrame, str, str]:
 
     # colors: Sabotaged January 2022
     elif package == "colors":
-        dates = pd.date_range(start="2020-02-01", end="2022-02-01", freq="MS")
+        dates = pd.date_range(start="2020-02-01", end="2022-01-01", freq="MS")  # 24 months
         # Marak's frustration built over time
         # "No more free work" rant was November 2020
         scores = [
@@ -245,7 +245,7 @@ def get_historical_data(package: str) -> tuple[pd.DataFrame, str, str]:
 
     # coa: Compromised November 2021
     elif package == "coa":
-        dates = pd.date_range(start="2019-12-01", end="2021-12-01", freq="MS")
+        dates = pd.date_range(start="2019-12-01", end="2021-11-01", freq="MS")  # 24 months
         # Classic abandonment pattern
         scores = [
             70, 75, 75, 80, 80, 85,  # 2019-12 to 2020-05: Already high risk
@@ -268,7 +268,7 @@ def get_historical_data(package: str) -> tuple[pd.DataFrame, str, str]:
 
     # express: Healthy package for comparison
     elif package == "express":
-        dates = pd.date_range(start="2022-03-01", end="2024-03-01", freq="MS")
+        dates = pd.date_range(start="2022-03-01", end="2024-02-01", freq="MS")  # 24 months
         # Consistently low risk due to org backing
         scores = [5, 5, 5, 0, 0, 0, 5, 5, 5, 0, 0, 0,
                   5, 5, 0, 0, 5, 5, 0, 0, 0, 5, 5, 0]
