@@ -34,7 +34,78 @@ Modern software relies heavily on open source dependencies. A typical applicatio
 
 ---
 
-## 2. Detection Scope
+## 2. Related Work
+
+This section reviews prior academic research relevant to software supply chain security and open source sustainability.
+
+### 2.1 Software Supply Chain Security
+
+The field has seen significant academic attention following high-profile incidents:
+
+**Taxonomies and Systematization**
+
+Ladisa et al. (2023) presented "SoK: Taxonomy of Attacks on Open-Source Software Supply Chains" at IEEE S&P, identifying **12 distinct attack categories** independent of specific languages or ecosystems. This taxonomy provides the foundation for understanding governance-based attacks as a distinct category.
+
+Ohm et al. (2020) published "Backstabber's Knife Collection: A Review of Open Source Software Supply Chain Attacks" at DIMVA, cataloging real-world attacks and establishing patterns that inform detection approaches.
+
+**Scale and Impact**
+
+Research quantifies the growing threat: Sonatype recorded a **700% increase** in supply chain attacks (ICSE '23), while 97% of applications now use open source components with 78% of code originating from OSS (Synopsys 2022).
+
+Torres-Arias et al. (2019) introduced in-toto, a framework for software supply chain integrity, and Lamb & Zacchiroli (2021) addressed "Reproducible Builds" in IEEE Software, focusing on build integrity rather than governance.
+
+**Risk Assessment Frameworks**
+
+The ACM TOSEM paper "Research Directions in Software Supply Chain Security" (2024) identifies three major attack vectors: vulnerabilities in dependencies, infiltration of build infrastructure, and **social engineering** - the last being most relevant to governance-based risks.
+
+### 2.2 Open Source Sustainability and Maintainer Health
+
+**Maintainer Burnout**
+
+Raman et al. (2020) published "Stress and Burnout in Open Source" at ICSE-NIER, finding that toxic conversations demotivate and burn out developers. They developed an SVM classifier to detect toxic discussions - an approach that influenced Ossuary's sentiment analysis component.
+
+Guo et al. (2024) in "Sustaining Maintenance Labor for Healthy Open Source Software Projects" (arXiv) argue that **depleted maintainer capacity** leads to unmaintained projects with security consequences. This directly supports Ossuary's activity modifier component.
+
+**The Bus Factor Problem**
+
+Eghbal's foundational work "Roads and Bridges: The Unseen Labor Behind Our Digital Infrastructure" (Ford Foundation, 2016) found that the **majority of open source projects are maintained by one or two people** - validating maintainer concentration as a key risk signal.
+
+The CHAOSS project formalized this as the "Contributor Absence Factor" metric, which Ossuary operationalizes in its concentration scoring.
+
+### 2.3 The xz-utils Case Study
+
+The xz-utils backdoor (CVE-2024-3094) represents the most sophisticated governance attack documented. Academic analysis (arXiv 2504.17473) details:
+
+- **2.6-year attack timeline** (2021-2024)
+- **Phased social engineering**: trust-building → maintainer duties → infrastructure control → code injection
+- **Exploitation of maintainer burnout**: The sole maintainer cited "long-term mental health issues" before ceding control
+
+This incident validates Ossuary's approach: the attacker specifically targeted a project with high concentration and a burned-out maintainer - both signals Ossuary detects.
+
+### 2.4 Existing Tools and Gap Analysis
+
+| Tool | Focus | Gap Addressed by Ossuary |
+|------|-------|-------------------------|
+| **OpenSSF Scorecard** | Security best practices | Doesn't assess governance/abandonment risk |
+| **CHAOSS/Augur** | Community health metrics | No actionable risk score or sentiment analysis |
+| **Snyk/Dependabot** | Known vulnerabilities | Reactive to CVEs, not predictive |
+| **Socket.dev** | Behavioral analysis | Detects malicious code, not governance risk |
+| **deps.dev** | Dependency metadata | Informational, no risk scoring |
+
+**The Gap**: No existing tool combines maintainer concentration, activity patterns, and frustration signals into a predictive governance risk score validated against historical incidents.
+
+### 2.5 Academic Contribution
+
+Ossuary contributes to this body of research by:
+
+1. **Operationalizing** CHAOSS metrics into an actionable risk score
+2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
+3. **Validating predictively** against real incidents (T-1 analysis)
+4. **Achieving 100% precision** with zero false positives in validation
+
+---
+
+## 3. Detection Scope
 
 ### 2.1 What Ossuary Detects
 
@@ -58,7 +129,7 @@ These are classified as **expected false negatives** - the methodology explicitl
 
 ---
 
-## 3. Scoring Formula
+## 4. Scoring Formula
 
 ```
 Final Score = Base Risk + Activity Modifier + Protective Factors
@@ -124,7 +195,7 @@ Protective factors can reduce (or increase) risk based on governance quality sig
 
 ---
 
-## 4. Maintainer Reputation System
+## 5. Maintainer Reputation System
 
 Reputation provides a composite assessment of maintainer trustworthiness and investment in the ecosystem.
 
@@ -159,7 +230,7 @@ Membership in these organizations confers institutional backing:
 
 ---
 
-## 5. Sentiment Analysis
+## 6. Sentiment Analysis
 
 ### 5.1 Approach
 
@@ -189,7 +260,7 @@ High-signal keywords that historically preceded sabotage:
 
 ---
 
-## 6. Risk Levels
+## 7. Risk Levels
 
 | Score | Level | Semaphore | Recommended Action |
 |-------|-------|-----------|-------------------|
@@ -201,7 +272,7 @@ High-signal keywords that historically preceded sabotage:
 
 ---
 
-## 7. Validation Methodology
+## 8. Validation Methodology
 
 ### 7.1 Dataset Construction
 
@@ -307,7 +378,7 @@ This demonstrates that the methodology could have flagged these packages **befor
 
 ---
 
-## 8. Limitations
+## 9. Limitations
 
 ### 8.1 Methodological Limitations
 
@@ -331,7 +402,7 @@ This demonstrates that the methodology could have flagged these packages **befor
 
 ---
 
-## 9. Threats to Validity
+## 10. Threats to Validity
 
 This section discusses potential threats to the validity of the research findings, following standard academic conventions for empirical software engineering research.
 
@@ -392,7 +463,7 @@ Despite these threats, several factors support the validity of findings:
 
 ---
 
-## 10. Recommendations for Use
+## 11. Recommendations for Use
 
 ### 9.1 Integration Patterns
 
@@ -503,7 +574,7 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 
 ---
 
-## 11. Future Work
+## 12. Future Work
 
 1. **Expand ecosystem support**: RubyGems, Cargo, Go modules
 2. **Historical snapshots**: Archive reputation/org data for better T-1 analysis
@@ -515,19 +586,36 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 
 ## References
 
-1. Backstabber's Knife Collection - https://dasfreak.github.io/Backstabbers-Knife-Collection/
-2. Sonatype State of the Software Supply Chain - https://www.sonatype.com/state-of-the-software-supply-chain
-3. OpenSSF Scorecard - https://securityscorecards.dev/
-4. SLSA Framework - https://slsa.dev/
-5. Socket.dev Security Reports - https://socket.dev/blog
-6. CHAOSS Project - https://chaoss.community/
-7. CHAOSS Contributor Absence Factor (Bus Factor) - https://chaoss.community/kb/metric-bus-factor/
-8. CHAOSS Elephant Factor - https://chaoss.community/kb/metric-elephant-factor/
-9. Augur (CHAOSS implementation) - https://github.com/chaoss/augur
-10. GrimoireLab - https://chaoss.github.io/grimoirelab/
+### Academic Papers
+
+1. Ladisa, P., et al. (2023). "SoK: Taxonomy of Attacks on Open-Source Software Supply Chains." IEEE S&P 2023. https://arxiv.org/abs/2204.04008
+2. Ohm, M., et al. (2020). "Backstabber's Knife Collection: A Review of Open Source Software Supply Chain Attacks." DIMVA 2020. https://dasfreak.github.io/Backstabbers-Knife-Collection/
+3. Raman, N., et al. (2020). "Stress and Burnout in Open Source." ICSE-NIER 2020. https://dl.acm.org/doi/10.1145/3377816.3381732
+4. Lamb, C. & Zacchiroli, S. (2021). "Reproducible Builds: Increasing the Integrity of Software Supply Chains." IEEE Software. https://arxiv.org/abs/2104.06020
+5. Torres-Arias, S., et al. (2019). "in-toto: Providing farm-to-table guarantees for bits and bytes." USENIX Security 2019.
+6. "A Software Engineering Analysis of the XZ Utils Supply Chain Attack." arXiv 2504.17473. https://arxiv.org/abs/2504.17473
+7. Guo, Y., et al. (2024). "Sustaining Maintenance Labor for Healthy Open Source Software Projects." arXiv. https://arxiv.org/abs/2408.06723
+8. "Research Directions in Software Supply Chain Security." ACM TOSEM 2024. https://dl.acm.org/doi/10.1145/3714464
+
+### Industry Reports
+
+9. Eghbal, N. (2016). "Roads and Bridges: The Unseen Labor Behind Our Digital Infrastructure." Ford Foundation.
+10. Sonatype. "State of the Software Supply Chain." Annual Report. https://www.sonatype.com/state-of-the-software-supply-chain
+11. Synopsys. (2022). "Open Source Security and Risk Analysis Report."
+
+### Tools and Frameworks
+
+12. OpenSSF Scorecard - https://securityscorecards.dev/
+13. SLSA Framework - https://slsa.dev/
+14. Socket.dev - https://socket.dev/
+15. CHAOSS Project - https://chaoss.community/
+16. CHAOSS Contributor Absence Factor - https://chaoss.community/kb/metric-bus-factor/
+17. CHAOSS Elephant Factor - https://chaoss.community/kb/metric-elephant-factor/
+18. Augur - https://github.com/chaoss/augur
+19. GrimoireLab - https://chaoss.github.io/grimoirelab/
 
 ---
 
-*Document version: 2.1*
+*Document version: 2.2*
 *Last updated: February 2026*
 *Validation dataset: 92 packages (92.4% accuracy, 100% precision)*
