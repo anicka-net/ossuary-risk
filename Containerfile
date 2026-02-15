@@ -5,7 +5,7 @@
 
 FROM registry.opensuse.org/opensuse/tumbleweed:latest AS base
 
-RUN zypper -n install python313 python313-pip python313-venv git && \
+RUN zypper -n install python313 python313-pip git && \
     zypper clean -a
 
 WORKDIR /app
