@@ -5,7 +5,9 @@
 
 services:
   dashboard:
-    build: .
+    build:
+      context: .
+      dockerfile: Containerfile
     ports:
       - "8501:8501"
     environment:
@@ -16,7 +18,9 @@ services:
     restart: unless-stopped
 
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Containerfile
     command: ["uvicorn", "ossuary.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
