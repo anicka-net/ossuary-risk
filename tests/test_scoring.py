@@ -4,6 +4,7 @@ import pytest
 
 from ossuary.scoring.engine import PackageMetrics, RiskScorer
 from ossuary.scoring.factors import RiskLevel
+from ossuary.scoring.reputation import ReputationBreakdown, ReputationTier
 
 
 class TestRiskScorer:
@@ -75,14 +76,21 @@ class TestRiskScorer:
 
     def test_chalk_scenario(self):
         """Test scoring for chalk-like scenario (high concentration but protective factors)."""
+        # Pre-calculate a tier-1 reputation to inject directly
+        tier1_reputation = ReputationBreakdown(
+            username="sindresorhus",
+            tenure_score=15,
+            portfolio_score=15,
+            stars_score=15,
+            sponsors_score=15,
+        )
         metrics = PackageMetrics(
             maintainer_concentration=80,
             commits_last_year=5,
             unique_contributors=5,
-            weekly_downloads=50_000_000,
-            maintainer_public_repos=700,
-            maintainer_total_stars=150_000,
+            weekly_downloads=60_000_000,
             has_github_sponsors=True,
+            reputation=tier1_reputation,
         )
 
         breakdown = self.scorer.calculate("chalk", "npm", metrics)
