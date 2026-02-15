@@ -22,6 +22,7 @@ class PackageMetrics:
 
     # External API data
     weekly_downloads: int = 0
+    repo_stargazers: int = 0  # GitHub stars (visibility proxy when no download data)
 
     # Maintainer info (basic)
     maintainer_username: Optional[str] = None
@@ -75,6 +76,10 @@ class RiskScorer:
     # Download thresholds for visibility factor
     MASSIVE_VISIBILITY_THRESHOLD = 50_000_000
     HIGH_VISIBILITY_THRESHOLD = 10_000_000
+
+    # Stars thresholds (visibility proxy for repos without download data)
+    MASSIVE_STARS_THRESHOLD = 50_000
+    HIGH_STARS_THRESHOLD = 10_000
 
     def calculate_base_risk(self, concentration: float) -> int:
         """
@@ -165,11 +170,18 @@ class RiskScorer:
         if metrics.is_org_owned and metrics.org_admin_count >= 3:
             pf.org_score = -15
 
-        # Factor 4: Download Visibility (-10 to -20)
+        # Factor 4: Visibility (-10 to -20)
+        # Use download counts when available (npm/pypi), fall back to GitHub stars
         if metrics.weekly_downloads > self.MASSIVE_VISIBILITY_THRESHOLD:
             pf.visibility_score = -20
         elif metrics.weekly_downloads > self.HIGH_VISIBILITY_THRESHOLD:
             pf.visibility_score = -10
+        elif metrics.weekly_downloads == 0 and metrics.repo_stargazers > 0:
+            # Stars-based proxy for repos without download data
+            if metrics.repo_stargazers > self.MASSIVE_STARS_THRESHOLD:
+                pf.visibility_score = -20
+            elif metrics.repo_stargazers > self.HIGH_STARS_THRESHOLD:
+                pf.visibility_score = -10
 
         # Factor 5: Distributed Governance (-10)
         if metrics.maintainer_concentration < 40:

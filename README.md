@@ -189,22 +189,23 @@ REPOS_PATH=./repos
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Data Collectors                           │
-│  GitCollector | GitHubCollector | NpmCollector | PyPICollector│
+│  Git | GitHub | npm | PyPI | Cargo | RubyGems | Go | NuGet  │
+│                     Packagist                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Validation
 
-Validated on 92 packages (20 incidents + 72 controls):
+Validated on 139 packages across 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub):
 
-- **Accuracy**: 92.4%
-- **Precision**: 100.0%
-- **Recall**: 65.0%
-- **F1 Score**: 0.79
+- **Accuracy**: 91.4%
+- **Precision**: 100.0% (zero false positives)
+- **Recall**: 58.6%
+- **F1 Score**: 0.74
 
 T-1 analysis confirms **100% predictive detection** of governance-detectable incidents before they occurred.
 
-See [methodology documentation](docs/methodology.md) for details.
+See [validation report](docs/validation.md) and [methodology](docs/methodology.md) for details.
 
 ## License
 

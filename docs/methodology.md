@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing, the methodology achieved **92.4% accuracy** on 92 packages, with **100% precision**, detecting governance-related risks before incidents occur.
+**Key Finding**: In validation testing, the methodology achieved **91.4% accuracy** on 139 packages across 8 ecosystems, with **100% precision** (zero false positives), detecting governance-related risks before incidents occur.
 
-**Version**: 2.1 (February 2026)
-**Validation Dataset**: 92 packages across npm and PyPI ecosystems
+**Version**: 3.0 (February 2026)
+**Validation Dataset**: 139 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
 
@@ -107,7 +107,7 @@ Ossuary contributes to this body of research by:
 
 ## 3. Detection Scope
 
-### 2.1 What Ossuary Detects
+### 3.1 What Ossuary Detects
 
 | Signal | Description | Example |
 |--------|-------------|---------|
@@ -116,7 +116,7 @@ Ossuary contributes to this body of research by:
 | **Economic Frustration** | Burnout/resentment signals in communications | colors pre-2022 |
 | **Governance Centralization** | No succession plan, single point of failure | husky |
 
-### 2.2 What Ossuary Cannot Detect
+### 3.2 What Ossuary Cannot Detect
 
 | Attack Type | Why Undetectable | Example |
 |-------------|------------------|---------|
@@ -138,7 +138,7 @@ Final Score = Base Risk + Activity Modifier + Protective Factors
 Score Range: 0-100 (clamped)
 ```
 
-### 3.1 Base Risk (Maintainer Concentration)
+### 4.1 Base Risk (Maintainer Concentration)
 
 The primary risk signal is **bus factor** - how many people control the codebase.
 
@@ -154,7 +154,7 @@ The primary risk signal is **bus factor** - how many people control the codebase
 
 Only commits from the last 3 years are considered to reflect current governance state.
 
-### 3.2 Activity Modifier
+### 4.2 Activity Modifier
 
 Activity level indicates whether maintainers are engaged and responsive.
 
@@ -167,7 +167,7 @@ Activity level indicates whether maintainers are engaged and responsive.
 
 **Rationale**: Abandoned packages are prime targets for takeover attacks (event-stream pattern).
 
-### 3.3 Protective Factors
+### 4.3 Protective Factors
 
 Protective factors can reduce (or increase) risk based on governance quality signals.
 
@@ -199,7 +199,7 @@ Protective factors can reduce (or increase) risk based on governance quality sig
 
 Reputation provides a composite assessment of maintainer trustworthiness and investment in the ecosystem.
 
-### 4.1 Reputation Signals
+### 5.1 Reputation Signals
 
 | Signal | Points | Threshold |
 |--------|--------|-----------|
@@ -211,7 +211,7 @@ Reputation provides a composite assessment of maintainer trustworthiness and inv
 | **Top Package Maintainer** | +15 | Maintains top-1000 ecosystem package |
 | **Recognized Org** | +15 | Member of nodejs, python, apache, etc. |
 
-### 4.2 Reputation Tiers
+### 5.2 Reputation Tiers
 
 | Tier | Score Range | Risk Reduction |
 |------|-------------|----------------|
@@ -219,7 +219,7 @@ Reputation provides a composite assessment of maintainer trustworthiness and inv
 | TIER_2 | 30-59 | -10 points |
 | UNKNOWN | <30 | 0 points |
 
-### 4.3 Recognized Organizations
+### 5.3 Recognized Organizations
 
 Membership in these organizations confers institutional backing:
 
@@ -232,14 +232,14 @@ Membership in these organizations confers institutional backing:
 
 ## 6. Sentiment Analysis
 
-### 5.1 Approach
+### 6.1 Approach
 
 Ossuary analyzes commit messages and issue discussions for:
 
 1. **General Sentiment**: Using VADER sentiment analysis
 2. **Frustration Keywords**: Pattern matching for burnout/exploitation signals
 
-### 5.2 Frustration Keywords
+### 6.2 Frustration Keywords
 
 High-signal keywords that historically preceded sabotage:
 
@@ -250,7 +250,7 @@ High-signal keywords that historically preceded sabotage:
 "protest", "on strike", "boycott", "resentment", "exploitation"
 ```
 
-### 5.3 Sentiment Scoring
+### 6.3 Sentiment Scoring
 
 | Compound Score | Effect |
 |----------------|--------|
@@ -274,17 +274,17 @@ High-signal keywords that historically preceded sabotage:
 
 ## 8. Validation Methodology
 
-### 7.1 Dataset Construction
+### 8.1 Dataset Construction
 
 The validation dataset includes:
 
-1. **Known Incidents** (9 packages): Packages with documented supply chain incidents
-2. **Governance Risk** (11 packages): Packages with elevated risk signals but no incident (yet)
-3. **Control Group** (73 packages): Popular packages with healthy governance
+1. **Known Incidents** (14 packages): Packages with documented supply chain incidents across npm, PyPI, RubyGems, and GitHub
+2. **Governance Risk** (15 packages): Packages with elevated risk signals but no incident (yet)
+3. **Control Group** (110 packages): Popular packages with healthy governance across all 8 ecosystems
 
-Total: 100 packages (92 successfully analyzed, 8 had errors or missing repository URLs)
+Total: 139 packages across npm (61), PyPI (40), Cargo (8), RubyGems (11), Packagist (5), NuGet (4), Go (5), GitHub (5).
 
-### 7.2 Classification Rules
+### 8.2 Classification Rules
 
 | Expected | Predicted Score | Classification |
 |----------|-----------------|----------------|
@@ -293,41 +293,58 @@ Total: 100 packages (92 successfully analyzed, 8 had errors or missing repositor
 | Safe | <60 | True Negative (TN) |
 | Safe | ≥60 | False Positive (FP) |
 
-### 7.3 Results (n=92)
+### 8.3 Results (n=139)
 
 ```
-Accuracy:   92.4%
+Accuracy:   91.4%
 Precision:  100.0%
-Recall:     65.0%
-F1 Score:   0.79
+Recall:     58.6%
+F1 Score:   0.74
 
 Confusion Matrix:
-  TP: 13  |  FN: 7
-  FP: 0   |  TN: 72
+  TP: 17  |  FN: 12
+  FP: 0   |  TN: 110
 ```
 
-### 7.4 Performance by Category
+### 8.4 Performance by Category
 
 | Category | Detection Rate | Notes |
 |----------|---------------|-------|
-| Governance Failure | 50% (1/2) | event-stream detected |
-| Governance Risk | 82% (9/11) | Primary target category |
-| Account Compromise | 50% (2/4) | Expected low - outside scope |
+| Governance Risk | 73% (11/15) | Primary target category |
+| Account Compromise | 50% (4/8) | Expected low - outside scope |
+| Governance Failure | 33% (1/3) | xz-utils social engineering a fundamental limit |
 | Maintainer Sabotage | 33% (1/3) | Expected low - insider threat |
-| Control (Safe) | 100% (72/72) | Zero false positives |
+| Control (Safe) | 100% (110/110) | Zero false positives |
 
-### 7.5 False Negative Analysis
+### 8.5 Performance by Ecosystem
+
+| Ecosystem | Accuracy | Packages |
+|-----------|----------|----------|
+| Cargo | 100% | 8 |
+| Go | 100% | 5 |
+| NuGet | 100% | 4 |
+| Packagist | 100% | 5 |
+| PyPI | 100% | 40 |
+| RubyGems | 91% | 11 |
+| npm | 85% | 61 |
+| GitHub | 60% | 5 |
+
+### 8.6 False Negative Analysis
 
 Expected false negatives (outside detection scope):
 
 | Package | Attack Type | Why Not Detected |
 |---------|-------------|------------------|
 | ua-parser-js | Account compromise | Active project with healthy metrics |
-| node-ipc | Insider sabotage | Trusted maintainer, good signals |
 | eslint-scope | Account compromise | Org-owned, protective factors apply |
+| LottieFiles/lottie-player | Account compromise | Org-owned project with institutional backing |
+| strong_password | Account compromise | RubyGems credential theft |
+| node-ipc | Insider sabotage | Trusted maintainer, good signals |
 | faker | Maintainer sabotage | Community fork now has good governance |
 
-### 7.6 T-1 Validation (Predictive Power)
+See [validation report](validation.md) for detailed analysis of all false negatives including governance-detectable cases near the threshold.
+
+### 8.7 T-1 Validation (Predictive Power)
 
 To validate **predictive** capability, we scored packages at a cutoff date *before* their incidents occurred:
 
@@ -380,21 +397,21 @@ This demonstrates that the methodology could have flagged these packages **befor
 
 ## 9. Limitations
 
-### 8.1 Methodological Limitations
+### 9.1 Methodological Limitations
 
 1. **GitHub-centric**: Relies on GitHub metadata; other forges have limited support
 2. **Historical data**: Git history can be rewritten; metrics reflect current state
 3. **English bias**: Sentiment analysis optimized for English text
 4. **API rate limits**: Full analysis requires authenticated GitHub API access
 
-### 8.2 Detection Limitations
+### 9.2 Detection Limitations
 
 1. **Cannot detect insider threats** from trusted maintainers with good signals
 2. **Cannot detect account compromise** on active, well-governed projects
 3. **Cannot detect typosquatting** (new packages have no governance history)
 4. **May flag healthy "done" packages** as risks (false positives on stable utilities)
 
-### 8.3 Temporal Limitations
+### 9.3 Temporal Limitations
 
 1. **Reputation data is current-state**: Stars, sponsors, repos reflect present, not historical
 2. **Organization membership is current**: Historical org membership not tracked
@@ -406,30 +423,30 @@ This demonstrates that the methodology could have flagged these packages **befor
 
 This section discusses potential threats to the validity of the research findings, following standard academic conventions for empirical software engineering research.
 
-### 9.1 Internal Validity
+### 10.1 Internal Validity
 
 Internal validity concerns whether the methodology correctly measures what it claims to measure.
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against known incidents; thresholds produce 100% precision on test set |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 139 packages across 8 ecosystems; thresholds produce 100% precision |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Confounding Variables** | High scores might correlate with other unmeasured factors (e.g., project age, domain) | Controlled for by including diverse package types in validation set |
 
-### 9.2 External Validity
+### 10.2 External Validity
 
 External validity concerns whether findings generalize beyond the study context.
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Ecosystem Bias** | Validation limited to npm and PyPI; may not generalize to Go, Rust, Ruby | Methodology uses ecosystem-agnostic signals (git history, GitHub metadata) |
+| **Ecosystem Bias** | Initial validation limited to npm and PyPI | v2 validation covers 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub) with consistent results |
 | **Survivorship Bias** | Can only analyze repositories that still exist; deleted repos (like Marak/Faker.js) are invisible | Acknowledged as limitation; affects ~5% of incident packages |
 | **Selection Bias in Incidents** | Known incidents may be biased toward governance-detectable cases | Explicitly included account compromise cases (ua-parser-js) as expected false negatives |
 | **Temporal Generalization** | Validated on 2018-2024 incidents; attack patterns may evolve | T-1 validation confirms methodology would have worked historically; ongoing monitoring needed |
 | **Cultural/Language Bias** | English-language sentiment analysis; non-English projects may score differently | Acknowledged limitation; VADER optimized for English social media text |
 
-### 9.3 Construct Validity
+### 10.3 Construct Validity
 
 Construct validity concerns whether the theoretical constructs are correctly operationalized.
 
@@ -440,39 +457,40 @@ Construct validity concerns whether the theoretical constructs are correctly ope
 | **Frustration Measurement** | Keyword matching is crude; may miss subtle frustration or produce false positives | Combined with VADER sentiment; keywords chosen for high precision |
 | **Reputation Conflation** | GitHub stars/repos conflate popularity with trustworthiness | Reputation is one factor among many; not solely determinative |
 
-### 9.4 Conclusion Validity
+### 10.4 Conclusion Validity
 
 Conclusion validity concerns whether the statistical conclusions are justified.
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Small Incident Sample** | Only 20 incident packages in validation set | Incidents are rare events; sample represents majority of documented npm/PyPI governance incidents |
-| **Class Imbalance** | 20 incidents vs 72 controls (1:3.6 ratio) | Reported precision and recall separately; F1 score accounts for imbalance |
+| **Small Incident Sample** | 29 incident packages in validation set | Incidents are rare events; sample represents majority of documented governance incidents across ecosystems |
+| **Class Imbalance** | 29 incidents vs 110 controls (1:3.8 ratio) | Reported precision and recall separately; F1 score accounts for imbalance |
 | **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the full population of known incidents, not a sample |
 | **Confidence Intervals** | Point estimates reported without confidence intervals | Sample size limits statistical power; results should be interpreted directionally |
 
-### 9.5 Mitigations Summary
+### 10.5 Mitigations Summary
 
 Despite these threats, several factors support the validity of findings:
 
 1. **100% T-1 Detection**: All governance-detectable incidents scored CRITICAL before they occurred
-2. **100% Precision**: Zero false positives in validation - no safe packages incorrectly flagged
-3. **Grounded in Real Incidents**: Methodology derived from analysis of actual supply chain attacks
-4. **Alignment with CHAOSS**: Core metrics align with established open source health frameworks
-5. **Transparent Limitations**: Explicitly documents what the tool cannot detect (account compromise, insider threats)
+2. **100% Precision**: Zero false positives across 139 packages and 8 ecosystems
+3. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
+4. **Grounded in Real Incidents**: Methodology derived from analysis of actual supply chain attacks
+5. **Alignment with CHAOSS**: Core metrics align with established open source health frameworks
+6. **Transparent Limitations**: Explicitly documents what the tool cannot detect (account compromise, insider threats)
 
 ---
 
 ## 11. Recommendations for Use
 
-### 9.1 Integration Patterns
+### 11.1 Integration Patterns
 
 1. **CI/CD Pipeline**: Score dependencies on PR, fail on CRITICAL
 2. **Scheduled Audits**: Weekly scans of dependency tree
 3. **Acquisition Diligence**: Score target's OSS dependencies
 4. **Vendor Assessment**: Evaluate third-party software stacks
 
-### 9.2 Score Interpretation
+### 11.2 Score Interpretation
 
 | Score Range | Action |
 |-------------|--------|
@@ -481,7 +499,7 @@ Despite these threats, several factors support the validity of findings:
 | 60-79 | Investigate alternatives, prepare fork |
 | 80-100 | **Immediate review**, consider removal |
 
-### 9.3 Combining with Other Tools
+### 11.3 Combining with Other Tools
 
 Ossuary complements but does not replace:
 
@@ -490,7 +508,7 @@ Ossuary complements but does not replace:
 | **SBOM tools** | Inventory what you have | Provides risk context |
 | **Vulnerability scanners** | Known CVEs | Different risk dimension |
 
-### 9.4 Comparison with OpenSSF Scorecard
+### 11.4 Comparison with OpenSSF Scorecard
 
 OpenSSF Scorecard is a widely-used security assessment tool. This section compares the two approaches on the same packages.
 
@@ -533,7 +551,7 @@ A package could have:
 
 The tools measure orthogonal dimensions and should be used together for comprehensive supply chain risk assessment.
 
-### 9.5 Comparison with CHAOSS Metrics (Augur/GrimoireLab)
+### 11.5 Comparison with CHAOSS Metrics (Augur/GrimoireLab)
 
 The [CHAOSS project](https://chaoss.community/) (Community Health Analytics for Open Source Software) defines standardized metrics for open source health. Tools like [Augur](https://github.com/chaoss/augur) and [GrimoireLab](https://chaoss.github.io/grimoirelab/) implement these metrics.
 
@@ -576,11 +594,12 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 
 ## 12. Future Work
 
-1. **Expand ecosystem support**: RubyGems, Cargo, Go modules
+1. ~~**Expand ecosystem support**~~: Done - 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub)
 2. **Historical snapshots**: Archive reputation/org data for better T-1 analysis
 3. **ML enhancement**: Train classifier on larger incident corpus
 4. **Dependency graph analysis**: Transitive risk aggregation
 5. **Maintainer network analysis**: Identify shared maintainer risks across packages
+6. **PyPI repository URL discovery**: Improve automatic GitHub URL extraction from PyPI metadata
 
 ---
 
@@ -616,6 +635,7 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 
 ---
 
-*Document version: 2.2*
+*Document version: 3.0*
 *Last updated: February 2026*
-*Validation dataset: 92 packages (92.4% accuracy, 100% precision)*
+*Validation dataset: 139 packages across 8 ecosystems (91.4% accuracy, 100% precision)*
+*See [validation report](validation.md) for detailed results*

@@ -462,11 +462,12 @@ class GitHubCollector(BaseCollector):
         data.maintainer_repos = repos
         data.maintainer_total_stars = sum(r.get("stargazers_count", 0) for r in repos)
 
-        # Check sponsors status and count
-        logger.info(f"Checking sponsors for {data.maintainer_username}...")
-        data.has_github_sponsors = await self.get_sponsors_status(data.maintainer_username)
-        if data.has_github_sponsors:
-            data.maintainer_sponsor_count = await self.get_sponsor_count(data.maintainer_username)
+        # Check sponsors status and count (skip bot accounts)
+        if data.maintainer_username and "[bot]" not in data.maintainer_username:
+            logger.info(f"Checking sponsors for {data.maintainer_username}...")
+            data.has_github_sponsors = await self.get_sponsors_status(data.maintainer_username)
+            if data.has_github_sponsors:
+                data.maintainer_sponsor_count = await self.get_sponsor_count(data.maintainer_username)
 
         # Get user's organizations
         logger.info(f"Fetching orgs for {data.maintainer_username}...")

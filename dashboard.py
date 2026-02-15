@@ -1,13 +1,22 @@
 """Ossuary Risk Dashboard - Streamlit visualization for OSS supply chain risk."""
 
-import subprocess
-import json
-from datetime import datetime, timedelta
+import asyncio
+import os
+import sys
+from datetime import datetime
+
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 import streamlit as st
+
+# Add src to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
+from ossuary.db.session import init_db
+from ossuary.services.scorer import score_package, get_historical_scores, HistoricalScore
 
 # Set page config first
 st.set_page_config(
@@ -15,6 +24,26 @@ st.set_page_config(
     page_icon="💀",
     layout="wide",
 )
+
+
+# Initialize database on startup
+@st.cache_resource
+def initialize_database():
+    """Initialize database once on startup."""
+    init_db()
+    return True
+
+
+initialize_database()
+
+
+def run_async(coro):
+    """Run async coroutine in Streamlit context."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 def score_to_color(score: int) -> str:
@@ -140,7 +169,7 @@ def create_comparison_chart() -> go.Figure:
     return fig
 
 
-def create_historical_chart(df: pd.DataFrame, package: str, incident_date: str = None) -> go.Figure:
+def create_historical_chart(df: pd.DataFrame, package: str) -> go.Figure:
     """Create historical score evolution chart."""
     fig = go.Figure()
 
@@ -161,23 +190,12 @@ def create_historical_chart(df: pd.DataFrame, package: str, incident_date: str =
     fig.add_hrect(y0=60, y1=80, fillcolor="#ffe5d0", opacity=0.3, line_width=0)
     fig.add_hrect(y0=80, y1=100, fillcolor="#f8d7da", opacity=0.3, line_width=0)
 
-    # Add incident marker if provided
-    if incident_date:
-        fig.add_vline(
-            x=incident_date,
-            line_dash="dash",
-            line_color="red",
-            line_width=2,
-            annotation_text="⚠️ Incident",
-            annotation_position="top",
-        )
-
     # Add threshold line
     fig.add_hline(y=60, line_dash="dot", line_color="orange",
                   annotation_text="Risk Threshold (60)", annotation_position="right")
 
     fig.update_layout(
-        title=f"📈 {package} - Risk Score Evolution",
+        title=f"📈 {package} - Risk Score Evolution (24 months)",
         xaxis_title="Date",
         yaxis_title="Risk Score",
         yaxis=dict(range=[0, 105]),
@@ -187,104 +205,6 @@ def create_historical_chart(df: pd.DataFrame, package: str, incident_date: str =
     )
 
     return fig
-
-
-def get_historical_data(package: str) -> tuple[pd.DataFrame, str, str]:
-    """Get pre-computed historical data for known packages."""
-
-    # event-stream: Compromised September 2018
-    # Shows gradual risk increase as maintainer became less active
-    if package == "event-stream":
-        dates = pd.date_range(start="2016-10-01", end="2018-09-01", freq="MS")  # 24 months
-        # Simulated score evolution based on actual metrics:
-        # - Concentration stayed high (~75%)
-        # - Activity declined over time
-        # - No protective factors
-        scores = [
-            55, 55, 60, 60, 65, 65,  # 2016-10 to 2017-03: Moderate activity
-            70, 70, 75, 75, 75, 80,  # 2017-04 to 2017-09: Declining activity
-            80, 85, 85, 85, 90, 90,  # 2017-10 to 2018-03: Low activity
-            95, 95, 100, 100, 100, 100,  # 2018-04 to 2018-09: Abandoned
-        ]
-        incident = "2018-09-15"
-        description = """
-        **event-stream** was compromised in September 2018 when the burned-out
-        maintainer handed control to a stranger who injected malicious code.
-
-        **Key observations:**
-        - Score crossed CRITICAL threshold (80+) in late 2017
-        - 6+ months of warning before incident
-        - Concentration remained high throughout (75%+)
-        - Activity declined steadily
-        """
-        return pd.DataFrame({"date": dates, "score": scores}), incident, description
-
-    # colors: Sabotaged January 2022
-    elif package == "colors":
-        dates = pd.date_range(start="2020-02-01", end="2022-01-01", freq="MS")  # 24 months
-        # Marak's frustration built over time
-        # "No more free work" rant was November 2020
-        scores = [
-            60, 60, 65, 65, 65, 70,  # 2020-02 to 2020-07: High concentration
-            70, 75, 75, 80, 85, 90,  # 2020-08 to 2021-01: Frustration signals appear
-            90, 95, 95, 95, 100, 100,  # 2021-02 to 2021-07: Critical + frustration
-            100, 100, 100, 100, 100, 100,  # 2021-08 to 2022-01: Sustained critical
-        ]
-        incident = "2022-01-08"
-        description = """
-        **colors** was intentionally sabotaged by maintainer Marak Squires
-        in January 2022, adding an infinite loop that broke thousands of projects.
-
-        **Key observations:**
-        - Frustration signals detected from Nov 2020 ("No more free work" rant)
-        - Score reached CRITICAL 14+ months before incident
-        - 100% maintainer concentration throughout
-        - GitHub Sponsors enabled but didn't prevent burnout
-        """
-        return pd.DataFrame({"date": dates, "score": scores}), incident, description
-
-    # coa: Compromised November 2021
-    elif package == "coa":
-        dates = pd.date_range(start="2019-12-01", end="2021-11-01", freq="MS")  # 24 months
-        # Classic abandonment pattern
-        scores = [
-            70, 75, 75, 80, 80, 85,  # 2019-12 to 2020-05: Already high risk
-            85, 90, 90, 90, 95, 95,  # 2020-06 to 2020-11: No activity
-            100, 100, 100, 100, 100, 100,  # 2020-12 to 2021-05: Abandoned
-            100, 100, 100, 100, 100, 100,  # 2021-06 to 2021-11: Still abandoned
-        ]
-        incident = "2021-11-04"
-        description = """
-        **coa** was compromised in November 2021 via account takeover,
-        with malicious versions stealing credentials.
-
-        **Key observations:**
-        - 100% concentration (single maintainer)
-        - Project abandoned for 2+ years before compromise
-        - Score at CRITICAL for 12+ months before incident
-        - Classic "abandoned package takeover" pattern
-        """
-        return pd.DataFrame({"date": dates, "score": scores}), incident, description
-
-    # express: Healthy package for comparison
-    elif package == "express":
-        dates = pd.date_range(start="2022-03-01", end="2024-02-01", freq="MS")  # 24 months
-        # Consistently low risk due to org backing
-        scores = [5, 5, 5, 0, 0, 0, 5, 5, 5, 0, 0, 0,
-                  5, 5, 0, 0, 5, 5, 0, 0, 0, 5, 5, 0]
-        description = """
-        **express** is a healthy, well-governed package maintained by
-        the OpenJS Foundation.
-
-        **Key observations:**
-        - Organization-owned with 30+ admins
-        - Tier-1 maintainer reputation
-        - Active development (45+ commits/year)
-        - Score consistently VERY_LOW (0-5)
-        """
-        return pd.DataFrame({"date": dates, "score": scores}), None, description
-
-    return None, None, None
 
 
 # Main app
@@ -304,6 +224,10 @@ governance-based supply chain risks before incidents occur.
 - F1 Score: 0.79
 """)
 
+# Check for GITHUB_TOKEN
+if not os.getenv("GITHUB_TOKEN"):
+    st.sidebar.warning("⚠️ GITHUB_TOKEN not set. Results may be limited.")
+
 st.sidebar.header("Risk Levels")
 st.sidebar.markdown("""
 | Score | Level |
@@ -316,9 +240,10 @@ st.sidebar.markdown("""
 """)
 
 # Main content
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab_watch, tab3, tab4 = st.tabs([
     "📊 Score Package",
     "📈 Historical Analysis",
+    "⚠️ Watchlist",
     "✅ Validation Results",
     "📚 Methodology"
 ])
@@ -348,17 +273,21 @@ with tab1:
     col1, col2 = st.columns([2, 1])
 
     with col1:
+        ecosystems = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
+        default_eco = st.session_state.get("ecosystem", "npm")
+        eco_index = ecosystems.index(default_eco) if default_eco in ecosystems else 0
+
         package_name = st.text_input(
             "Package Name",
             value=st.session_state.get("package", ""),
-            placeholder="e.g., lodash"
+            placeholder="e.g., lodash (npm/pypi) or owner/repo (github)"
         )
         ecosystem = st.selectbox(
             "Ecosystem",
-            ["npm", "pypi"],
-            index=0 if st.session_state.get("ecosystem", "npm") == "npm" else 1
+            ecosystems,
+            index=eco_index
         )
-        cutoff_date = st.text_input(
+        cutoff_input = st.text_input(
             "Cutoff Date (optional)",
             placeholder="YYYY-MM-DD for T-1 analysis"
         )
@@ -367,27 +296,40 @@ with tab1:
         if not package_name:
             st.error("Please enter a package name")
         else:
-            with st.spinner(f"Analyzing {package_name}..."):
-                demo_results = {
-                    "event-stream": {"score": 100, "level": "CRITICAL", "base": 80, "activity": 0, "protective": 20,
-                                    "concentration": 75, "commits": 4, "frustration": True, "keywords": ["free work"]},
-                    "colors": {"score": 100, "level": "CRITICAL", "base": 100, "activity": 20, "protective": -5,
-                              "concentration": 100, "commits": 0, "frustration": True, "keywords": ["protest", "exploitation"]},
-                    "express": {"score": 0, "level": "VERY_LOW", "base": 60, "activity": -15, "protective": -75,
-                               "concentration": 58, "commits": 45, "frustration": False, "keywords": []},
-                    "lodash": {"score": 0, "level": "VERY_LOW", "base": 40, "activity": -30, "protective": -25,
-                              "concentration": 35, "commits": 120, "frustration": False, "keywords": []},
-                    "requests": {"score": 0, "level": "VERY_LOW", "base": 40, "activity": -15, "protective": -35,
-                                "concentration": 45, "commits": 30, "frustration": False, "keywords": []},
-                    "coa": {"score": 100, "level": "CRITICAL", "base": 100, "activity": 20, "protective": 0,
-                           "concentration": 100, "commits": 0, "frustration": False, "keywords": []},
-                }
+            # Parse cutoff date if provided
+            cutoff_date = None
+            if cutoff_input:
+                try:
+                    cutoff_date = datetime.strptime(cutoff_input, "%Y-%m-%d")
+                except ValueError:
+                    st.error("Invalid date format. Use YYYY-MM-DD")
+                    st.stop()
 
-                if package_name.lower() in demo_results:
-                    st.session_state.result = demo_results[package_name.lower()]
+            with st.spinner(f"Analyzing {package_name}... (this may take a minute for first-time analysis)"):
+                result = run_async(score_package(package_name, ecosystem, cutoff_date=cutoff_date))
+
+                if result.success and result.breakdown:
+                    breakdown = result.breakdown
+                    st.session_state.result = {
+                        "score": breakdown.final_score,
+                        "level": breakdown.risk_level.value,
+                        "base": breakdown.base_risk,
+                        "activity": breakdown.activity_modifier,
+                        "protective": breakdown.protective_factors.total,
+                        "concentration": breakdown.maintainer_concentration,
+                        "commits": breakdown.commits_last_year,
+                        "frustration": breakdown.protective_factors.frustration_score > 0,
+                        "keywords": breakdown.protective_factors.frustration_evidence[:3] if breakdown.protective_factors.frustration_evidence else [],
+                        "explanation": breakdown.explanation,
+                        "recommendations": breakdown.recommendations,
+                    }
                     st.session_state.result_package = package_name
+
+                    if result.warnings:
+                        for warning in result.warnings:
+                            st.warning(warning)
                 else:
-                    st.warning(f"Demo mode: Try event-stream, colors, express, coa, lodash, or requests")
+                    st.error(f"Failed to score package: {result.error}")
 
     # Display results
     if "result" in st.session_state and st.session_state.get("result_package"):
@@ -423,7 +365,7 @@ with tab1:
                 "LOW": "🟢", "VERY_LOW": "🟢"
             }
             st.metric("Risk Level", f"{level_colors.get(result['level'], '')} {result['level']}")
-            st.metric("Concentration", f"{result['concentration']}%")
+            st.metric("Concentration", f"{result['concentration']:.1f}%")
 
         with col2:
             st.metric("Commits/Year", result["commits"])
@@ -436,33 +378,90 @@ with tab1:
             else:
                 st.success("✅ No Frustration Signals")
 
+        # Explanation and recommendations
+        if "explanation" in result:
+            st.markdown(f"**Explanation:** {result['explanation']}")
+
+        if "recommendations" in result and result["recommendations"]:
+            st.markdown("**Recommendations:**")
+            for rec in result["recommendations"]:
+                st.markdown(f"- {rec}")
+
 with tab2:
     st.header("📈 Historical Score Evolution")
 
     st.markdown("""
-    This view shows how risk scores evolved over time, demonstrating that
-    **governance risks were observable months before incidents occurred**.
+    This view shows how risk scores evolved over time, going **backward from the most recent commit**.
+    Enter any package or GitHub repo to see its 24-month score history.
     """)
 
-    # Package selector
-    hist_package = st.selectbox(
-        "Select Package",
-        ["event-stream", "colors", "coa", "express"],
-        format_func=lambda x: {
-            "event-stream": "📦 event-stream (2018 compromise)",
-            "colors": "📦 colors (2022 sabotage)",
-            "coa": "📦 coa (2021 compromise)",
-            "express": "📦 express (healthy control)",
-        }[x]
-    )
+    # Package input
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        hist_package = st.text_input(
+            "Package Name",
+            value="",
+            placeholder="e.g., lodash (npm), requests (pypi), or owner/repo (github)",
+            key="hist_package_input"
+        )
+    with col2:
+        hist_ecosystem = st.selectbox(
+            "Ecosystem",
+            ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"],
+            key="hist_ecosystem"
+        )
 
-    # Get historical data
-    df, incident_date, description = get_historical_data(hist_package)
+    if st.button("📈 Load Historical Data", type="primary", use_container_width=True):
+        if not hist_package:
+            st.error("Please enter a package name")
+        else:
+            # Progress tracking
+            progress_bar = st.progress(0)
+            status_text = st.empty()
 
-    if df is not None:
+            def update_progress(current, total):
+                progress_bar.progress(current / total)
+                status_text.text(f"Calculating month {current}/{total}...")
+
+            with st.spinner(f"Calculating 24-month history for {hist_package}..."):
+                historical_scores, warnings = run_async(
+                    get_historical_scores(
+                        hist_package,
+                        hist_ecosystem,
+                        months=24,
+                        progress_callback=update_progress,
+                    )
+                )
+
+                progress_bar.empty()
+                status_text.empty()
+
+                if warnings:
+                    for warning in warnings:
+                        st.warning(warning)
+
+                if historical_scores:
+                    st.session_state.historical_data = historical_scores
+                    st.session_state.historical_package = hist_package
+                else:
+                    st.error("Failed to calculate historical scores")
+
+    # Display historical data if available
+    if "historical_data" in st.session_state and st.session_state.get("historical_package"):
+        historical_scores = st.session_state.historical_data
+        pkg_name = st.session_state.historical_package
+
+        # Convert to DataFrame
+        df = pd.DataFrame([
+            {"date": hs.date, "score": hs.score, "level": hs.risk_level,
+             "concentration": hs.concentration, "commits": hs.commits_year,
+             "contributors": hs.contributors}
+            for hs in historical_scores
+        ])
+
         # Display chart
         st.plotly_chart(
-            create_historical_chart(df, hist_package, incident_date),
+            create_historical_chart(df, pkg_name),
             use_container_width=True,
         )
 
@@ -470,43 +469,36 @@ with tab2:
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.metric("Peak Score", f"{df['score'].max()}")
+            st.metric("Current Score", f"{df['score'].iloc[-1]}")
         with col2:
-            st.metric("Min Score", f"{df['score'].min()}")
+            st.metric("Peak Score", f"{df['score'].max()}")
         with col3:
-            # Months above threshold before incident
+            # Months above threshold
             above_threshold = (df["score"] >= 60).sum()
             st.metric("Months at Risk (60+)", f"{above_threshold}")
         with col4:
-            if incident_date:
-                # Calculate early warning
-                critical_date = df[df["score"] >= 80]["date"].min()
-                if pd.notna(critical_date):
-                    incident_dt = pd.to_datetime(incident_date)
-                    warning_months = (incident_dt - critical_date).days // 30
-                    st.metric("Early Warning", f"{warning_months} months")
-            else:
-                st.metric("Status", "✅ Healthy")
-
-        # Description
-        st.markdown(description)
+            # Current risk level
+            current_level = df['level'].iloc[-1]
+            level_colors = {"CRITICAL": "🔴", "HIGH": "🟠", "MODERATE": "🟡", "LOW": "🟢", "VERY_LOW": "🟢"}
+            st.metric("Current Level", f"{level_colors.get(current_level, '')} {current_level}")
 
         # Data table
         with st.expander("📋 View Raw Data"):
             st.dataframe(
-                df.assign(
-                    level=df["score"].apply(
-                        lambda s: "CRITICAL" if s >= 80 else "HIGH" if s >= 60 else "MODERATE" if s >= 40 else "LOW"
-                    )
-                ),
+                df[["date", "score", "level", "concentration", "commits", "contributors"]],
                 use_container_width=True,
                 hide_index=True,
             )
 
     st.divider()
 
-    # Summary comparison
-    st.subheader("📊 Early Warning Summary")
+    # Keep the validation summary for reference
+    st.subheader("📊 Historical Analysis Summary (Validation Set)")
+
+    st.markdown("""
+    Our validation on known incidents shows that governance risks were detectable
+    **months before** incidents occurred:
+    """)
 
     summary_data = {
         "Package": ["event-stream", "colors", "coa", "express"],
@@ -518,47 +510,323 @@ with tab2:
 
     st.dataframe(summary_data, use_container_width=True, hide_index=True)
 
-    st.success("""
-    **Key Finding**: All three incident packages reached CRITICAL risk level
-    **10+ months before** their incidents occurred, providing substantial
-    early warning for risk mitigation.
+with tab_watch:
+    st.header("⚠️ Risk Watchlist")
+
+    st.markdown("""
+    Packages with known governance risk signals. Scores are calculated live
+    and cached for 7 days. High-download packages with high scores are prime
+    targets for supply chain attacks.
     """)
+
+    # Default watchlist - packages we've identified as risky
+    DEFAULT_WATCHLIST = [
+        ("inherits", "npm", "250M+ dl/wk, abandoned 12+ months"),
+        ("minimist", "npm", "45M+ dl/wk, single maintainer, barely active"),
+        ("atomicwrites", "pypi", "pytest dep chain, abandoned since 2021"),
+        ("node-ipc", "npm", "5M+ dl/wk, post-protestware abandonment"),
+        ("rc", "npm", "20M+ dl/wk, abandoned + frustration signals"),
+        ("left-pad", "npm", "historic incident, abandoned"),
+        ("coa", "npm", "compromised 2021, abandoned"),
+        ("event-stream", "npm", "compromised 2018, abandoned"),
+        ("colors", "npm", "sabotaged 2022, abandoned"),
+        ("ua-parser-js", "npm", "compromised 2021, 95% concentration"),
+    ]
+
+    # Custom package input
+    with st.expander("Add package to watchlist"):
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            custom_pkg = st.text_input("Package", placeholder="e.g., some-pkg or owner/repo", key="watch_pkg")
+        with col2:
+            custom_eco = st.selectbox("Ecosystem", ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"], key="watch_eco")
+        with col3:
+            custom_note = st.text_input("Note", placeholder="why watching?", key="watch_note")
+
+        if st.button("Add to watchlist"):
+            if custom_pkg:
+                if "custom_watchlist" not in st.session_state:
+                    st.session_state.custom_watchlist = []
+                st.session_state.custom_watchlist.append((custom_pkg, custom_eco, custom_note or "custom"))
+
+    # Combine default + custom
+    watchlist = DEFAULT_WATCHLIST[:]
+    if "custom_watchlist" in st.session_state:
+        watchlist.extend(st.session_state.custom_watchlist)
+
+    if st.button("🔄 Scan Watchlist", type="primary", use_container_width=True):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        results = []
+        for i, (pkg, eco, note) in enumerate(watchlist):
+            progress_bar.progress((i + 1) / len(watchlist))
+            status_text.text(f"Scoring {pkg} ({eco})... ({i+1}/{len(watchlist)})")
+
+            result = run_async(score_package(pkg, eco))
+            if result.success:
+                b = result.breakdown
+                results.append({
+                    "score": b.final_score,
+                    "level": b.risk_level.value,
+                    "package": pkg,
+                    "ecosystem": eco,
+                    "concentration": b.maintainer_concentration,
+                    "commits_yr": b.commits_last_year,
+                    "contributors": b.unique_contributors,
+                    "frustration": b.protective_factors.frustration_score > 0,
+                    "note": note,
+                })
+            else:
+                results.append({
+                    "score": -1,
+                    "level": "ERROR",
+                    "package": pkg,
+                    "ecosystem": eco,
+                    "concentration": 0,
+                    "commits_yr": 0,
+                    "contributors": 0,
+                    "frustration": False,
+                    "note": f"Error: {result.error[:40] if result.error else 'unknown'}",
+                })
+
+        progress_bar.empty()
+        status_text.empty()
+
+        # Sort by score descending
+        results.sort(key=lambda r: r["score"], reverse=True)
+        st.session_state.watchlist_results = results
+
+    # Display results
+    if "watchlist_results" in st.session_state:
+        results = st.session_state.watchlist_results
+
+        # Summary metrics
+        valid = [r for r in results if r["score"] >= 0]
+        critical = [r for r in valid if r["score"] >= 80]
+        high = [r for r in valid if 60 <= r["score"] < 80]
+        moderate = [r for r in valid if 40 <= r["score"] < 60]
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Packages Scanned", len(valid))
+        col2.metric("🔴 Critical", len(critical))
+        col3.metric("🟠 High", len(high))
+        col4.metric("🟡 Moderate", len(moderate))
+
+        st.divider()
+
+        # Results table
+        for r in results:
+            score = r["score"]
+            if score >= 80:
+                icon = "🔴"
+                color = "red"
+            elif score >= 60:
+                icon = "🟠"
+                color = "orange"
+            elif score >= 40:
+                icon = "🟡"
+                color = "yellow"
+            elif score >= 0:
+                icon = "🟢"
+                color = "green"
+            else:
+                icon = "❌"
+                color = "gray"
+
+            frustration_flag = " 🗯️" if r["frustration"] else ""
+
+            col1, col2, col3, col4 = st.columns([3, 1, 2, 4])
+            with col1:
+                st.markdown(f"**{r['package']}** ({r['ecosystem']})")
+            with col2:
+                if score >= 0:
+                    st.markdown(f"{icon} **{score}**{frustration_flag}")
+                else:
+                    st.markdown(f"{icon} ERR")
+            with col3:
+                if score >= 0:
+                    st.caption(f"{r['concentration']:.0f}% conc | {r['commits_yr']} cmts | {r['contributors']} ctrb")
+            with col4:
+                st.caption(r["note"])
+
+        # Downloadable data
+        with st.expander("📋 Export Data"):
+            df = pd.DataFrame([r for r in results if r["score"] >= 0])
+            if not df.empty:
+                st.dataframe(
+                    df[["package", "ecosystem", "score", "level", "concentration", "commits_yr", "contributors", "note"]],
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
 with tab3:
     st.header("Validation Results")
 
-    col1, col2 = st.columns(2)
+    # Try to load latest validation results from JSON
+    import glob as globmod
+    import json
 
-    with col1:
-        st.subheader("Performance Metrics")
+    results_files = sorted(globmod.glob(os.path.join(os.path.dirname(__file__), "validation_results*.json")))
+    validation_data = None
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Accuracy", "92.4%")
-        m2.metric("Precision", "100%")
-        m3.metric("Recall", "65%")
-        m4.metric("F1", "0.79")
+    if results_files:
+        latest_file = results_files[-1]
+        try:
+            with open(latest_file) as f:
+                validation_data = json.load(f)
+        except Exception:
+            pass
 
-        st.plotly_chart(create_validation_chart(), use_container_width=True)
+    if validation_data:
+        st.caption(f"From: {os.path.basename(latest_file)} ({validation_data.get('timestamp', 'unknown')[:10]})")
 
-    with col2:
-        st.subheader("T-1 Historical Analysis")
-        st.markdown("Packages scored **before** their incidents:")
+        col1, col2 = st.columns(2)
 
-        st.dataframe({
-            "Package": ["event-stream", "colors", "coa"],
-            "Incident": ["Sept 2018", "Jan 2022", "Nov 2021"],
-            "T-1 Score": [100, 100, 100],
-            "Level": ["🔴 CRITICAL", "🔴 CRITICAL", "🔴 CRITICAL"],
-            "Key Signal": ["'free work'", "'protest'", "abandoned"],
-        }, use_container_width=True, hide_index=True)
+        with col1:
+            st.subheader("Performance Metrics")
 
-        st.subheader("Control Comparison")
-        st.dataframe({
-            "Package": ["express"],
-            "Score": [0],
-            "Level": ["🟢 VERY_LOW"],
-            "Why": ["Org-backed, 30 admins"],
-        }, use_container_width=True, hide_index=True)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Accuracy", f"{validation_data.get('accuracy', 0)*100:.1f}%")
+            m2.metric("Precision", f"{validation_data.get('precision', 0)*100:.0f}%")
+            m3.metric("Recall", f"{validation_data.get('recall', 0)*100:.0f}%")
+            m4.metric("F1", f"{validation_data.get('f1_score', 0):.2f}")
+
+            # Dynamic confusion matrix from loaded data
+            cm = validation_data.get("confusion_matrix", {})
+            tn = cm.get("TN", 0)
+            fp = cm.get("FP", 0)
+            fn = cm.get("FN", 0)
+            tp = cm.get("TP", 0)
+            total = tn + fp + fn + tp
+
+            fig_cm = go.Figure(
+                data=go.Heatmap(
+                    z=[[tn, fp], [fn, tp]],
+                    x=["Predicted Safe", "Predicted Risky"],
+                    y=["Actually Safe", "Actually Risky"],
+                    text=[[f"TN: {tn}", f"FP: {fp}"], [f"FN: {fn}", f"TP: {tp}"]],
+                    texttemplate="%{text}",
+                    colorscale=[[0, "#d4edda"], [0.5, "#fff3cd"], [1, "#f8d7da"]],
+                    showscale=False,
+                )
+            )
+            fig_cm.update_layout(
+                title=f"Confusion Matrix (n={total})",
+                height=300,
+                margin=dict(l=20, r=20, t=50, b=20),
+            )
+            st.plotly_chart(fig_cm, use_container_width=True)
+
+        with col2:
+            # By attack type
+            st.subheader("By Attack Type")
+            by_attack = validation_data.get("by_attack_type", {})
+            if by_attack:
+                attack_rows = []
+                for atype, stats in by_attack.items():
+                    pct = stats["correct"] / stats["total"] * 100 if stats["total"] > 0 else 0
+                    attack_rows.append({
+                        "Type": atype,
+                        "Correct": f"{stats['correct']}/{stats['total']}",
+                        "Rate": f"{pct:.0f}%",
+                    })
+                st.dataframe(pd.DataFrame(attack_rows), use_container_width=True, hide_index=True)
+
+            # By ecosystem
+            by_eco = validation_data.get("by_ecosystem", {})
+            if by_eco:
+                st.subheader("By Ecosystem")
+                eco_names = []
+                eco_correct = []
+                eco_total = []
+                for eco, stats in sorted(by_eco.items()):
+                    eco_names.append(eco)
+                    eco_correct.append(stats["correct"])
+                    eco_total.append(stats["total"])
+
+                fig_eco = go.Figure()
+                fig_eco.add_trace(go.Bar(
+                    name="Correct",
+                    x=eco_names,
+                    y=eco_correct,
+                    marker_color="#28a745",
+                ))
+                fig_eco.add_trace(go.Bar(
+                    name="Total",
+                    x=eco_names,
+                    y=eco_total,
+                    marker_color="#dee2e6",
+                ))
+                fig_eco.update_layout(
+                    barmode="overlay",
+                    height=250,
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    legend=dict(orientation="h"),
+                )
+                st.plotly_chart(fig_eco, use_container_width=True)
+
+        # Individual results
+        st.divider()
+        results = validation_data.get("results", [])
+        if results:
+            st.subheader("All Results")
+
+            # Filter controls
+            show_filter = st.radio(
+                "Show:", ["All", "Incidents Only", "Controls Only", "Errors/FN Only"],
+                horizontal=True, key="val_filter",
+            )
+
+            result_rows = []
+            for r in results:
+                case = r.get("case", {})
+                error = r.get("error")
+                if show_filter == "Incidents Only" and case.get("expected_outcome") != "incident":
+                    continue
+                if show_filter == "Controls Only" and case.get("expected_outcome") != "safe":
+                    continue
+                if show_filter == "Errors/FN Only" and r.get("classification") != "FN" and not error:
+                    continue
+
+                level = r.get("risk_level", "")
+                semaphore = {"CRITICAL": "🔴", "HIGH": "🟠", "MODERATE": "🟡", "LOW": "🟢", "VERY_LOW": "🟢"}.get(level, "")
+
+                result_rows.append({
+                    "Package": case.get("name", ""),
+                    "Ecosystem": case.get("ecosystem", ""),
+                    "Expected": case.get("expected_outcome", ""),
+                    "Score": r.get("score", "ERR") if not error else "ERR",
+                    "Level": f"{semaphore} {level}" if not error else error[:30],
+                    "Class": r.get("classification", ""),
+                    "Correct": "Y" if r.get("correct") else ("ERR" if error else "N"),
+                })
+
+            if result_rows:
+                st.dataframe(pd.DataFrame(result_rows), use_container_width=True, hide_index=True)
+    else:
+        # Fallback: hardcoded summary when no JSON available
+        st.info("No validation results JSON found. Run `python scripts/validate.py -o validation_results.json` to generate.")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Performance Metrics")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Accuracy", "92.4%")
+            m2.metric("Precision", "100%")
+            m3.metric("Recall", "65%")
+            m4.metric("F1", "0.79")
+            st.plotly_chart(create_validation_chart(), use_container_width=True)
+
+        with col2:
+            st.subheader("T-1 Historical Analysis")
+            st.markdown("Packages scored **before** their incidents:")
+            st.dataframe({
+                "Package": ["event-stream", "colors", "coa"],
+                "Incident": ["Sept 2018", "Jan 2022", "Nov 2021"],
+                "T-1 Score": [100, 100, 100],
+                "Level": ["🔴 CRITICAL", "🔴 CRITICAL", "🔴 CRITICAL"],
+            }, use_container_width=True, hide_index=True)
 
     st.divider()
     st.subheader("Tool Comparison")
