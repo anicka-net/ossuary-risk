@@ -102,7 +102,12 @@ class GitCollector(BaseCollector):
 
         logger.info(f"Cloning repository: {repo_url}")
         try:
-            Repo.clone_from(repo_url, repo_path, depth=None)  # Full clone for history
+            # Shallow clone: only 3 years of history (scoring only uses recent commits)
+            Repo.clone_from(
+                repo_url,
+                repo_path,
+                multi_options=["--shallow-since=3years", "--single-branch"],
+            )
             return repo_path
         except GitCommandError as e:
             logger.error(f"Failed to clone repository: {e}")

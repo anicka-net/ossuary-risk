@@ -67,8 +67,9 @@ class GitHubCollector(BaseCollector):
     API_BASE = "https://api.github.com"
     GRAPHQL_URL = "https://api.github.com/graphql"
 
-    # Rate limiting
-    REQUEST_DELAY = 0.5
+    # Rate limiting — with token: 5000 req/hr (~1.4/sec), without: 60/hr
+    REQUEST_DELAY = 0.1
+    REQUEST_DELAY_UNAUTHENTICATED = 1.0
     RATE_LIMIT_PAUSE = 60
 
     # Tier-1 thresholds
@@ -118,7 +119,8 @@ class GitHubCollector(BaseCollector):
 
     async def _request(self, method: str, url: str, **kwargs) -> Optional[dict]:
         """Make a rate-limit-aware request."""
-        time.sleep(self.REQUEST_DELAY)
+        delay = self.REQUEST_DELAY if self.token else self.REQUEST_DELAY_UNAUTHENTICATED
+        time.sleep(delay)
 
         try:
             response = await self.client.request(method, url, **kwargs)
@@ -174,7 +176,7 @@ class GitHubCollector(BaseCollector):
         """Get GitHub user profile."""
         return await self._get(f"/users/{username}")
 
-    async def get_user_repos(self, username: str, max_pages: int = 10) -> list[dict]:
+    async def get_user_repos(self, username: str, max_pages: int = 3) -> list[dict]:
         """Get all public repos for a user."""
         repos = []
         page = 1
@@ -329,8 +331,8 @@ class GitHubCollector(BaseCollector):
         owner: str,
         repo: str,
         state: str = "all",
-        per_page: int = 100,
-        include_comments: bool = True,
+        per_page: int = 30,
+        max_comment_fetches: int = 10,
     ) -> list[IssueData]:
         """
         Get issues and PRs from a repository.
@@ -339,8 +341,8 @@ class GitHubCollector(BaseCollector):
             owner: Repository owner
             repo: Repository name
             state: Issue state filter (all, open, closed)
-            per_page: Number of issues per page
-            include_comments: Whether to fetch comments for each issue
+            per_page: Number of issues to fetch
+            max_comment_fetches: Max issues to fetch comments for (API call each)
 
         Returns:
             List of IssueData objects
@@ -354,6 +356,7 @@ class GitHubCollector(BaseCollector):
             return []
 
         issues = []
+        comment_fetches = 0
         for issue in issues_data:
             issue_obj = IssueData(
                 number=issue.get("number"),
@@ -367,8 +370,8 @@ class GitHubCollector(BaseCollector):
                 closed_at=issue.get("closed_at"),
             )
 
-            # Fetch comments if requested
-            if include_comments and issue.get("comments", 0) > 0:
+            # Fetch comments for a limited number of issues (each is an API call)
+            if comment_fetches < max_comment_fetches and issue.get("comments", 0) > 0:
                 comments = await self._get(f"/repos/{owner}/{repo}/issues/{issue['number']}/comments")
                 if comments:
                     issue_obj.comments = [
@@ -380,6 +383,7 @@ class GitHubCollector(BaseCollector):
                         }
                         for c in comments
                     ]
+                comment_fetches += 1
 
             issues.append(issue_obj)
 
