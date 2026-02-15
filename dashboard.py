@@ -103,7 +103,7 @@ if eco_summary:
             st.markdown(
                 f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
                 f'margin-bottom:8px;border-left:3px solid {color};">'
-                f'<strong>{eco}</strong><br>'
+                f'<a href="/Ecosystems?eco={eco}" target="_self" style="color:inherit;text-decoration:none;"><strong>{eco}</strong></a><br>'
                 f'<span style="font-family:monospace;font-size:1.4em;">{data["count"]}</span> '
                 f'<span style="color:#7f8c8d;">packages</span><br>'
                 f'<span style="color:#7f8c8d;font-size:0.85em;">'

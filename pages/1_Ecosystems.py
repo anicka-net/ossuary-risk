@@ -43,7 +43,10 @@ if not ecosystems:
     st.info("No packages tracked yet. Score some packages first.")
     st.stop()
 
-selected = st.selectbox("Ecosystem", ecosystems, label_visibility="collapsed")
+qp_eco = st.query_params.get("eco", "")
+default_idx = ecosystems.index(qp_eco) if qp_eco in ecosystems else 0
+
+selected = st.selectbox("Ecosystem", ecosystems, index=default_idx, label_visibility="collapsed")
 
 if not selected:
     st.stop()
