@@ -41,8 +41,19 @@ st.divider()
 
 # -- Package selection --
 
+# Check query params (from Score page link)
+qp_name = st.query_params.get("name", "")
+qp_eco = st.query_params.get("eco", "")
+
 all_pkgs = get_all_tracked_packages()
 pkg_names = sorted(set(f"{p['name']} ({p['ecosystem']})" for p in all_pkgs if p["score"] is not None))
+
+# Pre-select from query params if available
+default_idx = 0
+if qp_name and qp_eco:
+    target = f"{qp_name} ({qp_eco})"
+    if target in pkg_names:
+        default_idx = pkg_names.index(target) + 1  # +1 for "" at index 0
 
 col1, col2 = st.columns([3, 1])
 
@@ -50,16 +61,20 @@ with col1:
     selected = st.selectbox(
         "Select a tracked package, or type a new name below",
         [""] + pkg_names,
+        index=default_idx,
         label_visibility="collapsed",
         placeholder="Select tracked package...",
     )
 
+ecosystems = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
+default_eco = ecosystems.index(qp_eco) if qp_eco in ecosystems else 0
+
 with col2:
-    ecosystems = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
-    new_eco = st.selectbox("Ecosystem", ecosystems, key="pkg_eco", label_visibility="collapsed")
+    new_eco = st.selectbox("Ecosystem", ecosystems, index=default_eco, key="pkg_eco", label_visibility="collapsed")
 
 new_name = st.text_input(
     "Or enter package name",
+    value=qp_name if qp_name and default_idx == 0 else "",
     placeholder="e.g., lodash, owner/repo",
     label_visibility="collapsed",
 )
