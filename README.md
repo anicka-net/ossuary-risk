@@ -196,9 +196,9 @@ REPOS_PATH=./repos
 
 ## Validation
 
-Validated on 139 packages across 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub):
+Validated on 143 packages across 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub):
 
-- **Accuracy**: 91.4%
+- **Accuracy**: 91.6%
 - **Precision**: 100.0% (zero false positives)
 - **Recall**: 58.6%
 - **F1 Score**: 0.74

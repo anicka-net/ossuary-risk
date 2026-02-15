@@ -1,23 +1,23 @@
 # Validation Report
 
-**Version**: 2.0 (February 2026)
-**Dataset**: 139 packages across 8 ecosystems
+**Version**: 2.1 (February 2026)
+**Dataset**: 143 packages across 8 ecosystems
 
 ---
 
 ## Summary
 
-Ossuary's governance-based risk scoring was validated against 139 open source packages spanning 8 package ecosystems. The dataset includes known supply chain incidents, packages with governance risk signals, and a control group of well-maintained packages.
+Ossuary's governance-based risk scoring was validated against 143 open source packages spanning 8 package ecosystems. The dataset includes known supply chain incidents, packages with governance risk signals, and a control group of well-maintained packages.
 
 | Metric | Value |
 |--------|-------|
-| **Accuracy** | 91.4% |
+| **Accuracy** | 91.6% |
 | **Precision** | 100% |
 | **Recall** | 58.6% |
 | **F1 Score** | 0.74 |
 | **False Positives** | 0 |
 
-**Key finding**: Zero false positives across 139 packages. Every package flagged as risky had a genuine governance concern. The tool never cries wolf.
+**Key finding**: Zero false positives across 143 packages. Every package flagged as risky had a genuine governance concern. The tool never cries wolf.
 
 ---
 
@@ -28,14 +28,14 @@ Ossuary's governance-based risk scoring was validated against 139 open source pa
 | Ecosystem | Incidents | Controls | Total | Accuracy |
 |-----------|-----------|----------|-------|----------|
 | npm | 18 | 43 | 61 | 85% |
-| PyPI | 2 | 38 | 40 | 100% |
+| PyPI | 2 | 42 | 44 | 100% |
 | Cargo | 0 | 8 | 8 | 100% |
 | RubyGems | 3 | 8 | 11 | 91% |
 | Packagist | 0 | 5 | 5 | 100% |
 | NuGet | 0 | 4 | 4 | 100% |
 | Go | 1 | 4 | 5 | 100% |
 | GitHub | 2 | 3 | 5 | 60% |
-| **Total** | **29** | **110** | **139** | **91.4%** |
+| **Total** | **29** | **114** | **143** | **91.6%** |
 
 npm has the most incidents because it has the most documented supply chain attacks historically. The lower npm accuracy (85%) reflects this: most false negatives come from attack types that governance metrics fundamentally cannot detect (account compromise, active maintainer sabotage).
 
@@ -47,7 +47,7 @@ npm has the most incidents because it has the most documented supply chain attac
 | Account compromise | 4 | 8 | 50% | No - outside scope |
 | Governance failure | 1 | 3 | 33% | Partially |
 | Maintainer sabotage | 1 | 3 | 33% | No - insider threat |
-| **Control (safe)** | **110** | **110** | **100%** | N/A |
+| **Control (safe)** | **114** | **114** | **100%** | N/A |
 
 ---
 
@@ -56,7 +56,7 @@ npm has the most incidents because it has the most documented supply chain attac
 ```
                     Predicted Risky    Predicted Safe
 Actually Risky         17 (TP)            12 (FN)
-Actually Safe           0 (FP)           110 (TN)
+Actually Safe           0 (FP)           114 (TN)
 ```
 
 ### What the Numbers Mean
@@ -150,9 +150,9 @@ kubernetes, grafana, and terraform correctly scored as safe. xz-utils and lottie
 
 | Metric | v1 (Feb 2026) | v2 (Feb 2026) |
 |--------|---------------|---------------|
-| Packages | 92 | 139 |
+| Packages | 92 | 143 |
 | Ecosystems | 2 (npm, pypi) | 8 |
-| Accuracy | 92.4% | 91.4% |
+| Accuracy | 92.4% | 91.6% |
 | Precision | 100% | 100% |
 | Recall | 65.0% | 58.6% |
 | F1 | 0.79 | 0.74 |
@@ -188,4 +188,4 @@ Filter by ecosystem:
 ---
 
 *Report generated from validation run on February 15, 2026*
-*Dataset: 139 packages (29 incidents, 110 controls) across 8 ecosystems*
+*Dataset: 143 packages (29 incidents, 114 controls) across 8 ecosystems*

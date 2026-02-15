@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing, the methodology achieved **91.4% accuracy** on 139 packages across 8 ecosystems, with **100% precision** (zero false positives), detecting governance-related risks before incidents occur.
+**Key Finding**: In validation testing, the methodology achieved **91.6% accuracy** on 143 packages across 8 ecosystems, with **100% precision** (zero false positives), detecting governance-related risks before incidents occur.
 
-**Version**: 3.0 (February 2026)
-**Validation Dataset**: 139 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
+**Version**: 3.1 (February 2026)
+**Validation Dataset**: 143 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
 
@@ -280,9 +280,9 @@ The validation dataset includes:
 
 1. **Known Incidents** (14 packages): Packages with documented supply chain incidents across npm, PyPI, RubyGems, and GitHub
 2. **Governance Risk** (15 packages): Packages with elevated risk signals but no incident (yet)
-3. **Control Group** (110 packages): Popular packages with healthy governance across all 8 ecosystems
+3. **Control Group** (114 packages): Popular packages with healthy governance across all 8 ecosystems
 
-Total: 139 packages across npm (61), PyPI (40), Cargo (8), RubyGems (11), Packagist (5), NuGet (4), Go (5), GitHub (5).
+Total: 143 packages across npm (61), PyPI (44), Cargo (8), RubyGems (11), Packagist (5), NuGet (4), Go (5), GitHub (5).
 
 ### 8.2 Classification Rules
 
@@ -293,17 +293,17 @@ Total: 139 packages across npm (61), PyPI (40), Cargo (8), RubyGems (11), Packag
 | Safe | <60 | True Negative (TN) |
 | Safe | ≥60 | False Positive (FP) |
 
-### 8.3 Results (n=139)
+### 8.3 Results (n=143)
 
 ```
-Accuracy:   91.4%
+Accuracy:   91.6%
 Precision:  100.0%
 Recall:     58.6%
 F1 Score:   0.74
 
 Confusion Matrix:
   TP: 17  |  FN: 12
-  FP: 0   |  TN: 110
+  FP: 0   |  TN: 114
 ```
 
 ### 8.4 Performance by Category
@@ -314,7 +314,7 @@ Confusion Matrix:
 | Account Compromise | 50% (4/8) | Expected low - outside scope |
 | Governance Failure | 33% (1/3) | xz-utils social engineering a fundamental limit |
 | Maintainer Sabotage | 33% (1/3) | Expected low - insider threat |
-| Control (Safe) | 100% (110/110) | Zero false positives |
+| Control (Safe) | 100% (114/114) | Zero false positives |
 
 ### 8.5 Performance by Ecosystem
 
@@ -324,7 +324,7 @@ Confusion Matrix:
 | Go | 100% | 5 |
 | NuGet | 100% | 4 |
 | Packagist | 100% | 5 |
-| PyPI | 100% | 40 |
+| PyPI | 100% | 44 |
 | RubyGems | 91% | 11 |
 | npm | 85% | 61 |
 | GitHub | 60% | 5 |
@@ -429,7 +429,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 139 packages across 8 ecosystems; thresholds produce 100% precision |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 143 packages across 8 ecosystems; thresholds produce 100% precision |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Confounding Variables** | High scores might correlate with other unmeasured factors (e.g., project age, domain) | Controlled for by including diverse package types in validation set |
@@ -464,7 +464,7 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
 | **Small Incident Sample** | 29 incident packages in validation set | Incidents are rare events; sample represents majority of documented governance incidents across ecosystems |
-| **Class Imbalance** | 29 incidents vs 110 controls (1:3.8 ratio) | Reported precision and recall separately; F1 score accounts for imbalance |
+| **Class Imbalance** | 29 incidents vs 114 controls (1:3.9 ratio) | Reported precision and recall separately; F1 score accounts for imbalance |
 | **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the full population of known incidents, not a sample |
 | **Confidence Intervals** | Point estimates reported without confidence intervals | Sample size limits statistical power; results should be interpreted directionally |
 
@@ -473,7 +473,7 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 Despite these threats, several factors support the validity of findings:
 
 1. **100% T-1 Detection**: All governance-detectable incidents scored CRITICAL before they occurred
-2. **100% Precision**: Zero false positives across 139 packages and 8 ecosystems
+2. **100% Precision**: Zero false positives across 143 packages and 8 ecosystems
 3. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 4. **Grounded in Real Incidents**: Methodology derived from analysis of actual supply chain attacks
 5. **Alignment with CHAOSS**: Core metrics align with established open source health frameworks
@@ -599,7 +599,7 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 3. **ML enhancement**: Train classifier on larger incident corpus
 4. **Dependency graph analysis**: Transitive risk aggregation
 5. **Maintainer network analysis**: Identify shared maintainer risks across packages
-6. **PyPI repository URL discovery**: Improve automatic GitHub URL extraction from PyPI metadata
+6. ~~**PyPI repository URL discovery**~~: Done - case-insensitive URL extraction with multi-priority fallback
 
 ---
 
@@ -635,7 +635,7 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 
 ---
 
-*Document version: 3.0*
+*Document version: 3.1*
 *Last updated: February 2026*
-*Validation dataset: 139 packages across 8 ecosystems (91.4% accuracy, 100% precision)*
+*Validation dataset: 143 packages across 8 ecosystems (91.6% accuracy, 100% precision)*
 *See [validation report](validation.md) for detailed results*
