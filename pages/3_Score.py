@@ -125,7 +125,7 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
 
     # Link to package detail page
     st.markdown("")
-    st.page_link(f"pages/2_Package.py?name={pkg}&eco={eco}", label=f"View full detail for {pkg}")
+    st.markdown(f'<a href="/Package?name={pkg}&eco={eco}" target="_self">View full detail for {pkg}</a>', unsafe_allow_html=True)
 
 st.divider()
 st.caption("Ossuary v0.2.0")
