@@ -64,18 +64,43 @@ class PyPICollector(BaseCollector):
             logger.error(f"PyPI stats error: {e}")
         return 0
 
+    def _clean_repo_url(self, url: str) -> str:
+        """Strip trailing paths like /issues, /tree/..., /blob/... from repo URLs."""
+        import re
+
+        # Remove fragments and query strings
+        url = url.split("#")[0].split("?")[0].rstrip("/")
+        # Strip known subpaths to get the base repo URL
+        url = re.sub(r"/(issues|pulls|tree|blob|wiki|releases|actions|discussions)(/.*)?$", "", url)
+        return url
+
     def _extract_repo_url(self, info: dict) -> str:
         """Extract repository URL from package info."""
-        # Check project_urls first
         project_urls = info.get("project_urls", {}) or {}
-        for key in ["Repository", "Source", "Source Code", "GitHub", "Code"]:
-            if key in project_urls:
-                return project_urls[key]
 
-        # Check home_page
+        # Build case-insensitive lookup
+        urls_lower = {k.lower(): v for k, v in project_urls.items()}
+
+        # Priority 1: explicit repo keys (case-insensitive)
+        for key in ["repository", "source", "source code", "github", "code"]:
+            if key in urls_lower:
+                return self._clean_repo_url(urls_lower[key])
+
+        # Priority 2: homepage if it points to a code host
+        for key in ["homepage", "home"]:
+            url = urls_lower.get(key, "")
+            if url and ("github.com" in url or "gitlab.com" in url):
+                return self._clean_repo_url(url)
+
+        # Priority 3: scan all project_urls values for github/gitlab links
+        for url in project_urls.values():
+            if "github.com" in url or "gitlab.com" in url:
+                return self._clean_repo_url(url)
+
+        # Priority 4: legacy home_page field
         home_page = info.get("home_page", "") or ""
         if "github.com" in home_page or "gitlab.com" in home_page:
-            return home_page
+            return self._clean_repo_url(home_page)
 
         return ""
 

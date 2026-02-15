@@ -305,5 +305,63 @@ def check(
     raise typer.Exit(1)
 
 
+@app.command()
+def refresh(
+    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Only refresh this ecosystem"),
+    max_age: int = typer.Option(7, "--max-age", help="Re-score packages older than N days"),
+):
+    """Re-score all tracked packages. Intended for cron jobs."""
+    asyncio.run(_refresh(ecosystem, max_age))
+
+
+async def _refresh(ecosystem_filter: Optional[str], max_age: int):
+    """Re-score tracked packages that are stale."""
+    from ossuary.db.session import get_session
+    from ossuary.db.models import Package, Score
+    from ossuary.services.scorer import score_package as svc_score
+
+    init_db()
+
+    with next(get_session()) as session:
+        query = session.query(Package)
+        if ecosystem_filter:
+            query = query.filter(Package.ecosystem == ecosystem_filter)
+        packages = query.all()
+
+    if not packages:
+        console.print("No tracked packages found.")
+        return
+
+    stale = []
+    now = datetime.utcnow()
+    for pkg in packages:
+        if pkg.last_analyzed is None:
+            stale.append(pkg)
+        else:
+            age = (now - pkg.last_analyzed).days
+            if age >= max_age:
+                stale.append(pkg)
+
+    console.print(f"Found {len(packages)} tracked packages, {len(stale)} need refresh (>{max_age} days old).")
+
+    if not stale:
+        console.print("[green]All packages are fresh.[/green]")
+        return
+
+    success = 0
+    errors = 0
+    for i, pkg in enumerate(stale, 1):
+        console.print(f"  [{i}/{len(stale)}] {pkg.name} ({pkg.ecosystem})...", end=" ")
+        result = await svc_score(pkg.name, pkg.ecosystem, repo_url=pkg.repo_url)
+        if result.success:
+            console.print(f"[green]{result.breakdown.final_score} {result.breakdown.risk_level.value}[/green]")
+            success += 1
+        else:
+            console.print(f"[red]ERROR: {result.error}[/red]")
+            errors += 1
+
+    console.print(f"\nDone. {success} refreshed, {errors} errors.")
+
+
 if __name__ == "__main__":
     app()

@@ -467,7 +467,13 @@ VALIDATION_CASES = [
         notes="Very active, multiple maintainers, well governed",
     ),
 
-    # NOTE: numpy removed - PyPI metadata doesn't expose GitHub repo URL reliably
+    # numpy - numerical computing
+    ValidationCase(
+        name="numpy",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="NumFOCUS sponsored, many contributors, foundational scientific Python",
+    ),
 
     # click - CLI framework by Pallets
     ValidationCase(
@@ -630,7 +636,13 @@ VALIDATION_CASES = [
         notes="Mozilla CA bundle, well maintained",
     ),
 
-    # NOTE: cryptography removed - PyPI metadata doesn't expose GitHub repo URL reliably
+    # cryptography - crypto primitives
+    ValidationCase(
+        name="cryptography",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="PyCA project, multiple maintainers, security-critical with professional governance",
+    ),
 
     # pillow - image processing
     ValidationCase(
@@ -640,7 +652,13 @@ VALIDATION_CASES = [
         notes="PIL fork, active community, multiple maintainers",
     ),
 
-    # NOTE: sqlalchemy removed - PyPI metadata doesn't expose GitHub repo URL reliably
+    # sqlalchemy - database toolkit
+    ValidationCase(
+        name="sqlalchemy",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="Mike Bayer, mature project, professional development, foundational ORM",
+    ),
 
     # jinja2 - templating
     ValidationCase(
@@ -650,7 +668,13 @@ VALIDATION_CASES = [
         notes="Pallets project, same governance as Flask",
     ),
 
-    # NOTE: aiohttp removed - PyPI metadata doesn't expose GitHub repo URL reliably
+    # aiohttp - async HTTP client/server
+    ValidationCase(
+        name="aiohttp",
+        ecosystem="pypi",
+        expected_outcome="safe",
+        notes="aio-libs org, multiple maintainers, active development",
+    ),
 
     # httpx - modern HTTP client
     ValidationCase(
@@ -863,7 +887,6 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="safe",
         notes="NumFOCUS sponsored, many contributors, institutional backing",
-        repo_url="https://github.com/pandas-dev/pandas",
     ),
 
     # scipy - scientific computing
@@ -872,7 +895,6 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="safe",
         notes="NumFOCUS sponsored, many contributors",
-        repo_url="https://github.com/scipy/scipy",
     ),
 
     # matplotlib - plotting
@@ -889,7 +911,6 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="safe",
         notes="NumFOCUS sponsored, many contributors",
-        repo_url="https://github.com/scikit-learn/scikit-learn",
     ),
 
     # uvicorn - ASGI server
@@ -906,7 +927,6 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="safe",
         notes="Mature project, multiple maintainers",
-        repo_url="https://github.com/benoitc/gunicorn",
     ),
 
     # celery - task queue
@@ -971,7 +991,6 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="safe",
         notes="Active project, multiple contributors",
-        repo_url="https://github.com/tqdm/tqdm",
     ),
 
     # pendulum - better datetime
@@ -1047,7 +1066,6 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="safe",
         notes="Delgan, popular logging library, active development",
-        repo_url="https://github.com/Delgan/loguru",
     ),
 
     # tenacity - retry library
@@ -1073,7 +1091,6 @@ VALIDATION_CASES = [
         expected_outcome="incident",
         attack_type="governance_risk",
         notes="Governance risk: Single maintainer (ijl), 100% concentration, bus factor of 1 despite popularity.",
-        repo_url="https://github.com/ijl/orjson",
     ),
 
     # =========================================================================
