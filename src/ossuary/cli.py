@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime
 from typing import Optional
@@ -424,6 +425,127 @@ async def _seed():
 
     console.print(f"\nDone. {success} scored, {errors} errors.")
     console.print("Dashboard should now show tracked packages.")
+
+
+@app.command("discover-suse")
+def discover_suse(
+    project: str = typer.Option("openSUSE:Factory", "--project", "-p", help="OBS project to scan"),
+    output: str = typer.Option("suse_packages.json", "--output", "-o", help="Output JSON file"),
+    workers: int = typer.Option(5, "--workers", "-w", help="Parallel osc workers"),
+    delay: float = typer.Option(0.1, "--delay", "-d", help="Seconds between OBS API calls"),
+    resume: bool = typer.Option(False, "--resume", help="Skip already-discovered packages"),
+    limit: int = typer.Option(0, "--limit", "-l", help="Only process first N packages (0=all)"),
+):
+    """Discover GitHub repos for openSUSE/OBS packages via osc."""
+    import subprocess
+
+    # Check osc is available
+    try:
+        subprocess.run(["osc", "--version"], capture_output=True, timeout=5)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        console.print("[red]osc CLI not found. Install with: zypper install osc[/red]")
+        raise typer.Exit(1)
+
+    # Build the command
+    script = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "discover_suse.py")
+    script = os.path.normpath(script)
+
+    if not os.path.exists(script):
+        # Try relative to cwd
+        script = os.path.join("scripts", "discover_suse.py")
+
+    if not os.path.exists(script):
+        console.print(f"[red]Discovery script not found: {script}[/red]")
+        raise typer.Exit(1)
+
+    cmd = [
+        sys.executable, script,
+        "--project", project,
+        "--output", output,
+        "--workers", str(workers),
+        "--delay", str(delay),
+    ]
+    if resume:
+        cmd.append("--resume")
+    if limit > 0:
+        cmd.extend(["--limit", str(limit)])
+
+    console.print(f"Running discovery: {' '.join(cmd)}\n")
+    result = subprocess.run(cmd)
+    raise typer.Exit(result.returncode)
+
+
+@app.command("seed-suse")
+def seed_suse(
+    file: str = typer.Option("suse_packages.json", "--file", "-f", help="Discovery JSON file"),
+    limit: int = typer.Option(0, "--limit", "-l", help="Score first N packages only (0=all)"),
+    concurrent: int = typer.Option(3, "--concurrent", "-c", help="Parallel scoring workers"),
+    skip_fresh: bool = typer.Option(True, "--skip-fresh/--no-skip-fresh", help="Skip recently scored packages"),
+    fresh_days: int = typer.Option(7, "--fresh-days", help="Days before a score is stale"),
+):
+    """Score all discovered SUSE packages from a discovery JSON file."""
+    asyncio.run(_seed_suse(file, limit, concurrent, skip_fresh, fresh_days))
+
+
+async def _seed_suse(
+    file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int
+):
+    """Batch-score SUSE packages."""
+    from ossuary.services.batch import load_discovery_file, batch_score
+
+    init_db()
+
+    if not os.path.exists(file):
+        console.print(f"[red]Discovery file not found: {file}[/red]")
+        console.print("Run 'ossuary discover-suse' first to generate it.")
+        raise typer.Exit(1)
+
+    packages = load_discovery_file(file)
+    total = min(limit, len(packages)) if limit > 0 else len(packages)
+
+    console.print(f"[bold]Batch scoring SUSE packages[/bold]")
+    console.print(f"  Source: {file}")
+    console.print(f"  Packages: {total} of {len(packages)}")
+    console.print(f"  Concurrent: {concurrent}")
+    console.print(f"  Skip fresh (<{fresh_days}d): {skip_fresh}\n")
+
+    scored_count = 0
+    skipped_count = 0
+    error_count = 0
+
+    def on_progress(current, total_pkgs, pkg_name, status):
+        nonlocal scored_count, skipped_count, error_count
+
+        if status == "scored":
+            scored_count += 1
+            console.print(f"  [{current}/{total_pkgs}] [green]OK[/green] {pkg_name}")
+        elif status == "skipped":
+            skipped_count += 1
+            # Only print skip every 100 to avoid spam
+            if skipped_count % 100 == 0:
+                console.print(f"  [{current}/{total_pkgs}] skipped {skipped_count} fresh packages so far...")
+        else:
+            error_count += 1
+            console.print(f"  [{current}/{total_pkgs}] [red]{status}[/red] {pkg_name}")
+
+    result = await batch_score(
+        packages,
+        max_concurrent=concurrent,
+        max_packages=limit,
+        skip_fresh=skip_fresh,
+        fresh_days=fresh_days,
+        progress_callback=on_progress,
+    )
+
+    console.print(f"\n[bold green]Done![/bold green]")
+    console.print(f"  Scored: {result.scored}")
+    console.print(f"  Skipped (fresh): {result.skipped}")
+    console.print(f"  Errors: {result.errors}")
+
+    if result.errors > 0 and result.error_details:
+        console.print(f"\n[bold yellow]Error summary (first 20):[/bold yellow]")
+        for detail in result.error_details[:20]:
+            console.print(f"  {detail}")
 
 
 if __name__ == "__main__":
