@@ -102,11 +102,16 @@ class GitCollector(BaseCollector):
 
         logger.info(f"Cloning repository: {repo_url}")
         try:
-            # Shallow clone: only 3 years of history (scoring only uses recent commits)
+            # Blobless partial clone: fetches commit metadata only, no file content.
+            # We only need author/date/message — never actual code.
             Repo.clone_from(
                 repo_url,
                 repo_path,
-                multi_options=["--shallow-since=3years", "--single-branch"],
+                multi_options=[
+                    "--filter=blob:none",
+                    "--shallow-since=3years",
+                    "--single-branch",
+                ],
             )
             return repo_path
         except GitCommandError as e:
