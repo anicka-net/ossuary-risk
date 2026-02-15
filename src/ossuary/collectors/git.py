@@ -109,7 +109,7 @@ class GitCollector(BaseCollector):
                 repo_path,
                 multi_options=[
                     "--filter=blob:none",
-                    "--shallow-since=3years",
+                    "--shallow-since=5years",
                     "--single-branch",
                 ],
             )
