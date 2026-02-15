@@ -5,18 +5,19 @@
 
 FROM registry.opensuse.org/opensuse/tumbleweed:latest AS base
 
-RUN zypper -n install python313 python313-pip git && \
+RUN zypper -n install python313 python313-pip python313-venv git && \
     zypper clean -a
 
-# Use Python 3.13 as default
-RUN ln -sf /usr/bin/python3.13 /usr/bin/python3
-
 WORKDIR /app
+
+# Create venv (PEP 668 — Tumbleweed marks system Python as externally managed)
+RUN python3.13 -m venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Install dependencies first (layer caching)
 COPY pyproject.toml README.md ./
 COPY src/ossuary/__init__.py src/ossuary/__init__.py
-RUN python3 -m pip install --no-cache-dir ".[dashboard]"
+RUN pip install --no-cache-dir ".[dashboard]"
 
 # Copy application code
 COPY src/ src/
