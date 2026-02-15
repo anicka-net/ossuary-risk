@@ -13,6 +13,7 @@ from ossuary.collectors.pypi import PyPICollector
 from ossuary.collectors.registries import REGISTRY_COLLECTORS
 from ossuary.db.session import session_scope
 from ossuary.scoring.engine import PackageMetrics, RiskBreakdown, RiskScorer
+from ossuary.scoring.factors import RiskLevel
 from ossuary.scoring.reputation import ReputationScorer
 from ossuary.sentiment.analyzer import SentimentAnalyzer
 from ossuary.services.cache import ScoreCache
@@ -264,6 +265,58 @@ def calculate_score_for_date(
     return scorer.calculate(package_name, ecosystem, metrics, collected_data.repo_url)
 
 
+def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optional[RiskBreakdown]:
+    """Reconstruct a RiskBreakdown from cached Score data."""
+    try:
+        from ossuary.scoring.factors import ProtectiveFactors
+
+        d = cached_score.breakdown
+        pkg = d.get("package", {})
+        metrics = d.get("metrics", {})
+        score_data = d.get("score", {})
+        components = score_data.get("components", {})
+        pf = components.get("protective_factors", {})
+
+        protective = ProtectiveFactors(
+            reputation_score=pf.get("reputation", {}).get("score", 0),
+            funding_score=pf.get("funding", {}).get("score", 0),
+            org_score=pf.get("organization", {}).get("score", 0),
+            visibility_score=pf.get("visibility", {}).get("score", 0),
+            distributed_score=pf.get("distributed_governance", {}).get("score", 0),
+            community_score=pf.get("community", {}).get("score", 0),
+            cii_score=pf.get("cii_badge", {}).get("score", 0),
+            frustration_score=pf.get("frustration", {}).get("score", 0),
+            sentiment_score=pf.get("sentiment", {}).get("score", 0),
+            reputation_evidence=pf.get("reputation", {}).get("evidence"),
+            funding_evidence=pf.get("funding", {}).get("evidence"),
+            frustration_evidence=pf.get("frustration", {}).get("evidence", []),
+            sentiment_evidence=pf.get("sentiment", {}).get("evidence", []),
+        )
+
+        risk_level = RiskLevel(cached_score.risk_level)
+
+        return RiskBreakdown(
+            package_name=package_name,
+            ecosystem=ecosystem,
+            repo_url=pkg.get("repo_url"),
+            maintainer_concentration=metrics.get("maintainer_concentration", cached_score.maintainer_concentration),
+            commits_last_year=metrics.get("commits_last_year", cached_score.commits_last_year),
+            unique_contributors=metrics.get("unique_contributors", cached_score.unique_contributors),
+            weekly_downloads=metrics.get("weekly_downloads", cached_score.weekly_downloads),
+            base_risk=cached_score.base_risk,
+            activity_modifier=cached_score.activity_modifier,
+            protective_factors=protective,
+            final_score=cached_score.final_score,
+            risk_level=risk_level,
+            explanation=d.get("explanation", ""),
+            recommendations=d.get("recommendations", []),
+            data_sources=d.get("data_sources", {}),
+            warnings=d.get("warnings", []),
+        )
+    except Exception:
+        return None
+
+
 async def score_package(
     package_name: str,
     ecosystem: str,
@@ -294,12 +347,10 @@ async def score_package(
 
             if cache.is_fresh(package):
                 cached_score = cache.get_current_score(package)
-                if cached_score:
-                    # Reconstruct breakdown from cached data
-                    from ossuary.scoring.factors import RiskLevel
-                    # For now, return a simplified result from cache
-                    # A full implementation would reconstruct RiskBreakdown
-                    pass  # Fall through to fresh calculation for now
+                if cached_score and cached_score.breakdown:
+                    breakdown = _rebuild_breakdown(cached_score, package_name, ecosystem)
+                    if breakdown:
+                        return ScoringResult(success=True, breakdown=breakdown)
 
     # Collect data
     collected_data, warnings = await collect_package_data(package_name, ecosystem, repo_url)
