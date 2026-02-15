@@ -90,23 +90,33 @@ if packages:
         lambda x: x.strftime("%Y-%m-%d") if x else "—"
     )
 
-    display_df = df[["name", "score_display", "risk_level", "concentration_display",
-                      "commits_display", "contributors_display", "analyzed"]].copy()
-    display_df.columns = ["Package", "Score", "Level", "Concentration",
-                          "Commits/yr", "Contributors", "Last analyzed"]
+    # Render as clickable list instead of dataframe for navigation
+    for _, row in df.iterrows():
+        pkg_name = row["name"]
+        eco = row["ecosystem"]
+        score_val = int(row["score"])
+        level = row["risk_level"] or ""
+        conc = f'{row["concentration"]:.0f}%' if pd.notna(row["concentration"]) else "—"
+        commits = str(int(row["commits_year"])) if pd.notna(row["commits_year"]) else "—"
+        color = risk_color(level)
 
-    # Color the score column
-    def color_score(val):
-        if val >= 80:
-            return f"color: {COLORS['critical']}"
-        elif val >= 60:
-            return f"color: {COLORS['high']}"
-        elif val >= 40:
-            return f"color: {COLORS['moderate']}"
-        return ""
-
-    styled = display_df.style.map(color_score, subset=["Score"])
-    st.dataframe(styled, use_container_width=True, hide_index=True, height=600)
+        c1, c2, c3, c4 = st.columns([3, 1, 2, 2])
+        with c1:
+            st.markdown(
+                f'<a href="/Package?name={pkg_name}&eco={eco}" target="_self" '
+                f'style="color:inherit;text-decoration:none;font-weight:600;">{pkg_name}</a>',
+                unsafe_allow_html=True,
+            )
+        with c2:
+            st.markdown(
+                f'<span style="color:{color};font-family:monospace;font-weight:600;">'
+                f'{score_val}</span> <span style="color:#7f8c8d;font-size:0.85em;">{level}</span>',
+                unsafe_allow_html=True,
+            )
+        with c3:
+            st.caption(f"concentration {conc}")
+        with c4:
+            st.caption(f"{commits} commits/yr")
 
     # -- Score distribution --
 
@@ -146,4 +156,14 @@ else:
     st.caption("No packages in this ecosystem.")
 
 st.divider()
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.page_link("dashboard.py", label="Home")
+with col2:
+    st.page_link("pages/3_Score.py", label="Score a package")
+with col3:
+    st.page_link("pages/2_Package.py", label="Package detail")
+with col4:
+    st.page_link("pages/4_Methodology.py", label="Methodology")
+
 st.caption("Ossuary v0.2.0")

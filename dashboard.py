@@ -133,7 +133,12 @@ if at_risk:
 
         col1, col2, col3, col4 = st.columns([3, 1, 2, 2])
         with col1:
-            st.markdown(f"**{p['name']}** · {p['ecosystem']}")
+            st.markdown(
+                f'<a href="/Package?name={p["name"]}&eco={p["ecosystem"]}" target="_self" '
+                f'style="color:inherit;text-decoration:none;"><strong>{p["name"]}</strong></a>'
+                f' · {p["ecosystem"]}',
+                unsafe_allow_html=True,
+            )
         with col2:
             st.markdown(
                 f'<span style="color:{color};font-family:monospace;font-weight:600;">'

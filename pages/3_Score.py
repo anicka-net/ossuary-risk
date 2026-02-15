@@ -128,4 +128,14 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
     st.markdown(f'<a href="/Package?name={pkg}&eco={eco}" target="_self">View full detail for {pkg}</a>', unsafe_allow_html=True)
 
 st.divider()
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.page_link("dashboard.py", label="Home")
+with col2:
+    st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems")
+with col3:
+    st.page_link("pages/2_Package.py", label="Package detail")
+with col4:
+    st.page_link("pages/4_Methodology.py", label="Methodology")
+
 st.caption("Ossuary v0.2.0")
