@@ -1,0 +1,32 @@
+# Ossuary container compose
+# Works with both podman-compose and docker compose:
+#   podman-compose up -d
+#   docker compose up -d
+
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    volumes:
+      - ossuary-data:/app/data
+      - ossuary-repos:/app/repos
+    restart: unless-stopped
+
+  api:
+    build: .
+    command: ["uvicorn", "ossuary.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    volumes:
+      - ossuary-data:/app/data
+      - ossuary-repos:/app/repos
+    restart: unless-stopped
+
+volumes:
+  ossuary-data:
+  ossuary-repos:

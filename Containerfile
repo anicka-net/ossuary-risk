@@ -1,0 +1,40 @@
+# Ossuary - OSS Supply Chain Risk Scoring
+# Works with both podman and docker:
+#   podman build -t ossuary .
+#   docker build -t ossuary .
+
+FROM registry.opensuse.org/opensuse/tumbleweed:latest AS base
+
+RUN zypper -n install python313 python313-pip git && \
+    zypper clean -a
+
+# Use Python 3.13 as default
+RUN ln -sf /usr/bin/python3.13 /usr/bin/python3
+
+WORKDIR /app
+
+# Install dependencies first (layer caching)
+COPY pyproject.toml README.md ./
+COPY src/ossuary/__init__.py src/ossuary/__init__.py
+RUN python3 -m pip install --no-cache-dir ".[dashboard]"
+
+# Copy application code
+COPY src/ src/
+COPY dashboard.py dashboard_utils.py ./
+COPY pages/ pages/
+
+# Create directories for runtime data
+RUN mkdir -p /app/repos /app/data
+
+# Default: run the dashboard
+EXPOSE 8501 8000
+
+ENV PYTHONUNBUFFERED=1
+ENV REPOS_PATH=/app/repos
+
+# Healthcheck for the dashboard
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')" || exit 1
+
+ENTRYPOINT ["python3", "-m"]
+CMD ["streamlit", "run", "dashboard.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.gatherUsageStats=false"]
