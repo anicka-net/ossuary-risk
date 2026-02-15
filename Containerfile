@@ -14,13 +14,12 @@ WORKDIR /app
 RUN python3.13 -m venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Install dependencies first (layer caching)
+# Copy source and install
 COPY pyproject.toml README.md ./
-COPY src/ossuary/__init__.py src/ossuary/__init__.py
+COPY src/ src/
 RUN pip install --no-cache-dir ".[dashboard]"
 
-# Copy application code
-COPY src/ src/
+# Copy dashboard files
 COPY dashboard.py dashboard_utils.py ./
 COPY pages/ pages/
 
