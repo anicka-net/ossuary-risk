@@ -41,6 +41,17 @@ ecosystems = sorted(eco_summary.keys()) if eco_summary else []
 
 if not ecosystems:
     st.info("No packages tracked yet. Score some packages first.")
+    st.divider()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.page_link("dashboard.py", label="Home")
+    with col2:
+        st.page_link("pages/3_Score.py", label="Score a package")
+    with col3:
+        st.page_link("pages/2_Package.py", label="Package detail")
+    with col4:
+        st.page_link("pages/4_Methodology.py", label="Methodology")
+    st.caption("Ossuary v0.2.0")
     st.stop()
 
 qp_eco = st.query_params.get("eco", "")

@@ -605,33 +605,36 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 
 ## References
 
-### Academic Papers
+### Essential Reading
 
-1. Ladisa, P., et al. (2023). "SoK: Taxonomy of Attacks on Open-Source Software Supply Chains." IEEE S&P 2023. https://arxiv.org/abs/2204.04008
-2. Ohm, M., et al. (2020). "Backstabber's Knife Collection: A Review of Open Source Software Supply Chain Attacks." DIMVA 2020. https://dasfreak.github.io/Backstabbers-Knife-Collection/
-3. Raman, N., et al. (2020). "Stress and Burnout in Open Source." ICSE-NIER 2020. https://dl.acm.org/doi/10.1145/3377816.3381732
-4. Lamb, C. & Zacchiroli, S. (2021). "Reproducible Builds: Increasing the Integrity of Software Supply Chains." IEEE Software. https://arxiv.org/abs/2104.06020
-5. Torres-Arias, S., et al. (2019). "in-toto: Providing farm-to-table guarantees for bits and bytes." USENIX Security 2019.
-6. "A Software Engineering Analysis of the XZ Utils Supply Chain Attack." arXiv 2504.17473. https://arxiv.org/abs/2504.17473
-7. Guo, Y., et al. (2024). "Sustaining Maintenance Labor for Healthy Open Source Software Projects." arXiv. https://arxiv.org/abs/2408.06723
-8. "Research Directions in Software Supply Chain Security." ACM TOSEM 2024. https://dl.acm.org/doi/10.1145/3714464
+These papers directly inform the methodology and should be read in full:
 
-### Industry Reports
+1. **Ladisa, P., et al. (2023). "SoK: Taxonomy of Attacks on Open-Source Software Supply Chains."** IEEE S&P 2023. https://arxiv.org/abs/2204.04008
+   — *The* foundational taxonomy. Identifies 12 attack categories; governance-based attacks are a distinct class. Start here.
 
-9. Eghbal, N. (2016). "Roads and Bridges: The Unseen Labor Behind Our Digital Infrastructure." Ford Foundation.
-10. Sonatype. "State of the Software Supply Chain." Annual Report. https://www.sonatype.com/state-of-the-software-supply-chain
-11. Synopsys. (2022). "Open Source Security and Risk Analysis Report."
+2. **Eghbal, N. (2016). "Roads and Bridges: The Unseen Labor Behind Our Digital Infrastructure."** Ford Foundation.
+   — Established that most OSS is maintained by 1-2 people. The "why bus factor matters" argument for any thesis on this topic.
 
-### Tools and Frameworks
+3. **Raman, N., et al. (2020). "Stress and Burnout in Open Source."** ICSE-NIER 2020. https://dl.acm.org/doi/10.1145/3377816.3381732
+   — SVM classifier for toxic discussions; directly influenced Ossuary's sentiment/frustration analysis.
 
-12. OpenSSF Scorecard - https://securityscorecards.dev/
-13. SLSA Framework - https://slsa.dev/
-14. Socket.dev - https://socket.dev/
-15. CHAOSS Project - https://chaoss.community/
-16. CHAOSS Contributor Absence Factor - https://chaoss.community/kb/metric-bus-factor/
-17. CHAOSS Elephant Factor - https://chaoss.community/kb/metric-elephant-factor/
-18. Augur - https://github.com/chaoss/augur
-19. GrimoireLab - https://chaoss.github.io/grimoirelab/
+4. **Ohm, M., et al. (2020). "Backstabber's Knife Collection: A Review of Open Source Software Supply Chain Attacks."** DIMVA 2020. https://dasfreak.github.io/Backstabbers-Knife-Collection/
+   — Catalog of real-world attacks with patterns. Good for incident classification in lit review.
+
+5. **"A Software Engineering Analysis of the XZ Utils Supply Chain Attack."** arXiv 2504.17473. https://arxiv.org/abs/2504.17473
+   — Detailed analysis of the most sophisticated governance attack. The 2.6-year timeline is the key case study.
+
+6. **Guo, Y., et al. (2024). "Sustaining Maintenance Labor for Healthy Open Source Software Projects."** arXiv. https://arxiv.org/abs/2408.06723
+   — Argues depleted maintainer capacity → unmaintained projects → security consequences. Supports the activity modifier.
+
+### Additional References
+
+7. "Research Directions in Software Supply Chain Security." ACM TOSEM 2024. https://dl.acm.org/doi/10.1145/3714464
+8. Sonatype. "State of the Software Supply Chain." Annual Report. https://www.sonatype.com/state-of-the-software-supply-chain
+9. Synopsys. (2022). "Open Source Security and Risk Analysis Report."
+10. OpenSSF Scorecard - https://securityscorecards.dev/
+11. CHAOSS Project - https://chaoss.community/
+12. CHAOSS Contributor Absence Factor - https://chaoss.community/kb/metric-bus-factor/
 
 ---
 

@@ -95,6 +95,17 @@ elif selected:
 
 if not pkg_name:
     st.caption("Select or enter a package to analyze.")
+    st.divider()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.page_link("dashboard.py", label="Home")
+    with col2:
+        st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems")
+    with col3:
+        st.page_link("pages/3_Score.py", label="Score a package")
+    with col4:
+        st.page_link("pages/4_Methodology.py", label="Methodology")
+    st.caption("Ossuary v0.2.0")
     st.stop()
 
 
@@ -113,6 +124,17 @@ with st.status(f"Analyzing {pkg_name}...", expanded=False) as status:
 
 if not result.success or not result.breakdown:
     st.error(f"Could not score package: {result.error}")
+    st.divider()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.page_link("dashboard.py", label="Home")
+    with col2:
+        st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems")
+    with col3:
+        st.page_link("pages/3_Score.py", label="Score a package")
+    with col4:
+        st.page_link("pages/4_Methodology.py", label="Methodology")
+    st.caption("Ossuary v0.2.0")
     st.stop()
 
 if result.warnings:
