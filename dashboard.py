@@ -53,10 +53,20 @@ all_packages = get_all_tracked_packages()
 scored = [p for p in all_packages if p["score"] is not None]
 
 if not scored:
-    st.info(
-        "No packages tracked yet. Use the **Score** page to analyze a package, "
-        "or run `ossuary refresh` to populate from the validation set."
+    st.markdown(
+        "No packages tracked yet. Analyze a package to get started, "
+        "or run `ossuary seed` to populate with a starter set."
     )
+    st.markdown("")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.page_link("pages/3_Score.py", label="Score a package", icon=None)
+    with col2:
+        st.page_link("pages/4_Methodology.py", label="View methodology", icon=None)
+    with col3:
+        st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems", icon=None)
+    st.divider()
+    st.caption("Ossuary v0.2.0 · [source](https://github.com/anicka-net/ossuary-risk)")
     st.stop()
 
 # -- Key metrics --
@@ -137,7 +147,17 @@ if at_risk:
 else:
     st.caption("No packages at moderate risk or above.")
 
-# -- Footer --
+# -- Navigation --
 
 st.divider()
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.page_link("pages/3_Score.py", label="Score a package")
+with col2:
+    st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems")
+with col3:
+    st.page_link("pages/2_Package.py", label="Package detail")
+with col4:
+    st.page_link("pages/4_Methodology.py", label="Methodology")
+
 st.caption("Ossuary v0.2.0 · [source](https://github.com/anicka-net/ossuary-risk)")
