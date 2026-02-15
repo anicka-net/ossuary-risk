@@ -83,7 +83,7 @@ class GitHubCollector(BaseCollector):
             token: GitHub personal access token. Defaults to GITHUB_TOKEN env var.
         """
         self.token = token or os.getenv("GITHUB_TOKEN")
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
 
         if self.token:
             self.client.headers["Authorization"] = f"Bearer {self.token}"
@@ -409,10 +409,20 @@ class GitHubCollector(BaseCollector):
 
         data = GitHubData(owner=owner, repo=repo)
 
-        # Get repo info
+        # Get repo info (follows 301 redirects for renamed/transferred repos)
         repo_info = await self.get_repo_info(owner, repo)
         if repo_info:
             data.owner_type = repo_info.get("owner", {}).get("type", "")
+            # Update owner/repo to canonical name (handles renames/transfers)
+            canonical_owner = repo_info.get("owner", {}).get("login")
+            canonical_repo = repo_info.get("name")
+            if canonical_owner and canonical_repo:
+                if canonical_owner != owner or canonical_repo != repo:
+                    logger.info(f"Repo redirected: {owner}/{repo} -> {canonical_owner}/{canonical_repo}")
+                owner = canonical_owner
+                repo = canonical_repo
+                data.owner = owner
+                data.repo = repo
 
         # Determine the actual maintainer username
         maintainer_username = None
