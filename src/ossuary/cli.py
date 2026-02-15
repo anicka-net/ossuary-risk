@@ -363,5 +363,68 @@ async def _refresh(ecosystem_filter: Optional[str], max_age: int):
     console.print(f"\nDone. {success} refreshed, {errors} errors.")
 
 
+SEED_PACKAGES = [
+    # npm — mix of risk profiles
+    ("lodash", "npm"),
+    ("express", "npm"),
+    ("chalk", "npm"),
+    ("minimist", "npm"),
+    ("event-stream", "npm"),
+    # pypi — popular packages
+    ("requests", "pypi"),
+    ("flask", "pypi"),
+    ("django", "pypi"),
+    ("black", "pypi"),
+    ("numpy", "pypi"),
+    # github — direct repos, diverse governance
+    ("kubernetes/kubernetes", "github"),
+    ("hashicorp/terraform", "github"),
+    ("pallets/flask", "github"),
+    ("go-kit/kit", "github"),
+]
+
+
+@app.command()
+def seed():
+    """Score a curated set of packages to populate the dashboard."""
+    asyncio.run(_seed())
+
+
+async def _seed():
+    """Score seed packages."""
+    from ossuary.services.scorer import score_package as svc_score
+
+    init_db()
+
+    console.print(f"Seeding {len(SEED_PACKAGES)} packages across npm, pypi, and github...\n")
+
+    success = 0
+    errors = 0
+    for i, (name, eco) in enumerate(SEED_PACKAGES, 1):
+        console.print(f"  [{i}/{len(SEED_PACKAGES)}] {name} ({eco})...", end=" ")
+        try:
+            result = await svc_score(name, eco)
+            if result.success:
+                b = result.breakdown
+                color = {
+                    "CRITICAL": "red",
+                    "HIGH": "orange1",
+                    "MODERATE": "yellow",
+                    "LOW": "green",
+                    "VERY_LOW": "green",
+                }.get(b.risk_level.value, "white")
+                console.print(f"[{color}]{b.final_score} {b.risk_level.value}[/{color}]")
+                success += 1
+            else:
+                console.print(f"[red]ERROR: {result.error}[/red]")
+                errors += 1
+        except Exception as e:
+            console.print(f"[red]ERROR: {e}[/red]")
+            errors += 1
+
+    console.print(f"\nDone. {success} scored, {errors} errors.")
+    console.print("Dashboard should now show tracked packages.")
+
+
 if __name__ == "__main__":
     app()
