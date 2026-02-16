@@ -385,6 +385,40 @@ SEED_PACKAGES = [
 ]
 
 
+SEED_SUSE_PACKAGES = [
+    # openSUSE core infrastructure
+    ("openSUSE/MirrorCache", "github"),
+    ("openSUSE/aaa_base", "github"),
+    ("openSUSE/openSUSE-repos", "github"),
+    ("openSUSE/openSUSEway", "github"),
+    ("agama-project/agama", "github"),          # new installer
+    # SUSE SAP automation (enterprise)
+    ("SUSE/community.sap_install", "github"),
+    ("SUSE/community.sap_operations", "github"),
+    # Core system components shipping in Tumbleweed/Leap
+    ("389ds/389-ds-base", "github"),            # LDAP server
+    ("containers/aardvark-dns", "github"),      # podman DNS
+    ("alacritty/alacritty", "github"),          # terminal emulator
+    ("ansible/ansible-lint", "github"),         # popular devtool
+    ("prusa3d/PrusaSlicer", "github"),          # 3D printing
+    ("sddm/sddm", "github"),                   # display manager
+    ("WerWolv/ImHex", "github"),                # hex editor
+    # Libraries and lower-level deps
+    ("abseil/abseil-cpp", "github"),            # Google C++ lib
+    ("libsdl-org/SDL", "github"),               # multimedia
+    ("catchorg/Catch2", "github"),              # C++ testing
+    ("apache/arrow", "github"),                 # data format
+    ("LuaJIT/LuaJIT", "github"),               # scripting engine
+    # Security-relevant
+    ("FiloSottile/age", "github"),              # encryption tool
+    ("owasp-modsecurity/ModSecurity", "github"),  # WAF
+    ("AFLplusplus/AFLplusplus", "github"),      # fuzzer
+    # Interesting single-maintainer profiles
+    ("rfinnie/2ping", "github"),                # network tool
+    ("tiehuis/2048-cli", "github"),             # tiny project
+]
+
+
 @app.command()
 def seed():
     """Score a curated set of packages to populate the dashboard."""
@@ -425,6 +459,47 @@ async def _seed():
 
     console.print(f"\nDone. {success} scored, {errors} errors.")
     console.print("Dashboard should now show tracked packages.")
+
+
+@app.command("seed-suse-base")
+def seed_suse_base():
+    """Score a curated set of openSUSE/SUSE packages (no osc required)."""
+    asyncio.run(_seed_suse_base())
+
+
+async def _seed_suse_base():
+    """Score the static SUSE package list."""
+    from ossuary.services.scorer import score_package as svc_score
+
+    init_db()
+
+    console.print(f"Seeding {len(SEED_SUSE_PACKAGES)} openSUSE/SUSE packages...\n")
+
+    success = 0
+    errors = 0
+    for i, (name, eco) in enumerate(SEED_SUSE_PACKAGES, 1):
+        console.print(f"  [{i}/{len(SEED_SUSE_PACKAGES)}] {name}...", end=" ")
+        try:
+            result = await svc_score(name, eco)
+            if result.success:
+                b = result.breakdown
+                color = {
+                    "CRITICAL": "red",
+                    "HIGH": "orange1",
+                    "MODERATE": "yellow",
+                    "LOW": "green",
+                    "VERY_LOW": "green",
+                }.get(b.risk_level.value, "white")
+                console.print(f"[{color}]{b.final_score} {b.risk_level.value}[/{color}]")
+                success += 1
+            else:
+                console.print(f"[red]ERROR: {result.error}[/red]")
+                errors += 1
+        except Exception as e:
+            console.print(f"[red]ERROR: {e}[/red]")
+            errors += 1
+
+    console.print(f"\nDone. {success} scored, {errors} errors.")
 
 
 @app.command("discover-suse")
