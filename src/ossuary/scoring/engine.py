@@ -45,6 +45,15 @@ class PackageMetrics:
     org_admin_count: int = 0
     cii_badge_level: str = "none"
 
+    # Maturity detection
+    total_commits: int = 0
+    first_commit_date: Optional[datetime] = None
+    lifetime_contributors: int = 0
+    lifetime_concentration: float = 0.0
+    is_mature: bool = False
+    new_contributor_ratio: float = 0.0
+    repo_age_years: float = 0.0
+
     # Sentiment analysis results
     average_sentiment: float = 0.0
     frustration_detected: bool = False
@@ -209,22 +218,60 @@ class RiskScorer:
         elif metrics.average_sentiment > 0.3:
             pf.sentiment_score = -5
 
+        # Factor 10: Project Maturity (-15)
+        if metrics.is_mature:
+            pf.maturity_score = -15
+            pf.maturity_evidence = (
+                f"Stable project: {metrics.total_commits} commits over "
+                f"{metrics.repo_age_years:.0f} years, "
+                f"{metrics.lifetime_contributors} lifetime contributors"
+            )
+
+        # Factor 11: Takeover Risk (+20) — xz-utils pattern detection
+        if (
+            metrics.is_mature
+            and metrics.new_contributor_ratio > 0.5
+            and metrics.commits_last_year >= 5
+        ):
+            pf.takeover_risk_score = 20
+            pf.takeover_risk_evidence = (
+                f"New contributors account for {metrics.new_contributor_ratio:.0%} "
+                f"of recent commits on a previously quiet mature project"
+            )
+
         return pf
 
-    def generate_explanation(self, breakdown: RiskBreakdown) -> str:
+    def generate_explanation(self, breakdown: RiskBreakdown, metrics: PackageMetrics = None) -> str:
         """Generate human-readable explanation of the score."""
         parts = []
 
+        # Maturity context (comes first if applicable)
+        if metrics and metrics.is_mature:
+            parts.append(
+                f"Mature project ({metrics.repo_age_years:.0f} years, "
+                f"{metrics.lifetime_contributors} lifetime contributors)"
+            )
+
         # Concentration explanation
         conc = breakdown.maintainer_concentration
-        if conc >= 90:
-            parts.append(f"Critical concentration ({conc:.0f}%): single person controls nearly all commits")
-        elif conc >= 70:
-            parts.append(f"High concentration ({conc:.0f}%): majority of commits from one person")
-        elif conc >= 50:
-            parts.append(f"Moderate concentration ({conc:.0f}%): some bus factor risk")
+        if metrics and metrics.is_mature:
+            # For mature projects, explain we're using lifetime concentration
+            lt_conc = metrics.lifetime_concentration
+            if lt_conc >= 90:
+                parts.append(f"Single-maintainer lifetime ({lt_conc:.0f}% lifetime concentration)")
+            elif lt_conc >= 50:
+                parts.append(f"Moderately concentrated lifetime ({lt_conc:.0f}% lifetime)")
+            else:
+                parts.append(f"Distributed lifetime contributors ({lt_conc:.0f}% lifetime)")
         else:
-            parts.append(f"Distributed commits ({conc:.0f}%): healthy contributor diversity")
+            if conc >= 90:
+                parts.append(f"Critical concentration ({conc:.0f}%): single person controls nearly all commits")
+            elif conc >= 70:
+                parts.append(f"High concentration ({conc:.0f}%): majority of commits from one person")
+            elif conc >= 50:
+                parts.append(f"Moderate concentration ({conc:.0f}%): some bus factor risk")
+            else:
+                parts.append(f"Distributed commits ({conc:.0f}%): healthy contributor diversity")
 
         # Activity explanation
         if breakdown.activity_modifier == 20:
@@ -234,7 +281,10 @@ class RiskScorer:
         elif breakdown.activity_modifier == -15:
             parts.append("Moderately active (12-50 commits/year)")
         elif breakdown.activity_modifier == 0:
-            parts.append("Low activity (4-11 commits/year)")
+            if metrics and metrics.is_mature and metrics.commits_last_year < 4:
+                parts.append("Low recent activity (expected for mature project)")
+            else:
+                parts.append("Low activity (4-11 commits/year)")
 
         # Protective factors summary
         pf_total = breakdown.protective_factors.total
@@ -248,6 +298,10 @@ class RiskScorer:
         # Frustration alert
         if breakdown.protective_factors.frustration_score > 0:
             parts.append("ALERT: Economic frustration signals detected")
+
+        # Takeover alert
+        if breakdown.protective_factors.takeover_risk_score > 0:
+            parts.append("ALERT: Newcomer takeover pattern detected on mature project")
 
         return f"{breakdown.risk_level.semaphore} {breakdown.risk_level.value} ({breakdown.final_score}). " + ". ".join(
             parts
@@ -277,6 +331,15 @@ class RiskScorer:
 
         if breakdown.maintainer_concentration > 90 and breakdown.commits_last_year < 10:
             recs.insert(0, "HIGH PRIORITY: Single maintainer + low activity = prime takeover target")
+
+        # Takeover-specific recommendations
+        if breakdown.protective_factors.takeover_risk_score > 0:
+            recs.insert(0, "ALERT: New contributor dominates recent commits on mature project — review carefully (xz-utils pattern)")
+
+        # Mature project recommendations
+        if breakdown.protective_factors.maturity_score < 0:
+            if breakdown.final_score < 40:
+                recs.append("Stable mature project — standard monitoring sufficient")
 
         return recs
 
@@ -311,9 +374,16 @@ class RiskScorer:
         breakdown.unique_contributors = metrics.unique_contributors
         breakdown.weekly_downloads = metrics.weekly_downloads
 
-        # Calculate components
-        breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
-        breakdown.activity_modifier = self.calculate_activity_modifier(metrics.commits_last_year)
+        # Calculate components — two-track scoring for mature projects
+        if metrics.is_mature:
+            # Mature projects: use lifetime concentration, no activity penalty
+            breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration)
+            raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
+            breakdown.activity_modifier = min(0, raw_activity)  # only allow reductions, never +20
+        else:
+            breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
+            breakdown.activity_modifier = self.calculate_activity_modifier(metrics.commits_last_year)
+
         breakdown.protective_factors = self.calculate_protective_factors(metrics, ecosystem)
 
         # Calculate final score (clamped to 0-100)
@@ -324,7 +394,7 @@ class RiskScorer:
         breakdown.risk_level = RiskLevel.from_score(breakdown.final_score)
 
         # Generate explanation and recommendations
-        breakdown.explanation = self.generate_explanation(breakdown)
+        breakdown.explanation = self.generate_explanation(breakdown, metrics)
         breakdown.recommendations = self.generate_recommendations(breakdown)
 
         return breakdown

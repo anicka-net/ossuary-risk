@@ -65,12 +65,16 @@ class ProtectiveFactors:
     cii_score: int = 0  # -10 for CII badge
     frustration_score: int = 0  # +20 for detected frustration
     sentiment_score: int = 0  # -10 to +20 based on sentiment analysis
+    maturity_score: int = 0  # -15 for mature/stable projects
+    takeover_risk_score: int = 0  # +20 for newcomer takeover signal
 
     # Evidence for each factor
     reputation_evidence: Optional[str] = None
     funding_evidence: Optional[str] = None
     frustration_evidence: list[str] = field(default_factory=list)
     sentiment_evidence: list[str] = field(default_factory=list)
+    maturity_evidence: Optional[str] = None
+    takeover_risk_evidence: Optional[str] = None
 
     @property
     def total(self) -> int:
@@ -85,6 +89,8 @@ class ProtectiveFactors:
             + self.cii_score
             + self.frustration_score
             + self.sentiment_score
+            + self.maturity_score
+            + self.takeover_risk_score
         )
 
     def to_dict(self) -> dict:
@@ -107,6 +113,14 @@ class ProtectiveFactors:
             "sentiment": {
                 "score": self.sentiment_score,
                 "evidence": self.sentiment_evidence,
+            },
+            "maturity": {
+                "score": self.maturity_score,
+                "evidence": self.maturity_evidence,
+            },
+            "takeover_risk": {
+                "score": self.takeover_risk_score,
+                "evidence": self.takeover_risk_evidence,
             },
             "total": self.total,
         }

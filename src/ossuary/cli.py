@@ -283,6 +283,18 @@ def _display_results(breakdown, git_metrics, github_data, commit_sentiment, issu
         )
     if pf.sentiment_score != 0:
         pf_table.add_row("Sentiment", f"{pf.sentiment_score:+d}", "")
+    if pf.maturity_score != 0:
+        pf_table.add_row(
+            "[green]Maturity[/green]",
+            f"[green]{pf.maturity_score:+d}[/green]",
+            pf.maturity_evidence or "",
+        )
+    if pf.takeover_risk_score != 0:
+        pf_table.add_row(
+            "[red]Takeover Risk[/red]",
+            f"[red]{pf.takeover_risk_score:+d}[/red]",
+            pf.takeover_risk_evidence or "",
+        )
 
     if pf_table.row_count > 0:
         console.print(pf_table)

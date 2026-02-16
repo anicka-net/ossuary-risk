@@ -48,6 +48,13 @@ class GitMetrics:
     first_commit_date: Optional[datetime] = None
     commits: list[CommitData] = None
 
+    # Maturity detection fields
+    lifetime_contributors: int = 0
+    lifetime_concentration: float = 0.0
+    new_contributor_ratio: float = 0.0
+    is_mature: bool = False
+    repo_age_years: float = 0.0
+
     def __post_init__(self):
         if self.commits is None:
             self.commits = []
@@ -103,37 +110,18 @@ class GitCollector(BaseCollector):
         logger.info(f"Cloning repository: {repo_url}")
         try:
             # Blobless partial clone: fetches commit metadata only, no file content.
-            # We only need author/date/message — never actual code.
+            # We need full commit history for maturity detection (repo age,
+            # lifetime contributors) but never actual file blobs.
             Repo.clone_from(
                 repo_url,
                 repo_path,
                 multi_options=[
                     "--filter=blob:none",
-                    "--shallow-since=5years",
                     "--single-branch",
                 ],
             )
             return repo_path
         except GitCommandError as e:
-            # shallow-since fails if repo has no commits in that window
-            # (e.g., abandoned projects) — fall back to blobless-only clone
-            if "shallow" in str(e).lower() or "error processing" in str(e).lower():
-                logger.info(f"Shallow clone failed, retrying without --shallow-since: {repo_url}")
-                if repo_path.exists():
-                    shutil.rmtree(repo_path)
-                try:
-                    Repo.clone_from(
-                        repo_url,
-                        repo_path,
-                        multi_options=[
-                            "--filter=blob:none",
-                            "--single-branch",
-                        ],
-                    )
-                    return repo_path
-                except GitCommandError as e2:
-                    logger.error(f"Failed to clone repository: {e2}")
-                    raise
             logger.error(f"Failed to clone repository: {e}")
             raise
 
@@ -203,10 +191,26 @@ class GitCollector(BaseCollector):
         cutoff = cutoff_date or datetime.now()
         one_year_ago = cutoff - timedelta(days=365)
 
-        # Filter commits for last year
+        # Sort commits by date (needed for first/last and historical analysis)
+        sorted_commits = sorted(commits, key=lambda c: c.authored_date)
+        first_commit_date = sorted_commits[0].authored_date
+        last_commit_date = sorted_commits[-1].authored_date
+
+        # --- Lifetime stats (all commits) ---
+        lifetime_author_counts: dict[str, int] = defaultdict(int)
+        for commit in commits:
+            lifetime_author_counts[commit.author_email.lower()] += 1
+
+        lifetime_contributors = len(lifetime_author_counts)
+        if lifetime_author_counts:
+            lt_top_email = max(lifetime_author_counts, key=lifetime_author_counts.get)
+            lifetime_concentration = (lifetime_author_counts[lt_top_email] / len(commits) * 100)
+        else:
+            lifetime_concentration = 100.0
+
+        # --- Recent stats (last 12 months) ---
         recent_commits = [c for c in commits if c.authored_date >= one_year_ago and c.authored_date <= cutoff]
 
-        # Count commits by author email
         author_counts: dict[str, int] = defaultdict(int)
         author_names: dict[str, str] = {}
 
@@ -215,7 +219,6 @@ class GitCollector(BaseCollector):
             author_counts[email] += 1
             author_names[email] = commit.author_name
 
-        # Find top contributor
         total_recent = len(recent_commits)
         unique_contributors = len(author_counts)
 
@@ -228,8 +231,32 @@ class GitCollector(BaseCollector):
             top_commits = 0
             concentration = 100  # No commits = maximum concentration (abandoned)
 
-        # Sort commits by date
-        sorted_commits = sorted(commits, key=lambda c: c.authored_date)
+        # --- Maturity detection ---
+        repo_age_years = (cutoff - first_commit_date).days / 365.25
+        days_since_last_commit = (cutoff - last_commit_date).days
+
+        is_mature = (
+            repo_age_years >= 5
+            and len(commits) >= 30
+            and days_since_last_commit < 5 * 365  # not truly dead
+        )
+
+        # --- Takeover detection: newcomer ratio in recent commits ---
+        new_contributor_ratio = 0.0
+        if recent_commits and is_mature:
+            historical_emails = set(
+                c.author_email.lower() for c in commits
+                if c.authored_date < one_year_ago
+            )
+            recent_emails = set(c.author_email.lower() for c in recent_commits)
+            newcomer_emails = recent_emails - historical_emails
+
+            if newcomer_emails:
+                newcomer_commits = sum(
+                    1 for c in recent_commits
+                    if c.author_email.lower() in newcomer_emails
+                )
+                new_contributor_ratio = newcomer_commits / total_recent
 
         return GitMetrics(
             total_commits=len(commits),
@@ -239,9 +266,14 @@ class GitCollector(BaseCollector):
             top_contributor_email=top_email,
             top_contributor_name=author_names.get(top_email, ""),
             top_contributor_commits=top_commits,
-            last_commit_date=sorted_commits[-1].authored_date if sorted_commits else None,
-            first_commit_date=sorted_commits[0].authored_date if sorted_commits else None,
-            commits=recent_commits,  # Store only recent commits for sentiment analysis
+            last_commit_date=last_commit_date,
+            first_commit_date=first_commit_date,
+            commits=recent_commits,
+            lifetime_contributors=lifetime_contributors,
+            lifetime_concentration=lifetime_concentration,
+            new_contributor_ratio=new_contributor_ratio,
+            is_mature=is_mature,
+            repo_age_years=repo_age_years,
         )
 
     async def collect(self, repo_url: str, cutoff_date: Optional[datetime] = None) -> GitMetrics:

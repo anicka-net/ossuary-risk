@@ -255,6 +255,15 @@ def calculate_score_for_date(
         reputation=reputation,
         is_org_owned=github_data.is_org_owned,
         org_admin_count=github_data.org_admin_count,
+        # Maturity detection
+        total_commits=git_metrics.total_commits,
+        first_commit_date=git_metrics.first_commit_date,
+        lifetime_contributors=git_metrics.lifetime_contributors,
+        lifetime_concentration=git_metrics.lifetime_concentration,
+        is_mature=git_metrics.is_mature,
+        new_contributor_ratio=git_metrics.new_contributor_ratio,
+        repo_age_years=git_metrics.repo_age_years,
+        # Sentiment
         average_sentiment=avg_sentiment,
         frustration_detected=total_frustration > 0,
         frustration_evidence=commit_sentiment.frustration_evidence + issue_sentiment.frustration_evidence,
@@ -287,10 +296,14 @@ def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optio
             cii_score=pf.get("cii_badge", {}).get("score", 0),
             frustration_score=pf.get("frustration", {}).get("score", 0),
             sentiment_score=pf.get("sentiment", {}).get("score", 0),
+            maturity_score=pf.get("maturity", {}).get("score", 0),
+            takeover_risk_score=pf.get("takeover_risk", {}).get("score", 0),
             reputation_evidence=pf.get("reputation", {}).get("evidence"),
             funding_evidence=pf.get("funding", {}).get("evidence"),
             frustration_evidence=pf.get("frustration", {}).get("evidence", []),
             sentiment_evidence=pf.get("sentiment", {}).get("evidence", []),
+            maturity_evidence=pf.get("maturity", {}).get("evidence"),
+            takeover_risk_evidence=pf.get("takeover_risk", {}).get("evidence"),
         )
 
         risk_level = RiskLevel(cached_score.risk_level)
