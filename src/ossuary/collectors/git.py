@@ -115,6 +115,25 @@ class GitCollector(BaseCollector):
             )
             return repo_path
         except GitCommandError as e:
+            # shallow-since fails if repo has no commits in that window
+            # (e.g., abandoned projects) — fall back to blobless-only clone
+            if "shallow" in str(e).lower() or "error processing" in str(e).lower():
+                logger.info(f"Shallow clone failed, retrying without --shallow-since: {repo_url}")
+                if repo_path.exists():
+                    shutil.rmtree(repo_path)
+                try:
+                    Repo.clone_from(
+                        repo_url,
+                        repo_path,
+                        multi_options=[
+                            "--filter=blob:none",
+                            "--single-branch",
+                        ],
+                    )
+                    return repo_path
+                except GitCommandError as e2:
+                    logger.error(f"Failed to clone repository: {e2}")
+                    raise
             logger.error(f"Failed to clone repository: {e}")
             raise
 
