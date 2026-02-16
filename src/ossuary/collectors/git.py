@@ -51,9 +51,13 @@ class GitMetrics:
     # Maturity detection fields
     lifetime_contributors: int = 0
     lifetime_concentration: float = 0.0
-    new_contributor_ratio: float = 0.0
     is_mature: bool = False
     repo_age_years: float = 0.0
+
+    # Takeover detection (proportion shift)
+    takeover_shift: float = 0.0       # max % shift of any contributor (historical→recent)
+    takeover_suspect: str = ""        # email of the contributor with highest shift
+    takeover_suspect_name: str = ""   # display name
 
     def __post_init__(self):
         if self.commits is None:
@@ -241,22 +245,32 @@ class GitCollector(BaseCollector):
             and days_since_last_commit < 5 * 365  # not truly dead
         )
 
-        # --- Takeover detection: newcomer ratio in recent commits ---
-        new_contributor_ratio = 0.0
-        if recent_commits and is_mature:
-            historical_emails = set(
-                c.author_email.lower() for c in commits
-                if c.authored_date < one_year_ago
-            )
-            recent_emails = set(c.author_email.lower() for c in recent_commits)
-            newcomer_emails = recent_emails - historical_emails
+        # --- Takeover detection: proportion shift ---
+        # Detects when a minor historical contributor suddenly dominates recent commits.
+        # This is the xz/Jia Tan pattern: 0.8% historical → 50% recent = +49% shift.
+        takeover_shift = 0.0
+        takeover_suspect = ""
+        takeover_suspect_name = ""
 
-            if newcomer_emails:
-                newcomer_commits = sum(
-                    1 for c in recent_commits
-                    if c.author_email.lower() in newcomer_emails
-                )
-                new_contributor_ratio = newcomer_commits / total_recent
+        if recent_commits and is_mature and total_recent >= 5:
+            historical_commits = [c for c in commits if c.authored_date < one_year_ago]
+            hist_total = len(historical_commits)
+
+            # Historical share per contributor
+            hist_counts: dict[str, int] = defaultdict(int)
+            for c in historical_commits:
+                hist_counts[c.author_email.lower()] += 1
+
+            # Find the contributor with the largest upward shift
+            for email, recent_count in author_counts.items():
+                recent_pct = recent_count / total_recent * 100
+                hist_pct = (hist_counts.get(email, 0) / hist_total * 100) if hist_total > 0 else 0
+                shift = recent_pct - hist_pct
+
+                if shift > takeover_shift:
+                    takeover_shift = shift
+                    takeover_suspect = email
+                    takeover_suspect_name = author_names.get(email, "")
 
         return GitMetrics(
             total_commits=len(commits),
@@ -271,9 +285,11 @@ class GitCollector(BaseCollector):
             commits=recent_commits,
             lifetime_contributors=lifetime_contributors,
             lifetime_concentration=lifetime_concentration,
-            new_contributor_ratio=new_contributor_ratio,
             is_mature=is_mature,
             repo_age_years=repo_age_years,
+            takeover_shift=takeover_shift,
+            takeover_suspect=takeover_suspect,
+            takeover_suspect_name=takeover_suspect_name,
         )
 
     async def collect(self, repo_url: str, cutoff_date: Optional[datetime] = None) -> GitMetrics:

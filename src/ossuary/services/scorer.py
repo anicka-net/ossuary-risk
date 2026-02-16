@@ -261,8 +261,10 @@ def calculate_score_for_date(
         lifetime_contributors=git_metrics.lifetime_contributors,
         lifetime_concentration=git_metrics.lifetime_concentration,
         is_mature=git_metrics.is_mature,
-        new_contributor_ratio=git_metrics.new_contributor_ratio,
         repo_age_years=git_metrics.repo_age_years,
+        takeover_shift=git_metrics.takeover_shift,
+        takeover_suspect=git_metrics.takeover_suspect,
+        takeover_suspect_name=git_metrics.takeover_suspect_name,
         # Sentiment
         average_sentiment=avg_sentiment,
         frustration_detected=total_frustration > 0,

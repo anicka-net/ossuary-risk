@@ -51,8 +51,10 @@ class PackageMetrics:
     lifetime_contributors: int = 0
     lifetime_concentration: float = 0.0
     is_mature: bool = False
-    new_contributor_ratio: float = 0.0
     repo_age_years: float = 0.0
+    takeover_shift: float = 0.0
+    takeover_suspect: str = ""
+    takeover_suspect_name: str = ""
 
     # Sentiment analysis results
     average_sentiment: float = 0.0
@@ -227,16 +229,18 @@ class RiskScorer:
                 f"{metrics.lifetime_contributors} lifetime contributors"
             )
 
-        # Factor 11: Takeover Risk (+20) — xz-utils pattern detection
+        # Factor 11: Takeover Risk (+20) — xz-utils proportion shift detection
+        # Flags when a minor historical contributor suddenly dominates recent commits.
+        # Threshold: >30% shift AND >40% of recent commits from that contributor.
         if (
             metrics.is_mature
-            and metrics.new_contributor_ratio > 0.5
-            and metrics.commits_last_year >= 5
+            and metrics.takeover_shift > 30
         ):
             pf.takeover_risk_score = 20
+            suspect = metrics.takeover_suspect_name or metrics.takeover_suspect
             pf.takeover_risk_evidence = (
-                f"New contributors account for {metrics.new_contributor_ratio:.0%} "
-                f"of recent commits on a previously quiet mature project"
+                f"{suspect}: {metrics.takeover_shift:+.0f}pp shift in commit share "
+                f"on mature project (xz-utils pattern)"
             )
 
         return pf
