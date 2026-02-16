@@ -386,36 +386,112 @@ SEED_PACKAGES = [
 
 
 SEED_SUSE_PACKAGES = [
-    # openSUSE core infrastructure
-    ("openSUSE/MirrorCache", "github"),
+    # === openSUSE/SUSE core (always on every SLE/openSUSE box) ===
     ("openSUSE/aaa_base", "github"),
-    ("openSUSE/openSUSE-repos", "github"),
-    ("openSUSE/openSUSEway", "github"),
-    ("agama-project/agama", "github"),          # new installer
-    # SUSE SAP automation (enterprise)
-    ("SUSE/community.sap_install", "github"),
-    ("SUSE/community.sap_operations", "github"),
-    # Core system components shipping in Tumbleweed/Leap
-    ("389ds/389-ds-base", "github"),            # LDAP server
-    ("containers/aardvark-dns", "github"),      # podman DNS
-    ("alacritty/alacritty", "github"),          # terminal emulator
-    ("ansible/ansible-lint", "github"),         # popular devtool
-    ("prusa3d/PrusaSlicer", "github"),          # 3D printing
-    ("sddm/sddm", "github"),                   # display manager
-    ("WerWolv/ImHex", "github"),                # hex editor
-    # Libraries and lower-level deps
-    ("abseil/abseil-cpp", "github"),            # Google C++ lib
-    ("libsdl-org/SDL", "github"),               # multimedia
-    ("catchorg/Catch2", "github"),              # C++ testing
-    ("apache/arrow", "github"),                 # data format
-    ("LuaJIT/LuaJIT", "github"),               # scripting engine
-    # Security-relevant
-    ("FiloSottile/age", "github"),              # encryption tool
-    ("owasp-modsecurity/ModSecurity", "github"),  # WAF
-    ("AFLplusplus/AFLplusplus", "github"),      # fuzzer
-    # Interesting single-maintainer profiles
-    ("rfinnie/2ping", "github"),                # network tool
-    ("tiehuis/2048-cli", "github"),             # tiny project
+    ("openSUSE/libeconf", "github"),
+    ("openSUSE/libsolv", "github"),
+    ("openSUSE/libzypp", "github"),
+    ("openSUSE/zypper", "github"),
+    ("openSUSE/permissions", "github"),
+    ("openSUSE/sysconfig", "github"),
+    ("openSUSE/wicked", "github"),
+    ("openSUSE/suse-module-tools", "github"),
+    ("openSUSE/fillup", "github"),
+    ("openSUSE/ca-certificates", "github"),
+    ("openSUSE/systemd-default-settings", "github"),
+    ("openSUSE/polkit-default-privs", "github"),
+    ("openSUSE/rollback-helper", "github"),
+    ("openSUSE/osc", "github"),
+    ("SUSE/connect-ng", "github"),
+    ("SUSE/pam-config", "github"),
+    ("SUSE/zypper-lifecycle", "github"),
+    # === YaST ===
+    ("yast/yast-core", "github"),
+    ("yast/yast-ruby-bindings", "github"),
+    ("yast/yast-yast2", "github"),
+    ("yast/yast-apparmor", "github"),
+    ("yast/yast-snapper", "github"),
+    # === Boot and firmware ===
+    ("dracutdevs/dracut", "github"),
+    ("rhboot/shim", "github"),
+    ("rhinstaller/efibootmgr", "github"),
+    ("rhinstaller/efivar", "github"),
+    ("tianocore/edk2", "github"),
+    # === Security ===
+    ("shadow-maint/shadow", "github"),
+    ("seccomp/libseccomp", "github"),
+    ("SELinuxProject/selinux", "github"),
+    ("SSSD/sssd", "github"),
+    ("SSSD/ding-libs", "github"),
+    ("tpm2-software/tpm2-tss", "github"),
+    ("P-H-C/phc-winner-argon2", "github"),
+    ("besser82/libxcrypt", "github"),
+    ("libpwquality/libpwquality", "github"),
+    ("cracklib/cracklib", "github"),
+    ("pyca/pyopenssl", "github"),
+    # === Containers stack ===
+    ("containers/podman", "github"),
+    ("containers/conmon", "github"),
+    ("containers/aardvark-dns", "github"),
+    ("containers/netavark", "github"),
+    ("containers/fuse-overlayfs", "github"),
+    ("containers/gvisor-tap-vsock", "github"),
+    ("opencontainers/runc", "github"),
+    ("openSUSE/catatonit", "github"),
+    ("rootless-containers/rootlesskit", "github"),
+    ("rootless-containers/slirp4netns", "github"),
+    ("docker/buildx", "github"),
+    ("docker/compose", "github"),
+    # === System libraries ===
+    ("facebook/zstd", "github"),
+    ("google/brotli", "github"),
+    ("google/protobuf", "github"),
+    ("json-c/json-c", "github"),
+    ("libbpf/libbpf", "github"),
+    ("libfuse/libfuse", "github"),
+    ("kkos/oniguruma", "github"),
+    ("jbeder/yaml-cpp", "github"),
+    ("PJK/libcbor", "github"),
+    ("protobuf-c/protobuf-c", "github"),
+    ("zchunk/zchunk", "github"),
+    # === System tools ===
+    ("logrotate/logrotate", "github"),
+    ("lsof-org/lsof", "github"),
+    ("numactl/numactl", "github"),
+    ("iputils/iputils", "github"),
+    ("scop/bash-completion", "github"),
+    ("vcrhonek/hwdata", "github"),
+    ("dosfstools/dosfstools", "github"),
+    ("cyrusimap/cyrus-sasl", "github"),
+    ("Irqbalance/irqbalance", "github"),
+    ("cronie-crond/cronie", "github"),
+    ("jirka-h/haveged", "github"),
+    # === Storage ===
+    ("storaged-project/libblockdev", "github"),
+    ("storaged-project/udisks", "github"),
+    ("jthornber/thin-provisioning-tools", "github"),
+    ("kdave/btrfsmaintenance", "github"),
+    ("linux-nvme/nvme-cli", "github"),
+    ("linux-nvme/libnvme", "github"),
+    ("pmem/ndctl", "github"),
+    # === GPU / compute ===
+    ("NVIDIA/open-gpu-kernel-modules", "github"),
+    ("NVIDIA/nvidia-container-toolkit", "github"),
+    ("ROCm/ROCR-Runtime", "github"),
+    # === Dev tools (shipped on SLE) ===
+    ("git-lfs/git-lfs", "github"),
+    ("neovim/pynvim", "github"),
+    ("pypa/setuptools", "github"),
+    ("pypa/packaging", "github"),
+    ("yaml/pyyaml", "github"),
+    # === AI/ML ===
+    ("ggerganov/llama.cpp", "github"),
+    # === Interesting risk profiles ===
+    ("smuellerDD/jitterentropy-library", "github"),  # crypto entropy, single maintainer
+    ("thkukuk/libnsl", "github"),                    # NIS library, single maintainer
+    ("wfeldt/libx86emu", "github"),                  # x86 emulation, single maintainer
+    ("bitstreamout/showconsole", "github"),           # SUSE-specific, single maintainer
+    ("Velocidex/velociraptor", "github"),             # IR/forensics tool
 ]
 
 
