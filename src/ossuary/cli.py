@@ -498,6 +498,55 @@ SEED_SUSE_PACKAGES = [
     ("yaml/pyyaml", "github"),
     # === AI/ML ===
     ("ggerganov/llama.cpp", "github"),
+    # === Core system (from edna developer desktop) ===
+    ("curl/curl", "github"),
+    ("openssh/openssh-portable", "github"),
+    ("sudo-project/sudo", "github"),
+    ("systemd/systemd", "github"),
+    ("linux-pam/linux-pam", "github"),
+    ("util-linux/util-linux", "github"),
+    ("kmod-project/kmod", "github"),
+    ("openssl/openssl", "github"),
+    # === Security (from edna) ===
+    ("linux-audit/audit-userspace", "github"),
+    # === Build tools (from edna) ===
+    ("Kitware/CMake", "github"),
+    ("ninja-build/ninja", "github"),
+    ("mesonbuild/meson", "github"),
+    # === Dev tools (from edna) ===
+    ("git/git", "github"),
+    ("vim/vim", "github"),
+    ("tmux/tmux", "github"),
+    ("strace/strace", "github"),
+    ("jqlang/jq", "github"),
+    ("sharkdp/bat", "github"),
+    # === Containers (from edna) ===
+    ("containerd/containerd", "github"),
+    ("containers/skopeo", "github"),
+    ("containers/buildah", "github"),
+    # === Desktop/services (from edna) ===
+    ("flatpak/flatpak", "github"),
+    ("OpenPrinting/cups", "github"),
+    ("avahi/avahi", "github"),
+    ("firewalld/firewalld", "github"),
+    ("OpenVPN/openvpn", "github"),
+    ("MariaDB/server", "github"),
+    # === Python ecosystem (from edna) ===
+    ("numpy/numpy", "github"),
+    ("pandas-dev/pandas", "github"),
+    ("scipy/scipy", "github"),
+    ("scikit-learn/scikit-learn", "github"),
+    ("matplotlib/matplotlib", "github"),
+    ("python-pillow/Pillow", "github"),
+    ("psf/requests", "github"),
+    ("urllib3/urllib3", "github"),
+    ("certifi/python-certifi", "github"),
+    ("pyca/cryptography", "github"),
+    ("lxml/lxml", "github"),
+    ("encode/httpx", "github"),
+    ("tornadoweb/tornado", "github"),
+    ("twisted/twisted", "github"),
+    ("jupyterlab/jupyterlab", "github"),
     # === Interesting risk profiles ===
     ("smuellerDD/jitterentropy-library", "github"),  # crypto entropy, single maintainer
     ("thkukuk/libnsl", "github"),                    # NIS library, single maintainer
