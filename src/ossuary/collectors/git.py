@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import os
+import re
 import shutil
 import tempfile
 from collections import defaultdict
@@ -17,6 +18,32 @@ from git.exc import GitCommandError, InvalidGitRepositoryError
 from ossuary.collectors.base import BaseCollector
 
 logger = logging.getLogger(__name__)
+
+# GitHub noreply format: 12345+username@users.noreply.github.com
+_GITHUB_NOREPLY_RE = re.compile(r"^\d+\+(.+)@users\.noreply\.github\.com$")
+
+
+def _normalize_email(email: str) -> str:
+    """Normalize an email address to a canonical identity key.
+
+    Only handles the unambiguous GitHub noreply case:
+      - 12345+cfconrad@users.noreply.github.com → cfconrad@users.noreply.github.com
+
+    General emails are lowercased but otherwise preserved. Merging by local
+    part (e.g. user@suse.de + user@suse.com) was too aggressive — it falsely
+    merges unrelated people who share common usernames.
+    """
+    email = email.lower().strip()
+    if not email or "@" not in email:
+        return email
+
+    # Handle GitHub noreply: strip numeric prefix
+    # 12345+user@users.noreply.github.com → user@users.noreply.github.com
+    m = _GITHUB_NOREPLY_RE.match(email)
+    if m:
+        return f"{m.group(1)}@users.noreply.github.com"
+
+    return email
 
 
 @dataclass
@@ -201,14 +228,15 @@ class GitCollector(BaseCollector):
         last_commit_date = sorted_commits[-1].authored_date
 
         # --- Lifetime stats (all commits) ---
+        # Use normalized email to merge identities (e.g. user@suse.de + user@suse.com)
         lifetime_author_counts: dict[str, int] = defaultdict(int)
         for commit in commits:
-            lifetime_author_counts[commit.author_email.lower()] += 1
+            lifetime_author_counts[_normalize_email(commit.author_email)] += 1
 
         lifetime_contributors = len(lifetime_author_counts)
         if lifetime_author_counts:
-            lt_top_email = max(lifetime_author_counts, key=lifetime_author_counts.get)
-            lifetime_concentration = (lifetime_author_counts[lt_top_email] / len(commits) * 100)
+            lt_top_id = max(lifetime_author_counts, key=lifetime_author_counts.get)
+            lifetime_concentration = (lifetime_author_counts[lt_top_id] / len(commits) * 100)
         else:
             lifetime_concentration = 100.0
 
@@ -219,9 +247,9 @@ class GitCollector(BaseCollector):
         author_names: dict[str, str] = {}
 
         for commit in recent_commits:
-            email = commit.author_email.lower()
-            author_counts[email] += 1
-            author_names[email] = commit.author_name
+            identity = _normalize_email(commit.author_email)
+            author_counts[identity] += 1
+            author_names[identity] = commit.author_name
 
         total_recent = len(recent_commits)
         unique_contributors = len(author_counts)
@@ -256,22 +284,22 @@ class GitCollector(BaseCollector):
             historical_commits = [c for c in commits if c.authored_date < one_year_ago]
             hist_total = len(historical_commits)
 
-            # Historical share per contributor
+            # Historical share per contributor (using normalized identities)
             hist_counts: dict[str, int] = defaultdict(int)
             for c in historical_commits:
-                hist_counts[c.author_email.lower()] += 1
+                hist_counts[_normalize_email(c.author_email)] += 1
 
             # Find the contributor with the largest upward shift.
             # Only flag genuinely minor/new contributors — not established
             # maintainers whose share naturally fluctuates.
-            for email, recent_count in author_counts.items():
+            for identity, recent_count in author_counts.items():
                 # Skip bots (dependabot, renovate, etc.)
-                name = author_names.get(email, "")
-                if "[bot]" in email or "[bot]" in name:
+                name = author_names.get(identity, "")
+                if "[bot]" in identity or "[bot]" in name:
                     continue
 
                 recent_pct = recent_count / total_recent * 100
-                hist_pct = (hist_counts.get(email, 0) / hist_total * 100) if hist_total > 0 else 0
+                hist_pct = (hist_counts.get(identity, 0) / hist_total * 100) if hist_total > 0 else 0
                 shift = recent_pct - hist_pct
 
                 # Only flag if the contributor was minor historically (<5% of commits).
@@ -282,7 +310,7 @@ class GitCollector(BaseCollector):
 
                 if shift > takeover_shift:
                     takeover_shift = shift
-                    takeover_suspect = email
+                    takeover_suspect = identity
                     takeover_suspect_name = name
 
         return GitMetrics(
