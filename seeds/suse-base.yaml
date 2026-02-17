@@ -1,0 +1,318 @@
+# Ossuary SUSE seed — packages from SLE base + edna developer desktop
+#
+# Usage: ossuary seed-custom seeds/suse-base.yaml
+#
+# 136 packages covering openSUSE/SUSE core, YaST, boot/firmware,
+# security, containers, system libraries/tools, storage, GPU,
+# dev tools, AI/ML, and Python ecosystem.
+
+packages:
+  # --- openSUSE/SUSE core (always on every SLE/openSUSE box) ---
+  - name: openSUSE/aaa_base
+    repo: https://github.com/openSUSE/aaa_base
+  - name: openSUSE/libeconf
+    repo: https://github.com/openSUSE/libeconf
+  - name: openSUSE/libsolv
+    repo: https://github.com/openSUSE/libsolv
+  - name: openSUSE/libzypp
+    repo: https://github.com/openSUSE/libzypp
+  - name: openSUSE/zypper
+    repo: https://github.com/openSUSE/zypper
+  - name: openSUSE/permissions
+    repo: https://github.com/openSUSE/permissions
+  - name: openSUSE/sysconfig
+    repo: https://github.com/openSUSE/sysconfig
+  - name: openSUSE/wicked
+    repo: https://github.com/openSUSE/wicked
+  - name: openSUSE/suse-module-tools
+    repo: https://github.com/openSUSE/suse-module-tools
+  - name: openSUSE/fillup
+    repo: https://github.com/openSUSE/fillup
+  - name: openSUSE/ca-certificates
+    repo: https://github.com/openSUSE/ca-certificates
+  - name: openSUSE/systemd-default-settings
+    repo: https://github.com/openSUSE/systemd-default-settings
+  - name: openSUSE/polkit-default-privs
+    repo: https://github.com/openSUSE/polkit-default-privs
+  - name: openSUSE/rollback-helper
+    repo: https://github.com/openSUSE/rollback-helper
+  - name: openSUSE/osc
+    repo: https://github.com/openSUSE/osc
+  - name: SUSE/connect-ng
+    repo: https://github.com/SUSE/connect-ng
+  - name: SUSE/pam-config
+    repo: https://github.com/SUSE/pam-config
+  - name: SUSE/zypper-lifecycle
+    repo: https://github.com/SUSE/zypper-lifecycle
+
+  # --- YaST ---
+  - name: yast/yast-core
+    repo: https://github.com/yast/yast-core
+  - name: yast/yast-ruby-bindings
+    repo: https://github.com/yast/yast-ruby-bindings
+  - name: yast/yast-yast2
+    repo: https://github.com/yast/yast-yast2
+  - name: yast/yast-apparmor
+    repo: https://github.com/yast/yast-apparmor
+  - name: yast/yast-snapper
+    repo: https://github.com/yast/yast-snapper
+
+  # --- Boot and firmware ---
+  - name: dracutdevs/dracut
+    repo: https://github.com/dracutdevs/dracut
+  - name: rhboot/shim
+    repo: https://github.com/rhboot/shim
+  - name: rhinstaller/efibootmgr
+    repo: https://github.com/rhinstaller/efibootmgr
+  - name: rhinstaller/efivar
+    repo: https://github.com/rhinstaller/efivar
+  - name: tianocore/edk2
+    repo: https://github.com/tianocore/edk2
+
+  # --- Security ---
+  - name: shadow-maint/shadow
+    repo: https://github.com/shadow-maint/shadow
+  - name: seccomp/libseccomp
+    repo: https://github.com/seccomp/libseccomp
+  - name: SELinuxProject/selinux
+    repo: https://github.com/SELinuxProject/selinux
+  - name: SSSD/sssd
+    repo: https://github.com/SSSD/sssd
+  - name: SSSD/ding-libs
+    repo: https://github.com/SSSD/ding-libs
+  - name: tpm2-software/tpm2-tss
+    repo: https://github.com/tpm2-software/tpm2-tss
+  - name: P-H-C/phc-winner-argon2
+    repo: https://github.com/P-H-C/phc-winner-argon2
+  - name: besser82/libxcrypt
+    repo: https://github.com/besser82/libxcrypt
+  - name: libpwquality/libpwquality
+    repo: https://github.com/libpwquality/libpwquality
+  - name: cracklib/cracklib
+    repo: https://github.com/cracklib/cracklib
+  - name: pyca/pyopenssl
+    repo: https://github.com/pyca/pyopenssl
+
+  # --- Containers stack ---
+  - name: containers/podman
+    repo: https://github.com/containers/podman
+  - name: containers/conmon
+    repo: https://github.com/containers/conmon
+  - name: containers/aardvark-dns
+    repo: https://github.com/containers/aardvark-dns
+  - name: containers/netavark
+    repo: https://github.com/containers/netavark
+  - name: containers/fuse-overlayfs
+    repo: https://github.com/containers/fuse-overlayfs
+  - name: containers/gvisor-tap-vsock
+    repo: https://github.com/containers/gvisor-tap-vsock
+  - name: opencontainers/runc
+    repo: https://github.com/opencontainers/runc
+  - name: openSUSE/catatonit
+    repo: https://github.com/openSUSE/catatonit
+  - name: rootless-containers/rootlesskit
+    repo: https://github.com/rootless-containers/rootlesskit
+  - name: rootless-containers/slirp4netns
+    repo: https://github.com/rootless-containers/slirp4netns
+  - name: docker/buildx
+    repo: https://github.com/docker/buildx
+  - name: docker/compose
+    repo: https://github.com/docker/compose
+
+  # --- System libraries ---
+  - name: facebook/zstd
+    repo: https://github.com/facebook/zstd
+  - name: google/brotli
+    repo: https://github.com/google/brotli
+  - name: google/protobuf
+    repo: https://github.com/google/protobuf
+  - name: json-c/json-c
+    repo: https://github.com/json-c/json-c
+  - name: libbpf/libbpf
+    repo: https://github.com/libbpf/libbpf
+  - name: libfuse/libfuse
+    repo: https://github.com/libfuse/libfuse
+  - name: kkos/oniguruma
+    repo: https://github.com/kkos/oniguruma
+  - name: jbeder/yaml-cpp
+    repo: https://github.com/jbeder/yaml-cpp
+  - name: PJK/libcbor
+    repo: https://github.com/PJK/libcbor
+  - name: protobuf-c/protobuf-c
+    repo: https://github.com/protobuf-c/protobuf-c
+  - name: zchunk/zchunk
+    repo: https://github.com/zchunk/zchunk
+
+  # --- System tools ---
+  - name: logrotate/logrotate
+    repo: https://github.com/logrotate/logrotate
+  - name: lsof-org/lsof
+    repo: https://github.com/lsof-org/lsof
+  - name: numactl/numactl
+    repo: https://github.com/numactl/numactl
+  - name: iputils/iputils
+    repo: https://github.com/iputils/iputils
+  - name: scop/bash-completion
+    repo: https://github.com/scop/bash-completion
+  - name: vcrhonek/hwdata
+    repo: https://github.com/vcrhonek/hwdata
+  - name: dosfstools/dosfstools
+    repo: https://github.com/dosfstools/dosfstools
+  - name: cyrusimap/cyrus-sasl
+    repo: https://github.com/cyrusimap/cyrus-sasl
+  - name: Irqbalance/irqbalance
+    repo: https://github.com/Irqbalance/irqbalance
+  - name: cronie-crond/cronie
+    repo: https://github.com/cronie-crond/cronie
+  - name: jirka-h/haveged
+    repo: https://github.com/jirka-h/haveged
+
+  # --- Storage ---
+  - name: storaged-project/libblockdev
+    repo: https://github.com/storaged-project/libblockdev
+  - name: storaged-project/udisks
+    repo: https://github.com/storaged-project/udisks
+  - name: jthornber/thin-provisioning-tools
+    repo: https://github.com/jthornber/thin-provisioning-tools
+  - name: kdave/btrfsmaintenance
+    repo: https://github.com/kdave/btrfsmaintenance
+  - name: linux-nvme/nvme-cli
+    repo: https://github.com/linux-nvme/nvme-cli
+  - name: linux-nvme/libnvme
+    repo: https://github.com/linux-nvme/libnvme
+  - name: pmem/ndctl
+    repo: https://github.com/pmem/ndctl
+
+  # --- GPU / compute ---
+  - name: NVIDIA/open-gpu-kernel-modules
+    repo: https://github.com/NVIDIA/open-gpu-kernel-modules
+  - name: NVIDIA/nvidia-container-toolkit
+    repo: https://github.com/NVIDIA/nvidia-container-toolkit
+  - name: ROCm/ROCR-Runtime
+    repo: https://github.com/ROCm/ROCR-Runtime
+
+  # --- Dev tools (shipped on SLE) ---
+  - name: git-lfs/git-lfs
+    repo: https://github.com/git-lfs/git-lfs
+  - name: neovim/pynvim
+    repo: https://github.com/neovim/pynvim
+  - name: pypa/setuptools
+    repo: https://github.com/pypa/setuptools
+  - name: pypa/packaging
+    repo: https://github.com/pypa/packaging
+  - name: yaml/pyyaml
+    repo: https://github.com/yaml/pyyaml
+
+  # --- AI/ML ---
+  - name: ggerganov/llama.cpp
+    repo: https://github.com/ggerganov/llama.cpp
+
+  # --- Core system (from edna developer desktop) ---
+  - name: curl/curl
+    repo: https://github.com/curl/curl
+  - name: openssh/openssh-portable
+    repo: https://github.com/openssh/openssh-portable
+  - name: sudo-project/sudo
+    repo: https://github.com/sudo-project/sudo
+  - name: systemd/systemd
+    repo: https://github.com/systemd/systemd
+  - name: linux-pam/linux-pam
+    repo: https://github.com/linux-pam/linux-pam
+  - name: util-linux/util-linux
+    repo: https://github.com/util-linux/util-linux
+  - name: kmod-project/kmod
+    repo: https://github.com/kmod-project/kmod
+  - name: openssl/openssl
+    repo: https://github.com/openssl/openssl
+
+  # --- Security (from edna) ---
+  - name: linux-audit/audit-userspace
+    repo: https://github.com/linux-audit/audit-userspace
+
+  # --- Build tools (from edna) ---
+  - name: Kitware/CMake
+    repo: https://github.com/Kitware/CMake
+  - name: ninja-build/ninja
+    repo: https://github.com/ninja-build/ninja
+  - name: mesonbuild/meson
+    repo: https://github.com/mesonbuild/meson
+
+  # --- Dev tools (from edna) ---
+  - name: git/git
+    repo: https://github.com/git/git
+  - name: vim/vim
+    repo: https://github.com/vim/vim
+  - name: tmux/tmux
+    repo: https://github.com/tmux/tmux
+  - name: strace/strace
+    repo: https://github.com/strace/strace
+  - name: jqlang/jq
+    repo: https://github.com/jqlang/jq
+  - name: sharkdp/bat
+    repo: https://github.com/sharkdp/bat
+
+  # --- Containers (from edna) ---
+  - name: containerd/containerd
+    repo: https://github.com/containerd/containerd
+  - name: containers/skopeo
+    repo: https://github.com/containers/skopeo
+  - name: containers/buildah
+    repo: https://github.com/containers/buildah
+
+  # --- Desktop/services (from edna) ---
+  - name: flatpak/flatpak
+    repo: https://github.com/flatpak/flatpak
+  - name: OpenPrinting/cups
+    repo: https://github.com/OpenPrinting/cups
+  - name: avahi/avahi
+    repo: https://github.com/avahi/avahi
+  - name: firewalld/firewalld
+    repo: https://github.com/firewalld/firewalld
+  - name: OpenVPN/openvpn
+    repo: https://github.com/OpenVPN/openvpn
+  - name: MariaDB/server
+    repo: https://github.com/MariaDB/server
+
+  # --- Python ecosystem (from edna) ---
+  - name: numpy/numpy
+    repo: https://github.com/numpy/numpy
+  - name: pandas-dev/pandas
+    repo: https://github.com/pandas-dev/pandas
+  - name: scipy/scipy
+    repo: https://github.com/scipy/scipy
+  - name: scikit-learn/scikit-learn
+    repo: https://github.com/scikit-learn/scikit-learn
+  - name: matplotlib/matplotlib
+    repo: https://github.com/matplotlib/matplotlib
+  - name: python-pillow/Pillow
+    repo: https://github.com/python-pillow/Pillow
+  - name: psf/requests
+    repo: https://github.com/psf/requests
+  - name: urllib3/urllib3
+    repo: https://github.com/urllib3/urllib3
+  - name: certifi/python-certifi
+    repo: https://github.com/certifi/python-certifi
+  - name: pyca/cryptography
+    repo: https://github.com/pyca/cryptography
+  - name: lxml/lxml
+    repo: https://github.com/lxml/lxml
+  - name: encode/httpx
+    repo: https://github.com/encode/httpx
+  - name: tornadoweb/tornado
+    repo: https://github.com/tornadoweb/tornado
+  - name: twisted/twisted
+    repo: https://github.com/twisted/twisted
+  - name: jupyterlab/jupyterlab
+    repo: https://github.com/jupyterlab/jupyterlab
+
+  # --- Interesting risk profiles ---
+  - name: smuellerDD/jitterentropy-library  # crypto entropy, single maintainer
+    repo: https://github.com/smuellerDD/jitterentropy-library
+  - name: thkukuk/libnsl  # NIS library, single maintainer
+    repo: https://github.com/thkukuk/libnsl
+  - name: wfeldt/libx86emu  # x86 emulation, single maintainer
+    repo: https://github.com/wfeldt/libx86emu
+  - name: bitstreamout/showconsole  # SUSE-specific, single maintainer
+    repo: https://github.com/bitstreamout/showconsole
+  - name: Velocidex/velociraptor  # IR/forensics tool
+    repo: https://github.com/Velocidex/velociraptor

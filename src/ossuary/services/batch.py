@@ -1,12 +1,13 @@
 """Batch scoring service for ossuary.
 
-Scores packages from a discovery JSON file (e.g., suse_packages.json)
+Scores packages from discovery JSON or custom YAML seed files
 with concurrency control, resume support, and progress tracking.
 """
 
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -32,14 +33,15 @@ class BatchResult:
 
 @dataclass
 class PackageEntry:
-    """A package entry from the discovery JSON."""
+    """A package entry for batch scoring."""
 
     obs_package: str
     github_owner: str
     github_repo: str
     repo_url: str
-    source: str  # "service" or "spec"
+    source: str  # "service", "spec", or "custom"
     obs_project: str = ""
+    ecosystem: str = "github"  # "github", "npm", "pypi"
 
 
 def load_discovery_file(path: str) -> list[PackageEntry]:
@@ -58,6 +60,103 @@ def load_discovery_file(path: str) -> list[PackageEntry]:
         )
         for item in data
     ]
+
+
+_GITHUB_URL_RE = re.compile(r"^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$")
+
+
+def load_custom_seed(path: str) -> list[PackageEntry]:
+    """Load packages from a custom YAML seed file.
+
+    Expected format:
+        packages:
+          - name: owner/repo
+            repo: https://github.com/owner/repo
+          - name: numpy
+            ecosystem: pypi
+
+    Rules:
+      - name is required
+      - For github ecosystem: repo URL required, must be valid github.com URL
+      - ecosystem defaults to github when repo is a github.com URL
+      - For npm/pypi: repo is optional (collectors discover it)
+    """
+    import yaml
+
+    with open(path) as f:
+        data = yaml.safe_load(f)
+
+    if not isinstance(data, dict) or "packages" not in data:
+        raise ValueError(f"Invalid seed file: expected top-level 'packages' key in {path}")
+
+    raw_packages = data["packages"]
+    if not isinstance(raw_packages, list):
+        raise ValueError(f"Invalid seed file: 'packages' must be a list in {path}")
+
+    entries = []
+    seen = set()
+
+    for i, item in enumerate(raw_packages):
+        if not isinstance(item, dict):
+            raise ValueError(f"Entry {i + 1}: expected a mapping, got {type(item).__name__}")
+
+        name = item.get("name", "").strip()
+        if not name:
+            raise ValueError(f"Entry {i + 1}: 'name' is required")
+
+        repo_url = item.get("repo", "").strip()
+        ecosystem = item.get("ecosystem", "").strip().lower()
+
+        # Infer ecosystem from repo URL if not specified
+        if not ecosystem:
+            if repo_url and _GITHUB_URL_RE.match(repo_url):
+                ecosystem = "github"
+            elif not repo_url:
+                raise ValueError(
+                    f"Entry {i + 1} ({name}): must specify 'ecosystem' or provide a GitHub 'repo' URL"
+                )
+            else:
+                raise ValueError(
+                    f"Entry {i + 1} ({name}): non-GitHub repo URL requires explicit 'ecosystem'"
+                )
+
+        if ecosystem not in ("github", "npm", "pypi"):
+            raise ValueError(f"Entry {i + 1} ({name}): unsupported ecosystem '{ecosystem}'")
+
+        # GitHub entries need a valid repo URL
+        if ecosystem == "github":
+            if not repo_url:
+                raise ValueError(f"Entry {i + 1} ({name}): GitHub packages require a 'repo' URL")
+            m = _GITHUB_URL_RE.match(repo_url)
+            if not m:
+                raise ValueError(
+                    f"Entry {i + 1} ({name}): invalid GitHub URL '{repo_url}' "
+                    f"(expected https://github.com/owner/repo)"
+                )
+            owner, repo = m.group(1), m.group(2)
+            pkg_name = f"{owner}/{repo}"
+        else:
+            owner, repo = "", ""
+            pkg_name = name
+
+        # Deduplicate
+        key = (pkg_name, ecosystem)
+        if key in seen:
+            raise ValueError(f"Entry {i + 1}: duplicate package {pkg_name} ({ecosystem})")
+        seen.add(key)
+
+        entries.append(
+            PackageEntry(
+                obs_package=name,
+                github_owner=owner,
+                github_repo=repo,
+                repo_url=repo_url,
+                source="custom",
+                ecosystem=ecosystem,
+            )
+        )
+
+    return entries
 
 
 def is_fresh(package_name: str, ecosystem: str, max_age_days: int = 7) -> bool:
@@ -113,19 +212,26 @@ async def batch_score(
         """Score a single package, returning (pkg_name, status)."""
         nonlocal completed
 
-        pkg_name = f"{entry.github_owner}/{entry.github_repo}"
+        eco = entry.ecosystem
+        if eco == "github":
+            pkg_name = f"{entry.github_owner}/{entry.github_repo}"
+        else:
+            pkg_name = entry.obs_package
 
         # Check freshness
-        if skip_fresh and is_fresh(pkg_name, "github", fresh_days):
+        if skip_fresh and is_fresh(pkg_name, eco, fresh_days):
             completed += 1
             return pkg_name, "skipped"
 
         async with semaphore:
             try:
+                kwargs = {}
+                if entry.repo_url:
+                    kwargs["repo_url"] = entry.repo_url
                 scoring_result = await score_package(
                     pkg_name,
-                    "github",
-                    repo_url=entry.repo_url,
+                    eco,
+                    **kwargs,
                 )
                 completed += 1
 

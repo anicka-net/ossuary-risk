@@ -397,163 +397,8 @@ SEED_PACKAGES = [
 ]
 
 
-SEED_SUSE_PACKAGES = [
-    # === openSUSE/SUSE core (always on every SLE/openSUSE box) ===
-    ("openSUSE/aaa_base", "github"),
-    ("openSUSE/libeconf", "github"),
-    ("openSUSE/libsolv", "github"),
-    ("openSUSE/libzypp", "github"),
-    ("openSUSE/zypper", "github"),
-    ("openSUSE/permissions", "github"),
-    ("openSUSE/sysconfig", "github"),
-    ("openSUSE/wicked", "github"),
-    ("openSUSE/suse-module-tools", "github"),
-    ("openSUSE/fillup", "github"),
-    ("openSUSE/ca-certificates", "github"),
-    ("openSUSE/systemd-default-settings", "github"),
-    ("openSUSE/polkit-default-privs", "github"),
-    ("openSUSE/rollback-helper", "github"),
-    ("openSUSE/osc", "github"),
-    ("SUSE/connect-ng", "github"),
-    ("SUSE/pam-config", "github"),
-    ("SUSE/zypper-lifecycle", "github"),
-    # === YaST ===
-    ("yast/yast-core", "github"),
-    ("yast/yast-ruby-bindings", "github"),
-    ("yast/yast-yast2", "github"),
-    ("yast/yast-apparmor", "github"),
-    ("yast/yast-snapper", "github"),
-    # === Boot and firmware ===
-    ("dracutdevs/dracut", "github"),
-    ("rhboot/shim", "github"),
-    ("rhinstaller/efibootmgr", "github"),
-    ("rhinstaller/efivar", "github"),
-    ("tianocore/edk2", "github"),
-    # === Security ===
-    ("shadow-maint/shadow", "github"),
-    ("seccomp/libseccomp", "github"),
-    ("SELinuxProject/selinux", "github"),
-    ("SSSD/sssd", "github"),
-    ("SSSD/ding-libs", "github"),
-    ("tpm2-software/tpm2-tss", "github"),
-    ("P-H-C/phc-winner-argon2", "github"),
-    ("besser82/libxcrypt", "github"),
-    ("libpwquality/libpwquality", "github"),
-    ("cracklib/cracklib", "github"),
-    ("pyca/pyopenssl", "github"),
-    # === Containers stack ===
-    ("containers/podman", "github"),
-    ("containers/conmon", "github"),
-    ("containers/aardvark-dns", "github"),
-    ("containers/netavark", "github"),
-    ("containers/fuse-overlayfs", "github"),
-    ("containers/gvisor-tap-vsock", "github"),
-    ("opencontainers/runc", "github"),
-    ("openSUSE/catatonit", "github"),
-    ("rootless-containers/rootlesskit", "github"),
-    ("rootless-containers/slirp4netns", "github"),
-    ("docker/buildx", "github"),
-    ("docker/compose", "github"),
-    # === System libraries ===
-    ("facebook/zstd", "github"),
-    ("google/brotli", "github"),
-    ("google/protobuf", "github"),
-    ("json-c/json-c", "github"),
-    ("libbpf/libbpf", "github"),
-    ("libfuse/libfuse", "github"),
-    ("kkos/oniguruma", "github"),
-    ("jbeder/yaml-cpp", "github"),
-    ("PJK/libcbor", "github"),
-    ("protobuf-c/protobuf-c", "github"),
-    ("zchunk/zchunk", "github"),
-    # === System tools ===
-    ("logrotate/logrotate", "github"),
-    ("lsof-org/lsof", "github"),
-    ("numactl/numactl", "github"),
-    ("iputils/iputils", "github"),
-    ("scop/bash-completion", "github"),
-    ("vcrhonek/hwdata", "github"),
-    ("dosfstools/dosfstools", "github"),
-    ("cyrusimap/cyrus-sasl", "github"),
-    ("Irqbalance/irqbalance", "github"),
-    ("cronie-crond/cronie", "github"),
-    ("jirka-h/haveged", "github"),
-    # === Storage ===
-    ("storaged-project/libblockdev", "github"),
-    ("storaged-project/udisks", "github"),
-    ("jthornber/thin-provisioning-tools", "github"),
-    ("kdave/btrfsmaintenance", "github"),
-    ("linux-nvme/nvme-cli", "github"),
-    ("linux-nvme/libnvme", "github"),
-    ("pmem/ndctl", "github"),
-    # === GPU / compute ===
-    ("NVIDIA/open-gpu-kernel-modules", "github"),
-    ("NVIDIA/nvidia-container-toolkit", "github"),
-    ("ROCm/ROCR-Runtime", "github"),
-    # === Dev tools (shipped on SLE) ===
-    ("git-lfs/git-lfs", "github"),
-    ("neovim/pynvim", "github"),
-    ("pypa/setuptools", "github"),
-    ("pypa/packaging", "github"),
-    ("yaml/pyyaml", "github"),
-    # === AI/ML ===
-    ("ggerganov/llama.cpp", "github"),
-    # === Core system (from edna developer desktop) ===
-    ("curl/curl", "github"),
-    ("openssh/openssh-portable", "github"),
-    ("sudo-project/sudo", "github"),
-    ("systemd/systemd", "github"),
-    ("linux-pam/linux-pam", "github"),
-    ("util-linux/util-linux", "github"),
-    ("kmod-project/kmod", "github"),
-    ("openssl/openssl", "github"),
-    # === Security (from edna) ===
-    ("linux-audit/audit-userspace", "github"),
-    # === Build tools (from edna) ===
-    ("Kitware/CMake", "github"),
-    ("ninja-build/ninja", "github"),
-    ("mesonbuild/meson", "github"),
-    # === Dev tools (from edna) ===
-    ("git/git", "github"),
-    ("vim/vim", "github"),
-    ("tmux/tmux", "github"),
-    ("strace/strace", "github"),
-    ("jqlang/jq", "github"),
-    ("sharkdp/bat", "github"),
-    # === Containers (from edna) ===
-    ("containerd/containerd", "github"),
-    ("containers/skopeo", "github"),
-    ("containers/buildah", "github"),
-    # === Desktop/services (from edna) ===
-    ("flatpak/flatpak", "github"),
-    ("OpenPrinting/cups", "github"),
-    ("avahi/avahi", "github"),
-    ("firewalld/firewalld", "github"),
-    ("OpenVPN/openvpn", "github"),
-    ("MariaDB/server", "github"),
-    # === Python ecosystem (from edna) ===
-    ("numpy/numpy", "github"),
-    ("pandas-dev/pandas", "github"),
-    ("scipy/scipy", "github"),
-    ("scikit-learn/scikit-learn", "github"),
-    ("matplotlib/matplotlib", "github"),
-    ("python-pillow/Pillow", "github"),
-    ("psf/requests", "github"),
-    ("urllib3/urllib3", "github"),
-    ("certifi/python-certifi", "github"),
-    ("pyca/cryptography", "github"),
-    ("lxml/lxml", "github"),
-    ("encode/httpx", "github"),
-    ("tornadoweb/tornado", "github"),
-    ("twisted/twisted", "github"),
-    ("jupyterlab/jupyterlab", "github"),
-    # === Interesting risk profiles ===
-    ("smuellerDD/jitterentropy-library", "github"),  # crypto entropy, single maintainer
-    ("thkukuk/libnsl", "github"),                    # NIS library, single maintainer
-    ("wfeldt/libx86emu", "github"),                  # x86 emulation, single maintainer
-    ("bitstreamout/showconsole", "github"),           # SUSE-specific, single maintainer
-    ("Velocidex/velociraptor", "github"),             # IR/forensics tool
-]
+# Default SUSE seed file path (shipped with the package)
+_SUSE_SEED_DEFAULT = os.path.join(os.path.dirname(__file__), "..", "..", "seeds", "suse-base.yaml")
 
 
 @app.command()
@@ -600,43 +445,18 @@ async def _seed():
 
 @app.command("seed-suse-base")
 def seed_suse_base():
-    """Score a curated set of openSUSE/SUSE packages (no osc required)."""
-    asyncio.run(_seed_suse_base())
+    """Score the bundled SUSE seed (136 packages, no osc required).
 
-
-async def _seed_suse_base():
-    """Score the static SUSE package list."""
-    from ossuary.services.scorer import score_package as svc_score
-
-    init_db()
-
-    console.print(f"Seeding {len(SEED_SUSE_PACKAGES)} openSUSE/SUSE packages...\n")
-
-    success = 0
-    errors = 0
-    for i, (name, eco) in enumerate(SEED_SUSE_PACKAGES, 1):
-        console.print(f"  [{i}/{len(SEED_SUSE_PACKAGES)}] {name}...", end=" ")
-        try:
-            result = await svc_score(name, eco)
-            if result.success:
-                b = result.breakdown
-                color = {
-                    "CRITICAL": "red",
-                    "HIGH": "orange1",
-                    "MODERATE": "yellow",
-                    "LOW": "green",
-                    "VERY_LOW": "green",
-                }.get(b.risk_level.value, "white")
-                console.print(f"[{color}]{b.final_score} {b.risk_level.value}[/{color}]")
-                success += 1
-            else:
-                console.print(f"[red]ERROR: {result.error}[/red]")
-                errors += 1
-        except Exception as e:
-            console.print(f"[red]ERROR: {e}[/red]")
-            errors += 1
-
-    console.print(f"\nDone. {success} scored, {errors} errors.")
+    This is a convenience wrapper around 'seed-custom seeds/suse-base.yaml'.
+    """
+    seed_path = os.path.normpath(_SUSE_SEED_DEFAULT)
+    if not os.path.exists(seed_path):
+        # Fall back to seeds/ in the current directory
+        seed_path = "seeds/suse-base.yaml"
+    if not os.path.exists(seed_path):
+        console.print("[red]SUSE seed file not found. Expected seeds/suse-base.yaml[/red]")
+        raise typer.Exit(1)
+    asyncio.run(_seed_custom(seed_path, limit=0, concurrent=3, skip_fresh=True, fresh_days=7))
 
 
 @app.command("discover-suse")
@@ -685,6 +505,93 @@ def discover_suse(
     console.print(f"Running discovery: {' '.join(cmd)}\n")
     result = subprocess.run(cmd)
     raise typer.Exit(result.returncode)
+
+
+@app.command("seed-custom")
+def seed_custom(
+    file: str = typer.Argument(..., help="YAML config file with package list"),
+    limit: int = typer.Option(0, "--limit", "-l", help="Score first N packages only (0=all)"),
+    concurrent: int = typer.Option(3, "--concurrent", "-c", help="Parallel scoring workers"),
+    skip_fresh: bool = typer.Option(True, "--skip-fresh/--no-skip-fresh", help="Skip recently scored packages"),
+    fresh_days: int = typer.Option(7, "--fresh-days", help="Days before a score is stale"),
+):
+    """Score packages from a custom YAML seed file.
+
+    The YAML file should have this format:
+
+        packages:
+          - name: owner/repo
+            repo: https://github.com/owner/repo
+          - name: numpy
+            ecosystem: pypi
+
+    GitHub packages require a 'repo' URL. For npm/pypi, 'repo' is optional.
+    """
+    asyncio.run(_seed_custom(file, limit, concurrent, skip_fresh, fresh_days))
+
+
+async def _seed_custom(
+    file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int
+):
+    """Score packages from a custom YAML seed file."""
+    from ossuary.services.batch import load_custom_seed, batch_score
+
+    init_db()
+
+    if not os.path.exists(file):
+        console.print(f"[red]Seed file not found: {file}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        packages = load_custom_seed(file)
+    except ValueError as e:
+        console.print(f"[red]Invalid seed file: {e}[/red]")
+        raise typer.Exit(1)
+
+    total = min(limit, len(packages)) if limit > 0 else len(packages)
+
+    console.print(f"[bold]Scoring custom seed[/bold]")
+    console.print(f"  Source: {file}")
+    console.print(f"  Packages: {total} of {len(packages)}")
+    console.print(f"  Concurrent: {concurrent}")
+    console.print(f"  Skip fresh (<{fresh_days}d): {skip_fresh}\n")
+
+    scored_count = 0
+    skipped_count = 0
+    error_count = 0
+
+    def on_progress(current, total_pkgs, pkg_name, status):
+        nonlocal scored_count, skipped_count, error_count
+
+        if status == "scored":
+            scored_count += 1
+            console.print(f"  [{current}/{total_pkgs}] [green]OK[/green] {pkg_name}")
+        elif status == "skipped":
+            skipped_count += 1
+            if skipped_count % 100 == 0:
+                console.print(f"  [{current}/{total_pkgs}] skipped {skipped_count} fresh packages so far...")
+        else:
+            error_count += 1
+            console.print(f"  [{current}/{total_pkgs}] [red]{status}[/red] {pkg_name}")
+
+    result = await batch_score(
+        packages,
+        max_concurrent=concurrent,
+        max_packages=limit,
+        skip_fresh=skip_fresh,
+        fresh_days=fresh_days,
+        progress_callback=on_progress,
+    )
+
+    console.print(f"\n[bold green]Done![/bold green]")
+    console.print(f"  Scored: {result.scored}")
+    console.print(f"  Skipped (fresh): {result.skipped}")
+    console.print(f"  Errors: {result.errors}")
+
+    if result.errors > 0 and result.error_details:
+        console.print(f"\n[bold yellow]Error summary (first 20):[/bold yellow]")
+        for detail in result.error_details[:20]:
+            console.print(f"  {detail}")
 
 
 @app.command("seed-suse")
