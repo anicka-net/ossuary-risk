@@ -261,16 +261,29 @@ class GitCollector(BaseCollector):
             for c in historical_commits:
                 hist_counts[c.author_email.lower()] += 1
 
-            # Find the contributor with the largest upward shift
+            # Find the contributor with the largest upward shift.
+            # Only flag genuinely minor/new contributors — not established
+            # maintainers whose share naturally fluctuates.
             for email, recent_count in author_counts.items():
+                # Skip bots (dependabot, renovate, etc.)
+                name = author_names.get(email, "")
+                if "[bot]" in email or "[bot]" in name:
+                    continue
+
                 recent_pct = recent_count / total_recent * 100
                 hist_pct = (hist_counts.get(email, 0) / hist_total * 100) if hist_total > 0 else 0
                 shift = recent_pct - hist_pct
 
+                # Only flag if the contributor was minor historically (<5% of commits).
+                # Established maintainers (e.g. project creator at 20%) naturally
+                # fluctuate — that's not a takeover signal.
+                if hist_pct >= 5:
+                    continue
+
                 if shift > takeover_shift:
                     takeover_shift = shift
                     takeover_suspect = email
-                    takeover_suspect_name = author_names.get(email, "")
+                    takeover_suspect_name = name
 
         return GitMetrics(
             total_commits=len(commits),

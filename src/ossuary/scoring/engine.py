@@ -220,9 +220,11 @@ class RiskScorer:
         elif metrics.average_sentiment > 0.3:
             pf.sentiment_score = -5
 
-        # Factor 10: Project Maturity (-15)
+        # Factor 10: Project Maturity (informational)
+        # The main maturity benefit is activity-penalty suppression and
+        # lifetime-concentration fallback (in calculate()), not a score bonus.
         if metrics.is_mature:
-            pf.maturity_score = -15
+            pf.maturity_score = 0
             pf.maturity_evidence = (
                 f"Stable project: {metrics.total_commits} commits over "
                 f"{metrics.repo_age_years:.0f} years, "
@@ -380,8 +382,13 @@ class RiskScorer:
 
         # Calculate components — two-track scoring for mature projects
         if metrics.is_mature:
-            # Mature projects: use lifetime concentration, no activity penalty
-            breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration)
+            # Mature projects: suppress activity penalty, fall back to lifetime
+            # concentration when recent data is sparse (<4 commits = "abandoned"
+            # tier, where concentration from 1-3 commits is unreliable).
+            if metrics.commits_last_year < 4:
+                breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration)
+            else:
+                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
             raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
             breakdown.activity_modifier = min(0, raw_activity)  # only allow reductions, never +20
         else:
