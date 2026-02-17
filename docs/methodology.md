@@ -6,9 +6,9 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing, the methodology achieved **91.6% accuracy** on 143 packages across 8 ecosystems, with **100% precision** (zero false positives), detecting governance-related risks before incidents occur. The v4.0 mature project detection eliminates false alarms on stable, long-lived packages while adding **proportion shift takeover detection** validated against the xz-utils/Jia Tan timeline (12-month early warning).
+**Key Finding**: In validation testing, the methodology achieved **84.6% accuracy** on 143 packages across 8 ecosystems, with **88.9% precision** (1 false positive), detecting governance-related risks before incidents occur. The v4.1 mature project detection eliminates false alarms on stable, long-lived packages while adding **proportion shift takeover detection** validated against the xz-utils/Jia Tan timeline (12-month early warning).
 
-**Version**: 4.0 (February 2026)
+**Version**: 4.1 (February 2026)
 **Validation Dataset**: 143 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
@@ -103,7 +103,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 100% precision** with zero false positives in validation
+4. **Achieving 88.9% precision** with one false positive in validation (v4.1)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 
 ---
@@ -167,12 +167,13 @@ This classification catches stable infrastructure (argon2, dosfstools, logrotate
 
 | Component | Non-Mature | Mature |
 |-----------|-----------|--------|
-| Base risk | Recent (12-month) concentration | **Lifetime** concentration |
+| Base risk | Recent (12-month) concentration | **Lifetime** concentration when <4 commits/year; recent otherwise |
 | Activity modifier | -30 to +20 | -30 to **0** (never penalized) |
-| Maturity factor | N/A | **-15** protective factor |
 | Takeover detection | N/A | **+20** if proportion shift detected |
 
-For mature projects, the real risk isn't abandonment — it's unexpected takeover (the xz-utils pattern). A project that sat quietly for 15 years with occasional small edits is safe by default. Using lifetime concentration instead of recent concentration avoids the problem where 0 recent commits produces a misleading 100% concentration.
+For mature projects, the real risk isn't abandonment — it's unexpected takeover (the xz-utils pattern). A project that sat quietly for 15 years with occasional small edits is safe by default.
+
+The lifetime concentration fallback only applies when the project has fewer than 4 commits per year — the "abandoned" activity tier where concentration from 1-3 commits is unreliable. When a mature project has 4+ recent commits, the recent concentration is used as normal, preserving the governance signal.
 
 ### 4.1 Base Risk (Maintainer Concentration)
 
@@ -223,7 +224,7 @@ Protective factors can reduce (or increase) risk based on governance quality sig
 | **Active Community** | -10 | >20 contributors | Community resilience |
 | **CII Best Practices** | -10 | Badge present | Security maturity |
 | **Positive Sentiment** | -5 | Score >0.3 | Healthy maintainer mood |
-| **Project Maturity** | -15 | Mature project (see §4.0) | Stable projects are safe by default |
+| **Project Maturity** | 0 (informational) | Mature project (see §4.0) | Benefit is activity-penalty suppression + lifetime concentration fallback, not a score bonus |
 
 #### Risk Increasers (Positive Points)
 
@@ -250,6 +251,14 @@ Where:
 - **historical_share%** = contributor's commits before last 12 months / total historical commits × 100
 
 If any contributor's proportion shift exceeds **+30 percentage points** on a mature project with ≥5 recent commits, a **takeover risk** flag is raised (+20 points).
+
+#### Guards Against False Positives
+
+Two filters prevent false alarms from established maintainers and automated tooling:
+
+1. **Bot filtering**: Contributors with `[bot]` in their email or name are excluded (e.g., dependabot, renovate). Bots can dominate recent commits on quiet projects without representing a takeover risk.
+
+2. **Historical share threshold**: Only contributors with **<5% of historical commits** are considered as takeover suspects. Established maintainers (e.g., a project creator at 20% historical share) naturally fluctuate in activity — that's not a takeover signal. This threshold catches Jia Tan (0.8% historical) while filtering out long-time contributors like project founders whose share temporarily increases.
 
 #### Design Rationale
 
@@ -366,42 +375,44 @@ Total: 143 packages across npm (61), PyPI (44), Cargo (8), RubyGems (11), Packag
 | Safe | <60 | True Negative (TN) |
 | Safe | ≥60 | False Positive (FP) |
 
-### 8.3 Results (n=143, v4.0)
+### 8.3 Results (n=143, v4.1)
 
 ```
-Accuracy:   91.6%
-Precision:  100.0%
-Recall:     58.6%
-F1 Score:   0.74
+Accuracy:   84.6%
+Precision:  88.9%
+Recall:     27.6%
+F1 Score:   0.42
 
 Confusion Matrix:
-  TP: 17  |  FN: 12
-  FP: 0   |  TN: 114
+  TP: 8   |  FN: 21
+  FP: 1   |  TN: 113
 ```
 
-**v4.0 Note**: The mature project detection (§4.0) and takeover detection (§4.4) introduced no regressions. All 114 control packages remain correctly classified. The 12 false negatives are unchanged — they represent attack types outside detection scope (account compromise, insider sabotage). The xz-utils proportion shift detection has been validated separately via T-1 analysis (see §8.7).
+**v4.1 Note**: The mature project detection (§4.0) reclassifies several previously-risky packages as LOW/MODERATE due to lifetime concentration fallback and activity-penalty suppression. This reduces recall compared to v3.x but significantly improves precision on real-world package inventories (e.g., SUSE SLE base packages). The 1 false positive (devise, scored 65) results from a borderline maintainer concentration. The xz-utils proportion shift detection has been validated separately via T-1 analysis (see §8.7).
+
+**Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
 ### 8.4 Performance by Category
 
 | Category | Detection Rate | Notes |
 |----------|---------------|-------|
-| Governance Risk | 73% (11/15) | Primary target category |
-| Account Compromise | 50% (4/8) | Expected low - outside scope |
-| Governance Failure | 33% (1/3) | v4.0 proportion shift now detects xz-utils pattern (see §4.4) |
-| Maintainer Sabotage | 33% (1/3) | Expected low - insider threat |
-| Control (Safe) | 100% (114/114) | Zero false positives |
+| Governance Risk | 33% (5/15) | Reduced by mature project reclassification |
+| Account Compromise | 25% (2/8) | Expected low - outside scope |
+| Governance Failure | 33% (1/3) | xz-utils detected via T-1 but not in current-date scoring |
+| Maintainer Sabotage | 0% (0/3) | Expected low - insider threat |
+| Control (Safe) | 99.1% (113/114) | One false positive (devise) |
 
 ### 8.5 Performance by Ecosystem
 
 | Ecosystem | Accuracy | Packages |
 |-----------|----------|----------|
 | Cargo | 100% | 8 |
-| Go | 100% | 5 |
 | NuGet | 100% | 4 |
 | Packagist | 100% | 5 |
 | PyPI | 100% | 44 |
-| RubyGems | 91% | 11 |
-| npm | 85% | 61 |
+| Go | 80% | 5 |
+| npm | 74% | 61 |
+| RubyGems | 73% | 11 |
 | GitHub | 60% | 5 |
 
 ### 8.6 False Negative Analysis
@@ -518,7 +529,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 143 packages across 8 ecosystems; thresholds produce 100% precision |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 143 packages across 8 ecosystems; thresholds produce 88.9% precision |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
@@ -563,7 +574,7 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 Despite these threats, several factors support the validity of findings:
 
 1. **100% T-1 Detection**: All governance-detectable incidents scored CRITICAL before they occurred
-2. **100% Precision**: Zero false positives across 143 packages and 8 ecosystems
+2. **88.9% Precision**: One false positive across 143 packages and 8 ecosystems
 3. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 4. **Grounded in Real Incidents**: Methodology derived from analysis of actual supply chain attacks
 5. **Alignment with CHAOSS**: Core metrics align with established open source health frameworks
@@ -730,7 +741,7 @@ These papers directly inform the methodology and should be read in full:
 
 ---
 
-*Document version: 4.0*
+*Document version: 4.1*
 *Last updated: February 2026*
-*Validation dataset: 143 packages across 8 ecosystems (91.6% accuracy, 100% precision)*
+*Validation dataset: 143 packages across 8 ecosystems (84.6% accuracy, 88.9% precision)*
 *See [validation report](validation.md) for detailed results*
