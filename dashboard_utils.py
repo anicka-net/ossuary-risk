@@ -124,6 +124,23 @@ def get_all_tracked_packages() -> list[dict]:
                 .order_by(Score.calculated_at.desc())
                 .first()
             )
+            # Extract v4.1 fields from breakdown JSON
+            maturity_evidence = None
+            takeover_evidence = None
+            is_mature = False
+            has_takeover_risk = False
+            if latest_score and latest_score.breakdown:
+                pf = (latest_score.breakdown
+                      .get("score", {})
+                      .get("components", {})
+                      .get("protective_factors", {}))
+                mat = pf.get("maturity", {})
+                tak = pf.get("takeover_risk", {})
+                maturity_evidence = mat.get("evidence")
+                takeover_evidence = tak.get("evidence")
+                is_mature = maturity_evidence is not None
+                has_takeover_risk = (tak.get("score", 0) > 0)
+
             results.append({
                 "id": pkg.id,
                 "name": pkg.name,
@@ -136,6 +153,10 @@ def get_all_tracked_packages() -> list[dict]:
                 "commits_year": latest_score.commits_last_year if latest_score else None,
                 "contributors": latest_score.unique_contributors if latest_score else None,
                 "downloads": latest_score.weekly_downloads if latest_score else None,
+                "is_mature": is_mature,
+                "maturity_evidence": maturity_evidence,
+                "has_takeover_risk": has_takeover_risk,
+                "takeover_evidence": takeover_evidence,
             })
         return results
 

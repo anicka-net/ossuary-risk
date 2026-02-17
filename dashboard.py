@@ -66,7 +66,7 @@ if not scored:
     with col3:
         st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems", icon=None)
     st.divider()
-    st.caption("Ossuary v0.2.0 · [source](https://github.com/anicka-net/ossuary-risk)")
+    st.caption("Ossuary v0.3.0 · [source](https://github.com/anicka-net/ossuary-risk)")
     st.stop()
 
 # -- Key metrics --
@@ -76,12 +76,16 @@ high = [p for p in scored if 60 <= p["score"] < 80]
 moderate = [p for p in scored if 40 <= p["score"] < 60]
 safe = [p for p in scored if p["score"] < 40]
 
-col1, col2, col3, col4, col5 = st.columns(5)
+takeover_alerts = [p for p in scored if p.get("has_takeover_risk")]
+mature_count = sum(1 for p in scored if p.get("is_mature"))
+
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 col1.metric("Tracked", len(scored))
 col2.metric("Critical", len(critical))
 col3.metric("High", len(high))
 col4.metric("Moderate", len(moderate))
 col5.metric("Safe", len(safe))
+col6.metric("Takeover alerts", len(takeover_alerts))
 
 st.divider()
 
@@ -131,12 +135,26 @@ if at_risk:
         conc = f'{p["concentration"]:.0f}%' if p["concentration"] is not None else "—"
         commits = p["commits_year"] if p["commits_year"] is not None else "—"
 
+        # Build tags for maturity/takeover
+        tags = ""
+        if p.get("has_takeover_risk"):
+            tags += (
+                f' <span style="background:{COLORS["bg_critical"]};color:{COLORS["critical"]};'
+                f'padding:1px 6px;border-radius:3px;font-size:0.75em;font-weight:600;">'
+                f'TAKEOVER</span>'
+            )
+        if p.get("is_mature"):
+            tags += (
+                f' <span style="background:{COLORS["bg_low"]};color:{COLORS["low"]};'
+                f'padding:1px 6px;border-radius:3px;font-size:0.75em;">mature</span>'
+            )
+
         col1, col2, col3, col4 = st.columns([3, 1, 2, 2])
         with col1:
             st.markdown(
                 f'<a href="/Package?name={p["name"]}&eco={p["ecosystem"]}" target="_self" '
                 f'style="color:inherit;text-decoration:none;"><strong>{p["name"]}</strong></a>'
-                f' · {p["ecosystem"]}',
+                f' · {p["ecosystem"]}{tags}',
                 unsafe_allow_html=True,
             )
         with col2:
@@ -165,4 +183,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.2.0 · [source](https://github.com/anicka-net/ossuary-risk)")
+st.caption("Ossuary v0.3.0 · [source](https://github.com/anicka-net/ossuary-risk)")

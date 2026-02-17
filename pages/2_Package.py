@@ -105,7 +105,7 @@ if not pkg_name:
         st.page_link("pages/3_Score.py", label="Score a package")
     with col4:
         st.page_link("pages/4_Methodology.py", label="Methodology")
-    st.caption("Ossuary v0.2.0")
+    st.caption("Ossuary v0.3.0")
     st.stop()
 
 
@@ -134,7 +134,7 @@ if not result.success or not result.breakdown:
         st.page_link("pages/3_Score.py", label="Score a package")
     with col4:
         st.page_link("pages/4_Methodology.py", label="Methodology")
-    st.caption("Ossuary v0.2.0")
+    st.caption("Ossuary v0.3.0")
     st.stop()
 
 if result.warnings:
@@ -207,6 +207,18 @@ if b.recommendations:
         for rec in b.recommendations:
             st.markdown(f"- {rec}")
 
+# Takeover risk alert
+if b.protective_factors.takeover_risk_score > 0:
+    st.markdown(
+        f'<div style="padding:8px 12px;background:{COLORS["bg_critical"]};'
+        f'border-left:3px solid {COLORS["critical"]};border-radius:2px;margin:8px 0;">'
+        f'<strong>Takeover risk detected</strong> (+{b.protective_factors.takeover_risk_score} points)'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    if b.protective_factors.takeover_risk_evidence:
+        st.caption(f'  {b.protective_factors.takeover_risk_evidence}')
+
 # Frustration signals
 if b.protective_factors.frustration_score > 0:
     st.markdown(
@@ -219,6 +231,17 @@ if b.protective_factors.frustration_score > 0:
     if b.protective_factors.frustration_evidence:
         for kw in b.protective_factors.frustration_evidence[:5]:
             st.caption(f'  "{kw}"')
+
+# Maturity info
+if b.protective_factors.maturity_evidence:
+    st.markdown(
+        f'<div style="padding:8px 12px;background:{COLORS["bg_low"]};'
+        f'border-left:3px solid {COLORS["low"]};border-radius:2px;margin:8px 0;">'
+        f'<strong>Mature project</strong>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(f'  {b.protective_factors.maturity_evidence}')
 
 st.divider()
 
@@ -351,4 +374,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.2.0")
+st.caption("Ossuary v0.3.0")

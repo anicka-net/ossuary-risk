@@ -56,15 +56,18 @@ with col2:
             "Tier-1 reputation (500+ repos or 100K+ stars)",
             "GitHub Sponsors enabled",
             "Organization with 3+ admins",
-            "Weekly downloads > 50M",
-            "Weekly downloads > 10M",
+            "Weekly downloads > 50M / 50K+ stars",
+            "Weekly downloads > 10M / 10K+ stars",
             "Concentration < 40%",
             "Contributors > 20",
             "CII Best Practices badge",
             "Frustration signals detected",
+            "Project maturity (informational)",
+            "Takeover risk (newcomer dominance)",
         ],
-        "Points": ["-25", "-15", "-15", "-20", "-10", "-10", "-10", "-10", "+20"],
+        "Points": ["-25", "-15", "-15", "-20", "-10", "-10", "-10", "-10", "+20", "0*", "+20"],
     }, use_container_width=True, hide_index=True)
+    st.caption("*Maturity suppresses activity penalty and uses lifetime concentration fallback")
 
 st.divider()
 
@@ -82,6 +85,8 @@ with col1:
     - Economic frustration signals
     - Declining activity trends
     - Governance centralization
+    - Newcomer takeover pattern (xz-utils style proportion shift)
+    - Project maturity (stable vs. active development)
     """)
 
 with col2:
@@ -91,7 +96,7 @@ with col2:
     - Dependency confusion attacks
     - Typosquatting
     - Malicious code injection
-    - Sophisticated social engineering (xz-utils)
+    - Multi-year social engineering with slow buildup
     """)
 
 st.divider()
@@ -267,4 +272,4 @@ with col3:
 with col4:
     st.page_link("pages/2_Package.py", label="Package detail")
 
-st.caption("Ossuary v0.2.0 · [Full methodology](https://github.com/anicka-net/ossuary-risk/blob/main/docs/methodology.md)")
+st.caption("Ossuary v0.3.0 · [Full methodology](https://github.com/anicka-net/ossuary-risk/blob/main/docs/methodology.md)")

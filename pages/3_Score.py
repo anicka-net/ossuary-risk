@@ -138,4 +138,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.2.0")
+st.caption("Ossuary v0.3.0")

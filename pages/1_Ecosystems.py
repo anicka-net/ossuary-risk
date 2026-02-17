@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from ossuary.db.session import init_db
 from dashboard_utils import (
     apply_style, get_packages_by_ecosystem, get_ecosystem_summary,
-    risk_color, COLORS,
+    risk_color, risk_badge, COLORS,
 )
 
 st.set_page_config(page_title="Ossuary — Ecosystems", layout="wide", initial_sidebar_state="collapsed")
@@ -51,7 +51,7 @@ if not ecosystems:
         st.page_link("pages/2_Package.py", label="Package detail")
     with col4:
         st.page_link("pages/4_Methodology.py", label="Methodology")
-    st.caption("Ossuary v0.2.0")
+    st.caption("Ossuary v0.3.0")
     st.stop()
 
 qp_eco = st.query_params.get("eco", "")
@@ -111,11 +111,25 @@ if packages:
         commits = str(int(row["commits_year"])) if pd.notna(row["commits_year"]) else "—"
         color = risk_color(level)
 
+        # Tags for maturity/takeover
+        tags = ""
+        if row.get("has_takeover_risk"):
+            tags += (
+                f' <span style="background:{COLORS["bg_critical"]};color:{COLORS["critical"]};'
+                f'padding:1px 6px;border-radius:3px;font-size:0.75em;font-weight:600;">'
+                f'TAKEOVER</span>'
+            )
+        if row.get("is_mature"):
+            tags += (
+                f' <span style="background:{COLORS["bg_low"]};color:{COLORS["low"]};'
+                f'padding:1px 6px;border-radius:3px;font-size:0.75em;">mature</span>'
+            )
+
         c1, c2, c3, c4 = st.columns([3, 1, 2, 2])
         with c1:
             st.markdown(
                 f'<a href="/Package?name={pkg_name}&eco={eco}" target="_self" '
-                f'style="color:inherit;text-decoration:none;font-weight:600;">{pkg_name}</a>',
+                f'style="color:inherit;text-decoration:none;font-weight:600;">{pkg_name}</a>{tags}',
                 unsafe_allow_html=True,
             )
         with c2:
@@ -177,4 +191,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.2.0")
+st.caption("Ossuary v0.3.0")
