@@ -406,6 +406,11 @@ class RiskScorer:
 
         breakdown.protective_factors = self.calculate_protective_factors(metrics, ecosystem)
 
+        # When a takeover pattern is detected, high commit activity is part of
+        # the attack — don't let the activity bonus cancel the takeover signal.
+        if breakdown.protective_factors.takeover_risk_score > 0 and breakdown.activity_modifier < 0:
+            breakdown.activity_modifier = 0
+
         # Calculate final score (clamped to 0-100)
         raw_score = breakdown.base_risk + breakdown.activity_modifier + breakdown.protective_factors.total
         breakdown.final_score = max(0, min(100, raw_score))
