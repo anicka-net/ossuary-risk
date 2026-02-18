@@ -340,8 +340,19 @@ class GitCollector(BaseCollector):
 
             # Historical share per contributor (using normalized identities)
             hist_counts: dict[str, int] = defaultdict(int)
+            hist_names: dict[str, str] = {}
             for c in historical_commits:
-                hist_counts[_normalize_email(c.author_email)] += 1
+                email = _normalize_email(c.author_email)
+                hist_counts[email] += 1
+                hist_names[email] = c.author_name
+
+            # Build name→emails map for identity merging (same person,
+            # different emails: e.g. tqdm@cdcl.ml + casper.dcl@physics.org)
+            name_to_hist: dict[str, int] = defaultdict(int)
+            for email, count in hist_counts.items():
+                n = hist_names.get(email, "").strip().lower()
+                if n:
+                    name_to_hist[n] += count
 
             # Find the contributor with the largest upward shift.
             # Only flag genuinely minor/new contributors — not established
@@ -360,7 +371,12 @@ class GitCollector(BaseCollector):
                 # Established maintainers (e.g. project creator at 20%) naturally
                 # fluctuate — that's not a takeover signal. The 10% threshold
                 # catches the xz/Jia Tan pattern (7.6% historical → 56% recent).
-                if hist_pct >= 10:
+                # Also check merged identity by name — catches email changes where
+                # the same person uses multiple addresses (e.g. Casper da Costa-Luis
+                # uses tqdm@cdcl.ml + casper.dcl@physics.org → combined 23%).
+                name_key = name.strip().lower()
+                merged_hist_pct = (name_to_hist.get(name_key, 0) / hist_total * 100) if (hist_total > 0 and name_key) else 0
+                if hist_pct >= 10 or merged_hist_pct >= 10:
                     continue
 
                 # Tenure guard for mega-repos: on projects with huge commit counts
