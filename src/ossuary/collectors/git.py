@@ -23,6 +23,39 @@ logger = logging.getLogger(__name__)
 # GitHub noreply format: 12345+username@users.noreply.github.com
 _GITHUB_NOREPLY_RE = re.compile(r"^\d+\+(.+)@users\.noreply\.github\.com$")
 
+# Generic email domains where multiple unrelated people share the same domain.
+# Excluded from org-continuity checks in takeover detection — a new gmail.com
+# contributor on a project with historical gmail.com contributors is NOT an
+# internal handoff.
+_GENERIC_EMAIL_DOMAINS = {
+    "gmail.com", "hotmail.com", "outlook.com", "yahoo.com",
+    "protonmail.com", "proton.me", "mail.com", "icloud.com",
+    "users.noreply.github.com", "live.com", "aol.com",
+    "yandex.ru", "qq.com", "163.com",
+}
+
+# Country-code second-level domains (for org key extraction)
+_COUNTRY_CODE_SLDS = {"co.uk", "co.jp", "com.au", "co.nz", "com.br", "co.kr", "co.in"}
+
+
+def _domain_org_key(domain: str) -> str:
+    """Extract org identifier from email domain for continuity matching.
+
+    suse.de → suse, suse.com → suse, suse.cz → suse
+    redhat.com → redhat, linux.intel.com → intel
+    cybozu.co.jp → cybozu
+    """
+    parts = domain.lower().split(".")
+    if len(parts) < 2:
+        return domain
+    # Handle country-code SLDs: example.co.uk → example
+    if len(parts) >= 3:
+        sld_tld = ".".join(parts[-2:])
+        if sld_tld in _COUNTRY_CODE_SLDS:
+            return parts[-3]
+    # Standard: second-level domain
+    return parts[-2]
+
 
 def _normalize_email(email: str) -> str:
     """Normalize an email address to a canonical identity key.
@@ -329,6 +362,25 @@ class GitCollector(BaseCollector):
                 # catches the xz/Jia Tan pattern (7.6% historical → 56% recent).
                 if hist_pct >= 10:
                     continue
+
+                # Org-continuity check: if the suspect's org had significant
+                # historical presence, this is an internal handoff (e.g. new
+                # @suse.com employee on a @suse.de project), not a hostile
+                # takeover. Uses org key extraction (suse.de → "suse") to
+                # handle domain changes. Skip generic domains (gmail, etc.).
+                if "@" in identity:
+                    suspect_domain = identity.split("@")[1]
+                    if suspect_domain not in _GENERIC_EMAIL_DOMAINS:
+                        suspect_org = _domain_org_key(suspect_domain)
+                        domain_hist_commits = sum(
+                            count for email, count in hist_counts.items()
+                            if "@" in email
+                            and email.split("@")[1] not in _GENERIC_EMAIL_DOMAINS
+                            and _domain_org_key(email.split("@")[1]) == suspect_org
+                        )
+                        domain_hist_pct = (domain_hist_commits / hist_total * 100) if hist_total > 0 else 0
+                        if domain_hist_pct >= 30:
+                            continue  # Same org continuity
 
                 if shift > takeover_shift:
                     takeover_shift = shift
