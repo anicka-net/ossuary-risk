@@ -1167,8 +1167,9 @@ VALIDATION_CASES = [
     ValidationCase(
         name="devise",
         ecosystem="rubygems",
-        expected_outcome="safe",
-        notes="Authentication for Rails. heartcombo org, well maintained.",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: Critical Rails auth library, original creator (José Valim) moved on. Single active maintainer (Carlos da Silva) at 81% concentration, 42 commits/yr.",
         repo_url="https://github.com/heartcombo/devise",
     ),
 
