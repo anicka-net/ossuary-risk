@@ -90,7 +90,8 @@ packages:
     repo: https://github.com/libpwquality/libpwquality
   - name: cracklib/cracklib
     repo: https://github.com/cracklib/cracklib
-  - name: pyca/pyopenssl
+  - name: pyopenssl
+    ecosystem: pypi
     repo: https://github.com/pyca/pyopenssl
 
   # --- Containers stack ---
@@ -194,13 +195,17 @@ packages:
   # --- Dev tools (shipped on SLE) ---
   - name: git-lfs/git-lfs
     repo: https://github.com/git-lfs/git-lfs
-  - name: neovim/pynvim
+  - name: pynvim
+    ecosystem: pypi
     repo: https://github.com/neovim/pynvim
-  - name: pypa/setuptools
+  - name: setuptools
+    ecosystem: pypi
     repo: https://github.com/pypa/setuptools
-  - name: pypa/packaging
+  - name: packaging
+    ecosystem: pypi
     repo: https://github.com/pypa/packaging
-  - name: yaml/pyyaml
+  - name: PyYAML
+    ecosystem: pypi
     repo: https://github.com/yaml/pyyaml
 
   # --- AI/ML ---
@@ -273,36 +278,51 @@ packages:
   - name: MariaDB/server
     repo: https://github.com/MariaDB/server
 
-  # --- Python ecosystem (from edna) ---
-  - name: numpy/numpy
+  # --- Python ecosystem (from edna) — scored as pypi for download stats ---
+  - name: numpy
+    ecosystem: pypi
     repo: https://github.com/numpy/numpy
-  - name: pandas-dev/pandas
+  - name: pandas
+    ecosystem: pypi
     repo: https://github.com/pandas-dev/pandas
-  - name: scipy/scipy
+  - name: scipy
+    ecosystem: pypi
     repo: https://github.com/scipy/scipy
-  - name: scikit-learn/scikit-learn
+  - name: scikit-learn
+    ecosystem: pypi
     repo: https://github.com/scikit-learn/scikit-learn
-  - name: matplotlib/matplotlib
+  - name: matplotlib
+    ecosystem: pypi
     repo: https://github.com/matplotlib/matplotlib
-  - name: python-pillow/Pillow
+  - name: Pillow
+    ecosystem: pypi
     repo: https://github.com/python-pillow/Pillow
-  - name: psf/requests
+  - name: requests
+    ecosystem: pypi
     repo: https://github.com/psf/requests
-  - name: urllib3/urllib3
+  - name: urllib3
+    ecosystem: pypi
     repo: https://github.com/urllib3/urllib3
-  - name: certifi/python-certifi
+  - name: certifi
+    ecosystem: pypi
     repo: https://github.com/certifi/python-certifi
-  - name: pyca/cryptography
+  - name: cryptography
+    ecosystem: pypi
     repo: https://github.com/pyca/cryptography
-  - name: lxml/lxml
+  - name: lxml
+    ecosystem: pypi
     repo: https://github.com/lxml/lxml
-  - name: encode/httpx
+  - name: httpx
+    ecosystem: pypi
     repo: https://github.com/encode/httpx
-  - name: tornadoweb/tornado
+  - name: tornado
+    ecosystem: pypi
     repo: https://github.com/tornadoweb/tornado
-  - name: twisted/twisted
+  - name: Twisted
+    ecosystem: pypi
     repo: https://github.com/twisted/twisted
-  - name: jupyterlab/jupyterlab
+  - name: jupyterlab
+    ecosystem: pypi
     repo: https://github.com/jupyterlab/jupyterlab
 
   # --- Interesting risk profiles ---

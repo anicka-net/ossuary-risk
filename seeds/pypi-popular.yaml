@@ -1,0 +1,55 @@
+# Ossuary seed — popular PyPI packages
+#
+# Usage: ossuary seed-custom seeds/pypi-popular.yaml
+
+packages:
+  - name: django
+    ecosystem: pypi
+  - name: flask
+    ecosystem: pypi
+  - name: pytest
+    ecosystem: pypi
+  - name: click
+    ecosystem: pypi
+  - name: pydantic
+    ecosystem: pypi
+  - name: boto3
+    ecosystem: pypi
+  - name: sqlalchemy
+    ecosystem: pypi
+  - name: jinja2
+    ecosystem: pypi
+  - name: aiohttp
+    ecosystem: pypi
+  - name: fastapi
+    ecosystem: pypi
+  - name: rich
+    ecosystem: pypi
+  - name: black
+    ecosystem: pypi
+  - name: mypy
+    ecosystem: pypi
+  - name: poetry
+    ecosystem: pypi
+  - name: typer
+    ecosystem: pypi
+  - name: uvicorn
+    ecosystem: pypi
+  - name: gunicorn
+    ecosystem: pypi
+  - name: celery
+    ecosystem: pypi
+  - name: redis
+    ecosystem: pypi
+  - name: psycopg2
+    ecosystem: pypi
+  - name: alembic
+    ecosystem: pypi
+  - name: tqdm
+    ecosystem: pypi
+  - name: ruff
+    ecosystem: pypi
+  - name: polars
+    ecosystem: pypi
+  - name: loguru
+    ecosystem: pypi

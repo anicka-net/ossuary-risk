@@ -1,0 +1,55 @@
+# Ossuary seed — popular npm packages
+#
+# Usage: ossuary seed-custom seeds/npm-popular.yaml
+
+packages:
+  - name: chalk
+    ecosystem: npm
+  - name: lodash
+    ecosystem: npm
+  - name: express
+    ecosystem: npm
+  - name: axios
+    ecosystem: npm
+  - name: commander
+    ecosystem: npm
+  - name: debug
+    ecosystem: npm
+  - name: async
+    ecosystem: npm
+  - name: moment
+    ecosystem: npm
+  - name: yargs
+    ecosystem: npm
+  - name: glob
+    ecosystem: npm
+  - name: semver
+    ecosystem: npm
+  - name: uuid
+    ecosystem: npm
+  - name: mkdirp
+    ecosystem: npm
+  - name: dotenv
+    ecosystem: npm
+  - name: inquirer
+    ecosystem: npm
+  - name: ora
+    ecosystem: npm
+  - name: execa
+    ecosystem: npm
+  - name: got
+    ecosystem: npm
+  - name: react
+    ecosystem: npm
+  - name: webpack
+    ecosystem: npm
+  - name: typescript
+    ecosystem: npm
+  - name: eslint
+    ecosystem: npm
+  - name: prettier
+    ecosystem: npm
+  - name: jest
+    ecosystem: npm
+  - name: vite
+    ecosystem: npm

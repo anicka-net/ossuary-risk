@@ -1,0 +1,21 @@
+# Ossuary seed — popular Cargo crates
+#
+# Usage: ossuary seed-custom seeds/cargo-popular.yaml
+
+packages:
+  - name: serde
+    ecosystem: cargo
+  - name: tokio
+    ecosystem: cargo
+  - name: clap
+    ecosystem: cargo
+  - name: reqwest
+    ecosystem: cargo
+  - name: rand
+    ecosystem: cargo
+  - name: serde_json
+    ecosystem: cargo
+  - name: anyhow
+    ecosystem: cargo
+  - name: rayon
+    ecosystem: cargo
