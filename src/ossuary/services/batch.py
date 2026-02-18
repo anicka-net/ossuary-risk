@@ -231,6 +231,7 @@ async def batch_score(
                 scoring_result = await score_package(
                     pkg_name,
                     eco,
+                    force=not skip_fresh,
                     **kwargs,
                 )
                 completed += 1

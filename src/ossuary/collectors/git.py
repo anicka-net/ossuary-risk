@@ -363,6 +363,27 @@ class GitCollector(BaseCollector):
                 if hist_pct >= 10:
                     continue
 
+                # Tenure guard for mega-repos: on projects with huge commit counts
+                # (e.g. curl with 34K), even long-time contributors have low
+                # percentages. Someone with 100+ commits spanning 4+ years is an
+                # established contributor, not a takeover actor.
+                # (Jia Tan: 135 commits over 2.2 years → NOT suppressed.
+                #  Viktor Szakats: 1160 commits over 4.9 years → suppressed.)
+                # Threshold is 4 years (not 5) to handle email identity changes
+                # where a contributor switches domains mid-history.
+                hist_abs = hist_counts.get(identity, 0)
+                if hist_abs >= 100:
+                    contributor_commits = sorted(
+                        [c for c in historical_commits
+                         if _normalize_email(c.author_email) == identity],
+                        key=lambda c: c.authored_date,
+                    )
+                    if contributor_commits:
+                        tenure_years = (contributor_commits[-1].authored_date
+                                        - contributor_commits[0].authored_date).days / 365.25
+                        if tenure_years >= 4:
+                            continue
+
                 # Org-continuity check: if the suspect's org had significant
                 # historical presence, this is an internal handoff (e.g. new
                 # @suse.com employee on a @suse.de project), not a hostile

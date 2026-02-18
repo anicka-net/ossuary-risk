@@ -338,6 +338,7 @@ async def score_package(
     repo_url: Optional[str] = None,
     cutoff_date: Optional[datetime] = None,
     use_cache: bool = True,
+    force: bool = False,
 ) -> ScoringResult:
     """
     Score a single package.
@@ -348,14 +349,15 @@ async def score_package(
         repo_url: Optional repository URL override
         cutoff_date: Optional cutoff date for T-1 analysis
         use_cache: Whether to use cached results
+        force: Force re-scoring even if cache is fresh (still writes to cache)
 
     Returns:
         ScoringResult with breakdown or error
     """
     cutoff = cutoff_date or datetime.now()
 
-    # Check cache
-    if use_cache:
+    # Check cache (skip when force=True to ensure re-scoring)
+    if use_cache and not force:
         with session_scope() as session:
             cache = ScoreCache(session)
             package = cache.get_or_create_package(package_name, ecosystem, repo_url)
