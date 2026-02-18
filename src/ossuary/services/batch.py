@@ -120,7 +120,8 @@ def load_custom_seed(path: str) -> list[PackageEntry]:
                     f"Entry {i + 1} ({name}): non-GitHub repo URL requires explicit 'ecosystem'"
                 )
 
-        if ecosystem not in ("github", "npm", "pypi"):
+        supported = {"github", "npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go"}
+        if ecosystem not in supported:
             raise ValueError(f"Entry {i + 1} ({name}): unsupported ecosystem '{ecosystem}'")
 
         # GitHub entries need a valid repo URL
