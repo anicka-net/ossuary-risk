@@ -188,14 +188,17 @@ class GitCollector(BaseCollector):
 
         result = subprocess.run(
             cmd, cwd=repo_path,
-            capture_output=True, text=True, timeout=300,
+            capture_output=True, text=False, timeout=300,
         )
         if result.returncode != 0:
             logger.warning(f"git log failed: {result.stderr[:200]}")
             return []
 
+        # Decode with replacement for non-UTF8 author names (e.g. Latin-1)
+        output = result.stdout.decode("utf-8", errors="replace")
+
         commits = []
-        for line in result.stdout.split("\n"):
+        for line in output.split("\n"):
             if not line:
                 continue
             parts = line.split("\x00")
@@ -320,10 +323,11 @@ class GitCollector(BaseCollector):
                 hist_pct = (hist_counts.get(identity, 0) / hist_total * 100) if hist_total > 0 else 0
                 shift = recent_pct - hist_pct
 
-                # Only flag if the contributor was minor historically (<5% of commits).
+                # Only flag if the contributor was minor historically (<10% of commits).
                 # Established maintainers (e.g. project creator at 20%) naturally
-                # fluctuate — that's not a takeover signal.
-                if hist_pct >= 5:
+                # fluctuate — that's not a takeover signal. The 10% threshold
+                # catches the xz/Jia Tan pattern (7.6% historical → 56% recent).
+                if hist_pct >= 10:
                     continue
 
                 if shift > takeover_shift:

@@ -382,15 +382,24 @@ class RiskScorer:
 
         # Calculate components — two-track scoring for mature projects
         if metrics.is_mature:
-            # Mature projects: suppress activity penalty, fall back to lifetime
-            # concentration when recent data is sparse (<4 commits = "abandoned"
-            # tier, where concentration from 1-3 commits is unreliable).
-            if metrics.commits_last_year < 4:
+            # Mature projects with some activity (1-3 commits/yr): suppress
+            # activity penalty, fall back to lifetime concentration (recent
+            # data from 1-3 commits is unreliable).
+            # Mature projects with ZERO activity: truly abandoned — apply
+            # full penalty and use default 100% concentration (no recent data).
+            if metrics.commits_last_year == 0:
+                # Zero activity = abandoned, even if historically mature.
+                # Don't reward a project nobody's home for.
+                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
+                breakdown.activity_modifier = self.calculate_activity_modifier(0)
+            elif metrics.commits_last_year < 4:
                 breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration)
+                raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
+                breakdown.activity_modifier = min(0, raw_activity)
             else:
                 breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
-            raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
-            breakdown.activity_modifier = min(0, raw_activity)  # only allow reductions, never +20
+                raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
+                breakdown.activity_modifier = min(0, raw_activity)
         else:
             breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
             breakdown.activity_modifier = self.calculate_activity_modifier(metrics.commits_last_year)
