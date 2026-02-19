@@ -1375,6 +1375,118 @@ VALIDATION_CASES = [
               "Detected by missing provenance attestations — a signal ossuary doesn't track.",
         repo_url="https://github.com/cline/cline",
     ),
+
+    # =========================================================================
+    # 2025-2026 INCIDENT SWEEP
+    # =========================================================================
+
+    # --- GOVERNANCE / TRUST EXPLOITATION ---
+
+    # polyfill-js - project sold to malicious Chinese CDN company
+    # Injected malicious JS into 100K+ websites including Hulu, Mercedes-Benz
+    ValidationCase(
+        name="polyfillpolyfill/polyfill-library",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="governance_failure",
+        incident_date="2024-06-25",
+        cutoff_date="2024-02-01",
+        notes="Domain/project sold to Funnull CDN who injected malicious JS into 100K+ sites. "
+              "Governance failure: ownership transfer without safeguards. Scores 40 — partial detection "
+              "of underlying risk but ownership transfer itself is not a tracked signal.",
+        repo_url="https://github.com/polyfillpolyfill/polyfill-library",
+    ),
+
+    # reviewdog/action-setup - overly permissive contributor access
+    # Stepping stone to the larger tj-actions/changed-files compromise
+    ValidationCase(
+        name="reviewdog/action-setup",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2025-03-11",
+        cutoff_date="2025-03-01",
+        notes="EXPECTED FN: CI/CD access policy exploit — contributors had automatic write access. "
+              "Malicious actor modified v1 tag to dump secrets. Led to tj-actions cascade. "
+              "Well-maintained org project; the issue was CI permissions, not governance.",
+        repo_url="https://github.com/reviewdog/action-setup",
+    ),
+
+    # --- ACCOUNT COMPROMISE / CI/CD ---
+
+    # @solana/web3.js - spear phishing of maintainer
+    # Backdoor in v1.95.6/1.95.7 exfiltrated private keys, $160K stolen
+    ValidationCase(
+        name="solana-labs/solana-web3.js",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2024-12-03",
+        cutoff_date="2024-12-01",
+        notes="EXPECTED FN: Maintainer spear-phished via fake npm site. "
+              "Malicious versions exfiltrated Solana private keys. $130-160K stolen in ~5 hours. "
+              "Well-governed project — pure credential theft.",
+        repo_url="https://github.com/solana-labs/solana-web3.js",
+    ),
+
+    # Ultralytics (PyPI) - GitHub Actions cache poisoning
+    # Hugely popular YOLO library, XMRig cryptominer injected via CI/CD exploit
+    ValidationCase(
+        name="ultralytics",
+        ecosystem="pypi",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2024-12-05",
+        cutoff_date="2024-12-01",
+        notes="EXPECTED FN: GitHub Actions workflow vulnerability allowed malicious PR branch name "
+              "to execute shell commands. Hit twice in 36 hours because tokens weren't rotated. "
+              "Well-governed org project.",
+        repo_url="https://github.com/ultralytics/ultralytics",
+    ),
+
+    # Codecov bash uploader - build infrastructure compromise
+    # HMAC key extracted from Docker image, uploader script modified for 2+ months
+    ValidationCase(
+        name="codecov/codecov-action",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2021-04-01",
+        cutoff_date="2021-03-01",
+        notes="EXPECTED FN: Build infra compromise — HMAC keys extracted from Docker image "
+              "to modify bash uploader in GCS. Exfiltrated CI env vars for 2+ months undetected. "
+              "Well-governed project with corporate backing (Codecov had 23K customers).",
+        repo_url="https://github.com/codecov/codecov-action",
+    ),
+
+    # Rspack - GitHub Actions pwn request leading to npm token theft
+    # ByteDance's webpack replacement, XMRig cryptominer in v1.1.7
+    ValidationCase(
+        name="web-infra-dev/rspack",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2024-12-19",
+        cutoff_date="2024-12-01",
+        notes="EXPECTED FN: CI/CD misconfiguration — 'Release Canary' workflow ran attacker code "
+              "on comment keywords. npm token stolen, XMRig published in @rspack/core v1.1.7. "
+              "Active project with ByteDance backing.",
+        repo_url="https://github.com/web-infra-dev/rspack",
+    ),
+
+    # chalk (npm) - Qix account phishing, Sep 2025
+    # 2B weekly downloads affected, malicious versions intercepted crypto wallets
+    ValidationCase(
+        name="chalk",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2025-09-08",
+        cutoff_date="2025-09-01",
+        notes="EXPECTED FN: Qix account phished via fake npmjs.help domain. "
+              "Malicious versions of chalk + 16 packages (2B weekly downloads) intercepted crypto wallet activity. "
+              "Mitigated within ~2 hours. Sindre Sorhus project with strong governance.",
+    ),
 ]
 
 

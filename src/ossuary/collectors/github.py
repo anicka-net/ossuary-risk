@@ -82,13 +82,38 @@ class GitHubCollector(BaseCollector):
 
         Args:
             token: GitHub personal access token. Defaults to GITHUB_TOKEN env var.
+                   Multiple tokens can be provided via GITHUB_TOKEN, GITHUB_TOKEN_SUSE, etc.
         """
-        self.token = token or os.getenv("GITHUB_TOKEN")
+        self.tokens = self._collect_tokens(token)
+        self.token_index = 0
+        self.token = self.tokens[0] if self.tokens else None
         self.client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
 
         if self.token:
             self.client.headers["Authorization"] = f"Bearer {self.token}"
         self.client.headers["Accept"] = "application/vnd.github.v3+json"
+
+    @staticmethod
+    def _collect_tokens(explicit_token: Optional[str] = None) -> list[str]:
+        """Collect all available GitHub tokens from env vars."""
+        tokens = []
+        if explicit_token:
+            tokens.append(explicit_token)
+        else:
+            for key, val in os.environ.items():
+                if key.startswith("GITHUB_TOKEN") and val:
+                    tokens.append(val)
+        return tokens
+
+    def _rotate_token(self) -> bool:
+        """Switch to next available token. Returns True if rotated, False if no more tokens."""
+        if len(self.tokens) <= 1:
+            return False
+        self.token_index = (self.token_index + 1) % len(self.tokens)
+        self.token = self.tokens[self.token_index]
+        self.client.headers["Authorization"] = f"Bearer {self.token}"
+        logger.info(f"Rotated to GitHub token {self.token_index + 1}/{len(self.tokens)}")
+        return True
 
     def is_available(self) -> bool:
         """Check if GitHub token is available."""
@@ -117,7 +142,7 @@ class GitHubCollector(BaseCollector):
 
         return None, None
 
-    async def _request(self, method: str, url: str, **kwargs) -> Optional[dict]:
+    async def _request(self, method: str, url: str, _rotated: bool = False, **kwargs) -> Optional[dict]:
         """Make a rate-limit-aware request."""
         delay = self.REQUEST_DELAY if self.token else self.REQUEST_DELAY_UNAUTHENTICATED
         time.sleep(delay)
@@ -130,6 +155,9 @@ class GitHubCollector(BaseCollector):
             if remaining == 0:
                 reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
                 wait_time = max(reset_time - time.time(), self.RATE_LIMIT_PAUSE)
+                if not _rotated and self._rotate_token():
+                    logger.warning("Rate limited. Rotated token, retrying immediately.")
+                    return await self._request(method, url, _rotated=True, **kwargs)
                 logger.warning(f"Rate limited. Waiting {wait_time:.0f} seconds...")
                 time.sleep(wait_time)
                 return await self._request(method, url, **kwargs)
@@ -149,7 +177,8 @@ class GitHubCollector(BaseCollector):
         url = f"{self.API_BASE}{endpoint}" if not endpoint.startswith("http") else endpoint
         return await self._request("GET", url, params=params)
 
-    async def _graphql(self, query: str, variables: Optional[dict] = None) -> Optional[dict]:
+    async def _graphql(self, query: str, variables: Optional[dict] = None,
+                       _rotated: bool = False) -> Optional[dict]:
         """Execute GraphQL query."""
         payload = {"query": query}
         if variables:
@@ -159,6 +188,11 @@ class GitHubCollector(BaseCollector):
 
         try:
             response = await self.client.post(self.GRAPHQL_URL, json=payload)
+
+            if response.status_code == 403 and not _rotated and self._rotate_token():
+                logger.warning("GraphQL rate limited. Rotated token, retrying.")
+                return await self._graphql(query, variables, _rotated=True)
+
             response.raise_for_status()
             data = response.json()
 
@@ -169,6 +203,9 @@ class GitHubCollector(BaseCollector):
             return data.get("data")
 
         except httpx.HTTPError as e:
+            if not _rotated and self._rotate_token():
+                logger.warning("GraphQL error, rotated token, retrying.")
+                return await self._graphql(query, variables, _rotated=True)
             logger.error(f"GraphQL error: {e}")
             return None
 
