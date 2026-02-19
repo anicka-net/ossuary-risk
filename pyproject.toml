@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ossuary-risk"
-version = "0.2.0"
+version = "0.5.0"
 description = "OSS Supply Chain Risk Scoring - Where abandoned packages come to rest"
 readme = "README.md"
 license = "MIT"
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
 ]
 
@@ -39,6 +40,7 @@ dependencies = [
     "rich>=13.0.0",
     "python-dateutil>=2.8.0",
     "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

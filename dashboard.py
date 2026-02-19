@@ -66,7 +66,7 @@ if not scored:
     with col3:
         st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems", icon=None)
     st.divider()
-    st.caption("Ossuary v0.3.0 · [source](https://github.com/anicka-net/ossuary-risk)")
+    st.caption("Ossuary v0.5.0 · [source](https://github.com/anicka-net/ossuary-risk)")
     st.stop()
 
 # -- Key metrics --
@@ -230,4 +230,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.3.0 · [source](https://github.com/anicka-net/ossuary-risk)")
+st.caption("Ossuary v0.5.0 · [source](https://github.com/anicka-net/ossuary-risk)")
