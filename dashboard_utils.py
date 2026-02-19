@@ -113,17 +113,20 @@ def apply_style():
 # -- Database queries --
 
 def get_all_tracked_packages() -> list[dict]:
-    """Get all packages with their latest scores from DB."""
+    """Get all packages with their latest scores and deltas from DB."""
     with next(get_session()) as session:
         packages = session.query(Package).all()
         results = []
         for pkg in packages:
-            latest_score = (
+            recent_scores = (
                 session.query(Score)
                 .filter(Score.package_id == pkg.id)
                 .order_by(Score.calculated_at.desc())
-                .first()
+                .limit(2)
+                .all()
             )
+            latest_score = recent_scores[0] if recent_scores else None
+            previous_score = recent_scores[1] if len(recent_scores) >= 2 else None
             # Extract v4.1 fields from breakdown JSON
             maturity_evidence = None
             takeover_evidence = None
@@ -141,6 +144,13 @@ def get_all_tracked_packages() -> list[dict]:
                 is_mature = maturity_evidence is not None
                 has_takeover_risk = (tak.get("score", 0) > 0)
 
+            # Compute delta from previous score
+            delta = None
+            previous_score_val = None
+            if latest_score and previous_score:
+                delta = latest_score.final_score - previous_score.final_score
+                previous_score_val = previous_score.final_score
+
             results.append({
                 "id": pkg.id,
                 "name": pkg.name,
@@ -157,6 +167,8 @@ def get_all_tracked_packages() -> list[dict]:
                 "maturity_evidence": maturity_evidence,
                 "has_takeover_risk": has_takeover_risk,
                 "takeover_evidence": takeover_evidence,
+                "delta": delta,
+                "previous_score": previous_score_val,
             })
         return results
 

@@ -158,9 +158,16 @@ if at_risk:
                 unsafe_allow_html=True,
             )
         with col2:
+            delta_html = ""
+            if p.get("delta") and p["delta"] != 0:
+                d = p["delta"]
+                d_color = COLORS["critical"] if d > 0 else COLORS["low"]
+                arrow = "+" if d > 0 else ""
+                delta_html = f' <span style="color:{d_color};font-size:0.75em;">{arrow}{d}</span>'
             st.markdown(
                 f'<span style="color:{color};font-family:monospace;font-weight:600;">'
-                f'{score}</span> <span style="color:#7f8c8d;font-size:0.85em;">{level}</span>',
+                f'{score}</span> <span style="color:#7f8c8d;font-size:0.85em;">{level}</span>'
+                f'{delta_html}',
                 unsafe_allow_html=True,
             )
         with col3:
@@ -169,6 +176,46 @@ if at_risk:
             st.caption(f"{commits} commits/yr")
 else:
     st.caption("No packages at moderate risk or above.")
+
+# -- Biggest movers --
+
+movers = [p for p in scored if p.get("delta") and p["delta"] != 0]
+movers.sort(key=lambda p: abs(p["delta"]), reverse=True)
+
+if movers:
+    st.divider()
+    st.markdown("#### Biggest movers")
+
+    for p in movers[:10]:
+        d = p["delta"]
+        prev = p.get("previous_score", "?")
+        curr = p["score"]
+        d_color = COLORS["critical"] if d > 0 else COLORS["low"]
+        arrow = "+" if d > 0 else ""
+        level = p["risk_level"] or ""
+        color = risk_color(level)
+
+        col1, col2, col3 = st.columns([3, 2, 2])
+        with col1:
+            st.markdown(
+                f'<a href="/Package?name={p["name"]}&eco={p["ecosystem"]}" target="_self" '
+                f'style="color:inherit;text-decoration:none;"><strong>{p["name"]}</strong></a>'
+                f' · {p["ecosystem"]}',
+                unsafe_allow_html=True,
+            )
+        with col2:
+            st.markdown(
+                f'<span style="font-family:monospace;">{prev}</span>'
+                f' <span style="color:#7f8c8d;">&rarr;</span> '
+                f'<span style="color:{color};font-family:monospace;font-weight:600;">{curr}</span>',
+                unsafe_allow_html=True,
+            )
+        with col3:
+            st.markdown(
+                f'<span style="color:{d_color};font-family:monospace;font-weight:600;">'
+                f'({arrow}{d})</span>',
+                unsafe_allow_html=True,
+            )
 
 # -- Navigation --
 

@@ -322,6 +322,60 @@ def check(
 
 
 @app.command()
+def movers(
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of movers to show"),
+    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Filter by ecosystem"),
+):
+    """Show packages with the biggest score changes since last scoring."""
+    from ossuary.db.session import session_scope
+    from ossuary.db.models import Package, Score
+
+    init_db()
+
+    with session_scope() as session:
+        packages = session.query(Package).all()
+        if ecosystem:
+            packages = [p for p in packages if p.ecosystem == ecosystem]
+
+        changes = []
+        for pkg in packages:
+            scores = (
+                session.query(Score)
+                .filter(Score.package_id == pkg.id)
+                .order_by(Score.calculated_at.desc())
+                .limit(2)
+                .all()
+            )
+            if len(scores) >= 2:
+                delta = scores[0].final_score - scores[1].final_score
+                if delta != 0:
+                    changes.append({
+                        "name": pkg.name,
+                        "ecosystem": pkg.ecosystem,
+                        "previous": scores[1].final_score,
+                        "current": scores[0].final_score,
+                        "delta": delta,
+                    })
+
+        changes.sort(key=lambda c: abs(c["delta"]), reverse=True)
+
+        if not changes:
+            console.print("[dim]No score changes detected.[/dim]")
+            return
+
+        console.print(f"\n[bold]Score changes[/bold] ({len(changes)} packages moved)\n")
+        for c in changes[:limit]:
+            d = c["delta"]
+            color = "red" if d > 0 else "green"
+            sign = "+" if d > 0 else ""
+            console.print(
+                f"  {c['name']:40s} {c['previous']:3d} → {c['current']:3d}  "
+                f"[{color}]({sign}{d})[/{color}]  {c['ecosystem']}"
+            )
+        console.print()
+
+
+@app.command()
 def refresh(
     ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Only refresh this ecosystem"),
     max_age: int = typer.Option(7, "--max-age", help="Re-score packages older than N days"),
