@@ -195,7 +195,8 @@ class RiskScorer:
                 pf.visibility_score = -10
 
         # Factor 5: Distributed Governance (-10)
-        if metrics.maintainer_concentration < 40:
+        # Require enough commits to draw meaningful conclusions about distribution
+        if metrics.maintainer_concentration < 40 and metrics.commits_last_year >= 10:
             pf.distributed_score = -10
 
         # Factor 6: Active Community (-10)
