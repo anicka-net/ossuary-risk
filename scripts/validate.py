@@ -1487,6 +1487,119 @@ VALIDATION_CASES = [
               "Malicious versions of chalk + 16 packages (2B weekly downloads) intercepted crypto wallet activity. "
               "Mitigated within ~2 hours. Sindre Sorhus project with strong governance.",
     ),
+
+    # =========================================================================
+    # INCIDENT SWEEP #2 — DEEPER DIG
+    # =========================================================================
+
+    # --- GOVERNANCE-DETECTABLE ---
+
+    # ctx (PyPI) — expired domain takeover, bus_factor=1, years of inactivity
+    # Attacker bought expired domain figlief.com, used PyPI password reset to claim account
+    ValidationCase(
+        name="figlief/ctx",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="governance_failure",
+        incident_date="2022-05-14",
+        cutoff_date="2022-01-01",
+        notes="Attacker purchased expired domain figlief.com, used PyPI password reset "
+              "to claim maintainer account. Published malicious versions stealing env vars. "
+              "Single maintainer, years of inactivity — classic abandonment signal.",
+        repo_url="https://github.com/figlief/ctx",
+    ),
+
+    # boltdb/bolt (Go) — archived since 2018, succeeded by etcd-io/bbolt
+    # Legitimate project abandoned; typosquat boltdb-go/bolt persisted 3+ years in Go Module Mirror
+    ValidationCase(
+        name="boltdb/bolt",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Archived since 2018, single maintainer. Succeeded by etcd-io/bbolt. "
+              "The abandonment enabled a typosquat (boltdb-go/bolt) that persisted 3+ years "
+              "in Go Module Mirror cache. Classic governance risk: abandoned but still depended on.",
+        repo_url="https://github.com/boltdb/bolt",
+    ),
+
+    # --- PARTIAL DETECTION (governance weakness + credential theft) ---
+
+    # is (npm) — single inactive maintainer, account phished
+    # Fundamental type-checking utility, malicious versions 3.3.1 and 5.0.0
+    ValidationCase(
+        name="is",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2025-07-19",
+        cutoff_date="2025-07-01",
+        notes="Old inactive maintainer's account phished, still had publish access. "
+              "Malicious versions undetected for 6 hours. Single maintainer, very low activity — "
+              "governance weakness correctly detected despite credential theft being the attack vector.",
+        repo_url="https://github.com/enricomarino/is",
+    ),
+
+    # num2words (PyPI) — limited contributors, maintainer phished via fake PyPI domain
+    # Malicious versions 0.5.15-0.5.16 with Windows DLL (Scavenger Loader)
+    ValidationCase(
+        name="num2words",
+        ecosystem="pypi",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2025-07-28",
+        cutoff_date="2025-07-01",
+        notes="Maintainer phished via PyPI-proxying domain with SSL. Malicious versions contained "
+              "Windows DLL payload. Limited contributors, low maintenance activity — some governance "
+              "signals present but primarily a credential theft attack.",
+        repo_url="https://github.com/savoirfairelinux/num2words",
+    ),
+
+    # --- EXPECTED FNs (well-governed, CI/CD or phishing) ---
+
+    # tj-actions/changed-files — multi-stage CI/CD cascade attack
+    # SpotBugs → reviewdog → tj-actions chain, 23K+ repos affected
+    ValidationCase(
+        name="tj-actions/changed-files",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2025-03-14",
+        cutoff_date="2025-03-01",
+        notes="EXPECTED FN: Multi-stage CI/CD cascade: SpotBugs pull_request_target vuln → "
+              "stolen PAT → reviewdog compromise → tj-actions compromise. Dumped CI runner memory "
+              "across 23K+ repos. Well-maintained project; attack exploited CI trust chains.",
+        repo_url="https://github.com/tj-actions/changed-files",
+    ),
+
+    # eslint-config-prettier (npm) — JounQin phished via typosquatted npm domain
+    # 78M weekly downloads across eslint-config-prettier, synckit, @pkgr/core etc.
+    ValidationCase(
+        name="eslint-config-prettier",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2025-07-17",
+        cutoff_date="2025-07-01",
+        notes="EXPECTED FN: Maintainer JounQin phished via npnjs.com (typosquatted npm domain). "
+              "Malicious versions of eslint-config-prettier + 5 related packages (78M weekly downloads). "
+              "Well-maintained Prettier org project — pure credential theft.",
+        repo_url="https://github.com/prettier/eslint-config-prettier",
+    ),
+
+    # Nx (npm) — GitHub Actions pull_request_target exploit
+    # 8 malicious versions with SSH/token/crypto stealers, also targeted AI CLI tools
+    ValidationCase(
+        name="nrwl/nx",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2025-08-26",
+        cutoff_date="2025-08-01",
+        notes="EXPECTED FN: Exploited pull_request_target workflow on old branch. "
+              "8 malicious versions stole SSH keys, tokens, crypto wallets. Also attempted to "
+              "co-opt local AI CLI tools for recon. Very healthy governance (many contributors, active org).",
+        repo_url="https://github.com/nrwl/nx",
+    ),
 ]
 
 
