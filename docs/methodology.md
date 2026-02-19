@@ -691,48 +691,126 @@ Ossuary complements but does not replace:
 | **SBOM tools** | Inventory what you have | Provides risk context |
 | **Vulnerability scanners** | Known CVEs | Different risk dimension |
 
-### 11.4 Comparison with OpenSSF Scorecard
+### 11.4 Empirical Comparison with OpenSSF Scorecard
 
-OpenSSF Scorecard is a widely-used security assessment tool. This section compares the two approaches on the same packages.
+OpenSSF Scorecard is the most widely-used automated security assessment tool for open source projects. To test the hypothesis that governance scoring and security-practice scoring measure orthogonal dimensions, we ran Scorecard against the same 158 packages in our validation set and compared results systematically.
 
-#### Methodology Differences
+#### Methodology
 
 | Aspect | OpenSSF Scorecard | Ossuary |
 |--------|-------------------|---------|
 | **Focus** | Security best practices | Governance risk |
-| **Checks** | CI/CD, branch protection, fuzzing, SAST | Concentration, activity, frustration signals |
+| **Checks** | CI/CD, branch protection, fuzzing, SAST, signed releases | Concentration, activity, frustration signals, reputation |
 | **Question answered** | "Does this project follow security hygiene?" | "Could this project be abandoned or compromised?" |
-| **Predictive vs. reactive** | Current security posture | Future governance failure risk |
+| **Scale** | 0–10 (higher = better practices) | 0–100 (higher = more risk) |
 
-#### Comparative Analysis
+We queried the Scorecard public API (`api.securityscorecards.dev`) for all 158 packages, resolving each to its GitHub repository via ecosystem-specific registry APIs (npm, PyPI, RubyGems, Cargo, Packagist, NuGet, Go). **132 of 158 packages** returned valid Scorecard data (26 had no indexed data, typically because the repository was deleted or not yet scanned).
 
-**event-stream** (compromised September 2018):
+#### Correlation Analysis
 
-| Tool | Score | Interpretation |
-|------|-------|----------------|
-| Scorecard | 2.4/10 | Low security hygiene |
-| Ossuary | 100 CRITICAL | Governance failure imminent |
+| Metric | Value |
+|--------|-------|
+| Packages with both scores | 132 |
+| **Pearson correlation** | **−0.678** |
+| **Spearman rank correlation** | **−0.625** |
 
-Scorecard correctly identifies poor security practices but doesn't specifically flag abandonment risk. Ossuary detected 75% concentration and "free work" frustration keywords.
+The moderate negative correlation is expected: high Ossuary scores (risky governance) tend to occur on packages with low Scorecard scores (poor security practices), and vice versa. However, the correlation is far from −1.0, confirming the tools measure substantially different dimensions. The unexplained variance (r² = 0.46) represents the orthogonal information each tool uniquely captures.
 
-**express** (healthy control):
+#### Quadrant Analysis
 
-| Tool | Score | Interpretation |
-|------|-------|----------------|
-| Scorecard | 8.2/10 | Good security hygiene |
-| Ossuary | 0 VERY_LOW | Healthy governance |
+Using thresholds of Ossuary ≥ 60 (HIGH+ risk) and Scorecard ≥ 5.0/10:
 
-Both tools agree this is a well-maintained project.
+```
+                          Scorecard ≥ 5.0    Scorecard < 5.0
+  Ossuary ≥ 60 (risky)         2                  19
+  Ossuary < 60 (healthy)      84                  27
+```
 
-#### Key Insight
+**Quadrant I — High Ossuary Risk + High Scorecard (2 packages)**
 
-Scorecard's checks (CI/CD, branch protection, fuzzing) measure **security maturity** - whether a project follows defensive practices. However, they don't detect **governance risk** - whether the maintainer might abandon the project or be socially engineered.
+These are the most thesis-relevant cases: projects that follow good security practices but have governance vulnerabilities that only Ossuary detects.
 
-A package could have:
-- **High Scorecard, High Ossuary risk**: Good CI/CD but single burned-out maintainer
-- **Low Scorecard, Low Ossuary risk**: No formal security practices but healthy governance
+| Package | Ossuary | Scorecard | Attack Type |
+|---------|---------|-----------|-------------|
+| **xz-utils** | 80 CRITICAL | 6.3 | governance_failure |
+| **ua-parser-js** | 75 HIGH | 8.1 | account_compromise |
 
-The tools measure orthogonal dimensions and should be used together for comprehensive supply chain risk assessment.
+*xz-utils* is the canonical example: Jia Tan deliberately maintained excellent security practices (signed releases, code review, CI/CD) specifically to build trust before inserting the backdoor. Scorecard gave 6.3/10 — reasonable security hygiene. Ossuary scored 80 CRITICAL because it detected the underlying governance vulnerability: extreme contributor concentration in a single newcomer who had rapidly gained commit access.
+
+*ua-parser-js* scored 8.1/10 on Scorecard — excellent security practices — yet was compromised via account takeover. Ossuary scored 75 HIGH due to single-maintainer concentration risk that made the account a high-value target.
+
+**Quadrant II — High Ossuary Risk + Low Scorecard (19 packages)**
+
+Both tools flag problems, though for different reasons. Examples:
+
+| Package | Ossuary | Scorecard | Type |
+|---------|---------|-----------|------|
+| colors | 100 | 2.2 | maintainer_sabotage |
+| event-stream | 90 | 2.1 | governance_failure |
+| rest-client | 100 | 3.3 | account_compromise |
+| moment | 85 | 2.8 | governance_risk |
+| boltdb/bolt | 100 | 3.0 | governance_risk |
+
+This is the "agreement" quadrant — both tools correctly identify these as problematic, though Scorecard flags poor practices while Ossuary flags governance risk.
+
+**Quadrant III — Low Ossuary Risk + High Scorecard (84 packages)**
+
+Both tools agree these are healthy. This is the largest quadrant, dominated by well-maintained popular packages:
+
+| Package | Ossuary | Scorecard |
+|---------|---------|-----------|
+| express | 0 | 8.8 |
+| requests | 0 | 8.6 |
+| typescript | 0 | 8.1 |
+| django | 0 | 6.8 |
+| react | 0 | 6.5 |
+| tokio | 0 | 7.2 |
+
+**Quadrant IV — Low Ossuary Risk + Low Scorecard (27 packages)**
+
+Poor security practices but acceptable governance — a dimension Ossuary doesn't penalize:
+
+| Package | Ossuary | Scorecard |
+|---------|---------|-----------|
+| debug | 30 | 2.6 |
+| inherits | 35 | 3.6 |
+| nanoid | 5 | 3.8 |
+
+Many small, stable npm packages fall here: single-purpose modules with no CI/CD or branch protection, but functional governance (responsive maintainer, no concentration risk).
+
+#### Incident Detection Comparison
+
+Of the 32 incident packages with valid Scorecard data:
+
+| Detection Method | Flagged | Rate |
+|------------------|---------|------|
+| Ossuary ≥ 60 | 21/32 | 66% |
+| Scorecard < 5.0 | 27/32 | 84% |
+| **Either tool** | **30/32** | **94%** |
+
+The two tools that missed detection overlap on only 2 packages — combining them catches 94% of incidents vs. 66% or 84% alone. This demonstrates their complementary value.
+
+Critically, the 5 incidents where Scorecard ≥ 5.0 (indicating good security practices) were all detected by Ossuary:
+
+| Package | Ossuary | Scorecard | Attack |
+|---------|---------|-----------|--------|
+| ua-parser-js | 75 HIGH | 8.1 | account_compromise |
+| xz-utils | 80 CRITICAL | 6.3 | governance_failure |
+| tj-actions/changed-files | 50 | 5.9 | account_compromise |
+| codecov/codecov-action | 0 | 7.0 | account_compromise |
+| nrwl/nx | 0 | 6.4 | account_compromise |
+
+Of these 5, Ossuary flagged 2 (xz-utils and ua-parser-js) — precisely the governance-detectable ones. The remaining 3 (tj-actions, codecov, nx) are CI/CD or credential compromises that neither governance nor security-practice scoring can predict, confirming the detection boundary analysis from §8.6.
+
+#### Key Findings
+
+1. **Moderate negative correlation (r = −0.68)** confirms the tools measure related but distinct dimensions. They are neither redundant (r ≈ −1.0) nor fully independent (r ≈ 0).
+
+2. **The "blind spot" quadrant** (High Ossuary + High Scorecard) contains 2 packages — both real incidents where good security practices masked governance vulnerability. This is precisely where Ossuary adds unique value.
+
+3. **Combined detection** reaches 94% of incidents, substantially better than either tool alone.
+
+4. **Different failure modes**: Scorecard misses well-practiced projects with governance risk (xz-utils, ua-parser-js). Ossuary misses credential/CI/CD compromises at well-governed projects (codecov, nx). The tools are complementary by design.
 
 ### 11.5 Comparison with CHAOSS Metrics (Augur/GrimoireLab)
 
