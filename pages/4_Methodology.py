@@ -13,7 +13,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from dashboard_utils import apply_style, COLORS
+from dashboard_utils import apply_style, COLORS, VERSION
 
 st.set_page_config(page_title="Ossuary — Methodology", layout="wide", initial_sidebar_state="collapsed")
 apply_style()
@@ -53,21 +53,22 @@ with col2:
     st.markdown("##### Protective factors")
     st.dataframe({
         "Factor": [
-            "Tier-1 reputation (500+ repos or 100K+ stars)",
+            "Tier-1 reputation (tenure + portfolio + stars + sponsors)",
+            "Tier-2 reputation (established maintainer)",
             "GitHub Sponsors enabled",
             "Organization with 3+ admins",
             "Weekly downloads > 50M / 50K+ stars",
             "Weekly downloads > 10M / 10K+ stars",
-            "Concentration < 40%",
+            "Concentration < 40% (with 10+ commits/yr)",
             "Contributors > 20",
             "CII Best Practices badge",
             "Frustration signals detected",
-            "Project maturity (informational)",
+            "Project maturity (indirect)*",
             "Takeover risk (newcomer dominance)",
         ],
-        "Points": ["-25", "-15", "-15", "-20", "-10", "-10", "-10", "-10", "+20", "0*", "+20"],
+        "Points": ["-25", "-10", "-15", "-15", "-20", "-10", "-10", "-10", "-10", "+20", "0", "+20"],
     }, use_container_width=True, hide_index=True)
-    st.caption("*Maturity suppresses activity penalty and uses lifetime concentration fallback")
+    st.caption("*Maturity suppresses activity penalty and uses lifetime concentration as fallback for base risk")
 
 st.divider()
 
@@ -272,4 +273,4 @@ with col3:
 with col4:
     st.page_link("pages/2_Package.py", label="Package detail")
 
-st.caption("Ossuary v0.3.0 · [Full methodology](https://github.com/anicka-net/ossuary-risk/blob/main/docs/methodology.md)")
+st.caption(f"Ossuary v{VERSION} · [Full methodology](https://github.com/anicka-net/ossuary-risk/blob/main/docs/methodology.md)")

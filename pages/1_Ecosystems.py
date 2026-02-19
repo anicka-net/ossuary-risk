@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from ossuary.db.session import init_db
 from dashboard_utils import (
     apply_style, get_packages_by_ecosystem, get_ecosystem_summary,
-    risk_color, risk_badge, COLORS,
+    risk_color, risk_badge, COLORS, VERSION,
 )
 
 st.set_page_config(page_title="Ossuary — Ecosystems", layout="wide", initial_sidebar_state="collapsed")
@@ -51,7 +51,7 @@ if not ecosystems:
         st.page_link("pages/2_Package.py", label="Package detail")
     with col4:
         st.page_link("pages/4_Methodology.py", label="Methodology")
-    st.caption("Ossuary v0.3.0")
+    st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")
     st.stop()
 
 qp_eco = st.query_params.get("eco", "")
@@ -191,4 +191,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.3.0")
+st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")

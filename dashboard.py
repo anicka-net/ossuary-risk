@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from ossuary.db.session import init_db
 from dashboard_utils import (
     apply_style, get_all_tracked_packages, get_ecosystem_summary,
-    risk_color, COLORS,
+    risk_color, COLORS, VERSION,
 )
 
 st.set_page_config(
@@ -66,7 +66,7 @@ if not scored:
     with col3:
         st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems", icon=None)
     st.divider()
-    st.caption("Ossuary v0.5.0 · [source](https://github.com/anicka-net/ossuary-risk)")
+    st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")
     st.stop()
 
 # -- Key metrics --
@@ -230,4 +230,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.5.0 · [source](https://github.com/anicka-net/ossuary-risk)")
+st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")

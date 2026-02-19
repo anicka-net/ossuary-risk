@@ -18,7 +18,7 @@ from ossuary.services.scorer import score_package, get_historical_scores
 from dashboard_utils import (
     apply_style, run_async, get_all_tracked_packages,
     get_comparison_packages, get_score_history,
-    risk_color, risk_badge, COLORS,
+    risk_color, risk_badge, COLORS, VERSION,
 )
 
 st.set_page_config(page_title="Ossuary — Package", layout="wide", initial_sidebar_state="collapsed")
@@ -105,7 +105,7 @@ if not pkg_name:
         st.page_link("pages/3_Score.py", label="Score a package")
     with col4:
         st.page_link("pages/4_Methodology.py", label="Methodology")
-    st.caption("Ossuary v0.3.0")
+    st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")
     st.stop()
 
 
@@ -134,7 +134,7 @@ if not result.success or not result.breakdown:
         st.page_link("pages/3_Score.py", label="Score a package")
     with col4:
         st.page_link("pages/4_Methodology.py", label="Methodology")
-    st.caption("Ossuary v0.3.0")
+    st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")
     st.stop()
 
 if result.warnings:
@@ -374,4 +374,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.3.0")
+st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")

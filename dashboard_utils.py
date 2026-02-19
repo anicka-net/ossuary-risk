@@ -10,6 +10,7 @@ import streamlit as st
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
+from ossuary import __version__ as VERSION
 from ossuary.db.session import get_session
 from ossuary.db.models import Package, Score
 

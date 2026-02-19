@@ -113,7 +113,7 @@ async def collect_package_data(
         return None, [f"Unsupported ecosystem: {ecosystem}"]
 
     if not repo_url:
-        return None, ["Could not find repository URL"]
+        return None, [f"Package '{package_name}' not found on {ecosystem} (no repository URL)"]
 
     # 2. Collect ALL git commits (not filtered by date)
     git_collector = GitCollector()
@@ -121,7 +121,10 @@ async def collect_package_data(
         repo_path = git_collector.clone_or_update(repo_url)
         all_commits = git_collector.extract_commits(repo_path)
     except Exception as e:
-        return None, [f"Failed to collect git data: {e}"]
+        err_str = str(e)
+        if "not found" in err_str.lower() or "exit code(128)" in err_str:
+            return None, [f"Repository not found: {repo_url}"]
+        return None, [f"Failed to collect git data from {repo_url}: {e}"]
 
     if not all_commits:
         return None, ["No commits found in repository"]
@@ -345,7 +348,7 @@ async def score_package(
 
     Args:
         package_name: Name of the package
-        ecosystem: "npm" or "pypi"
+        ecosystem: npm, pypi, cargo, rubygems, packagist, nuget, go, or github
         repo_url: Optional repository URL override
         cutoff_date: Optional cutoff date for T-1 analysis
         use_cache: Whether to use cached results

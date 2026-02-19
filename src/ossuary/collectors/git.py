@@ -187,7 +187,7 @@ class GitCollector(BaseCollector):
             )
             return repo_path
         except GitCommandError as e:
-            logger.error(f"Failed to clone repository: {e}")
+            logger.debug(f"Failed to clone repository: {e}")
             raise
 
     # git log format: fields separated by \x00, subject line as message

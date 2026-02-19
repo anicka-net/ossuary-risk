@@ -16,15 +16,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ossuary import __version__
-from ossuary.collectors.git import GitCollector
-from ossuary.collectors.github import GitHubCollector
-from ossuary.collectors.npm import NpmCollector
-from ossuary.collectors.pypi import PyPICollector
 from ossuary.db.session import init_db
-from ossuary.scoring.engine import PackageMetrics, RiskScorer
 from ossuary.scoring.factors import RiskLevel
-from ossuary.scoring.reputation import ReputationScorer
-from ossuary.sentiment.analyzer import SentimentAnalyzer
 
 app = typer.Typer(
     name="ossuary",
@@ -63,16 +56,40 @@ def init():
     console.print("[green]Database initialized successfully[/green]")
 
 
+SUPPORTED_ECOSYSTEMS = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
+
+
 @app.command()
 def score(
     package: str = typer.Argument(..., help="Package name to analyze"),
-    ecosystem: str = typer.Option("npm", "--ecosystem", "-e", help="Package ecosystem (npm, pypi)"),
+    ecosystem: str = typer.Option("github", "--ecosystem", "-e", help="Package ecosystem (npm, pypi, cargo, rubygems, packagist, nuget, go, github)"),
     repo_url: Optional[str] = typer.Option(None, "--repo", "-r", help="Repository URL (auto-detected if not provided)"),
     cutoff_date: Optional[str] = typer.Option(None, "--cutoff", "-c", help="Cutoff date for T-1 analysis (YYYY-MM-DD)"),
     output_json: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
     """Calculate risk score for a package."""
-    asyncio.run(_score_package(package, ecosystem, repo_url, cutoff_date, output_json))
+    eco = ecosystem.lower()
+    if eco not in SUPPORTED_ECOSYSTEMS:
+        console.print(f"[red]Unsupported ecosystem: {ecosystem}[/red]")
+        console.print(f"Supported: {', '.join(SUPPORTED_ECOSYSTEMS)}")
+        raise typer.Exit(1)
+
+    # Catch common mistake: bare package name with default github ecosystem
+    if eco == "github" and "/" not in package and not repo_url:
+        console.print(f"[red]Cannot score '{package}' as a GitHub repo — expected owner/repo format.[/red]")
+        console.print()
+        console.print("Either provide the full GitHub path:")
+        console.print(f"  ossuary score [bold]pandas-dev/pandas[/bold]")
+        console.print()
+        console.print("Or specify the package ecosystem:")
+        console.print(f"  ossuary score {package} [bold]-e pypi[/bold]")
+        console.print(f"  ossuary score {package} [bold]-e npm[/bold]")
+        console.print(f"  ossuary score {package} [bold]-e cargo[/bold]")
+        console.print()
+        console.print(f"[dim]Supported ecosystems: {', '.join(SUPPORTED_ECOSYSTEMS)}[/dim]")
+        raise typer.Exit(1)
+
+    asyncio.run(_score_package(package, eco, repo_url, cutoff_date, output_json))
 
 
 async def _score_package(
@@ -83,6 +100,10 @@ async def _score_package(
     output_json: bool,
 ):
     """Internal async function to score a package."""
+    from ossuary.services.scorer import score_package as svc_score
+
+    init_db()
+
     cutoff = None
     if cutoff_date:
         try:
@@ -91,134 +112,29 @@ async def _score_package(
             console.print("[red]Invalid date format. Use YYYY-MM-DD[/red]")
             raise typer.Exit(1)
 
-    with console.status(f"[bold blue]Analyzing {package}...[/bold blue]"):
-        # Get package info
-        if ecosystem == "npm":
-            pkg_collector = NpmCollector()
-            pkg_data = await pkg_collector.collect(package)
-            await pkg_collector.close()
-            if not repo_url:
-                repo_url = pkg_data.repository_url
-            weekly_downloads = pkg_data.weekly_downloads
-        elif ecosystem == "pypi":
-            pkg_collector = PyPICollector()
-            pkg_data = await pkg_collector.collect(package)
-            await pkg_collector.close()
-            if not repo_url:
-                repo_url = pkg_data.repository_url
-            weekly_downloads = pkg_data.weekly_downloads
-        else:
-            console.print(f"[red]Unsupported ecosystem: {ecosystem}[/red]")
-            raise typer.Exit(1)
-
-        if not repo_url:
-            console.print("[red]Could not find repository URL. Please provide with --repo[/red]")
-            raise typer.Exit(1)
-
-        console.print(f"  Repository: {repo_url}")
-
-        # Collect git data
-        console.print("  Collecting git history...")
-        git_collector = GitCollector()
-        git_metrics = await git_collector.collect(repo_url, cutoff)
-
-        # Try to find top contributor's GitHub username from git email
-        top_contributor_username = None
-        if git_metrics.top_contributor_email:
-            # Try to extract username from email (e.g., user@users.noreply.github.com)
-            email = git_metrics.top_contributor_email
-            if "noreply.github.com" in email:
-                # Format: username@users.noreply.github.com or 12345+username@users.noreply.github.com
-                parts = email.split("@")[0]
-                if "+" in parts:
-                    top_contributor_username = parts.split("+")[1]
-                else:
-                    top_contributor_username = parts
-            # Otherwise we'll rely on the git author name or repo owner
-
-        # Collect GitHub data (pass top contributor info to get correct maintainer data)
-        console.print("  Collecting GitHub data...")
-        github_collector = GitHubCollector()
-        github_data = await github_collector.collect(
-            repo_url,
-            top_contributor_username=top_contributor_username,
-            top_contributor_email=git_metrics.top_contributor_email,
-        )
-        await github_collector.close()
-
-        # Parse account created date
-        maintainer_account_created = None
-        if github_data.maintainer_account_created:
-            try:
-                maintainer_account_created = datetime.fromisoformat(
-                    github_data.maintainer_account_created.replace("Z", "+00:00")
-                )
-            except ValueError:
-                pass
-
-        # Calculate reputation score
-        console.print("  Calculating reputation...")
-        reputation_scorer = ReputationScorer()
-        reputation = reputation_scorer.calculate(
-            username=github_data.maintainer_username,
-            account_created=maintainer_account_created,
-            repos=github_data.maintainer_repos,
-            sponsor_count=github_data.maintainer_sponsor_count,
-            orgs=github_data.maintainer_orgs,
-            packages_maintained=[package],  # At minimum, they maintain this package
-            ecosystem=ecosystem,
+    with console.status(f"[bold blue]Analyzing {package} ({ecosystem})...[/bold blue]"):
+        result = await svc_score(
+            package, ecosystem, repo_url=repo_url, cutoff_date=cutoff, force=True,
         )
 
-        # Run sentiment analysis
-        console.print("  Analyzing sentiment...")
-        sentiment_analyzer = SentimentAnalyzer()
-        commit_sentiment = sentiment_analyzer.analyze_commits([c.message for c in git_metrics.commits])
-        issue_sentiment = sentiment_analyzer.analyze_issues(
-            [{"title": i.title, "body": i.body, "comments": i.comments} for i in github_data.issues]
-        )
+    if not result.success:
+        console.print(f"[red]Error: {result.error}[/red]")
+        raise typer.Exit(1)
 
-        # Aggregate sentiment
-        total_frustration = commit_sentiment.frustration_count + issue_sentiment.frustration_count
-        avg_sentiment = (commit_sentiment.average_compound + issue_sentiment.average_compound) / 2
+    breakdown = result.breakdown
 
-        # Build metrics
-        metrics = PackageMetrics(
-            maintainer_concentration=git_metrics.maintainer_concentration,
-            commits_last_year=git_metrics.commits_last_year,
-            unique_contributors=git_metrics.unique_contributors,
-            top_contributor_email=git_metrics.top_contributor_email,
-            top_contributor_name=git_metrics.top_contributor_name,
-            last_commit_date=git_metrics.last_commit_date,
-            weekly_downloads=weekly_downloads,
-            maintainer_username=github_data.maintainer_username,
-            maintainer_public_repos=github_data.maintainer_public_repos,
-            maintainer_total_stars=github_data.maintainer_total_stars,
-            has_github_sponsors=github_data.has_github_sponsors,
-            maintainer_account_created=maintainer_account_created,
-            maintainer_repos=github_data.maintainer_repos,
-            maintainer_sponsor_count=github_data.maintainer_sponsor_count,
-            maintainer_orgs=github_data.maintainer_orgs,
-            packages_maintained=[package],
-            reputation=reputation,
-            is_org_owned=github_data.is_org_owned,
-            org_admin_count=github_data.org_admin_count,
-            average_sentiment=avg_sentiment,
-            frustration_detected=total_frustration > 0,
-            frustration_evidence=commit_sentiment.frustration_evidence + issue_sentiment.frustration_evidence,
-        )
-
-        # Calculate score
-        scorer = RiskScorer()
-        breakdown = scorer.calculate(package, ecosystem, metrics, repo_url)
+    if result.warnings:
+        for w in result.warnings:
+            console.print(f"[yellow]Warning: {w}[/yellow]")
 
     # Output results
     if output_json:
         console.print(json.dumps(breakdown.to_dict(), indent=2))
     else:
-        _display_results(breakdown, git_metrics, github_data, commit_sentiment, issue_sentiment)
+        _display_results(breakdown)
 
 
-def _display_results(breakdown, git_metrics, github_data, commit_sentiment, issue_sentiment):
+def _display_results(breakdown):
     """Display results in a formatted way."""
     # Semaphore color
     color = {
@@ -271,7 +187,7 @@ def _display_results(breakdown, git_metrics, github_data, commit_sentiment, issu
     if pf.funding_score != 0:
         pf_table.add_row("GitHub Sponsors", f"{pf.funding_score:+d}", pf.funding_evidence or "")
     if pf.org_score != 0:
-        pf_table.add_row("Organization", f"{pf.org_score:+d}", f"{github_data.org_admin_count} admins")
+        pf_table.add_row("Organization", f"{pf.org_score:+d}", "org-owned")
     if pf.visibility_score != 0:
         pf_table.add_row("Visibility", f"{pf.visibility_score:+d}", f"{breakdown.weekly_downloads:,} downloads/wk")
     if pf.distributed_score != 0:
@@ -324,7 +240,7 @@ def check(
 @app.command()
 def movers(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of movers to show"),
-    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Filter by ecosystem"),
+    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Filter by ecosystem (npm, pypi, cargo, rubygems, packagist, nuget, go, github)"),
 ):
     """Show packages with the biggest score changes since last scoring."""
     from ossuary.db.session import session_scope
@@ -377,7 +293,7 @@ def movers(
 
 @app.command()
 def refresh(
-    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Only refresh this ecosystem"),
+    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Only refresh this ecosystem (npm, pypi, cargo, rubygems, packagist, nuget, go, github)"),
     max_age: int = typer.Option(7, "--max-age", help="Re-score packages older than N days"),
 ):
     """Re-score all tracked packages. Intended for cron jobs."""

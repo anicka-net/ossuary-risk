@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from ossuary.db.session import init_db
 from ossuary.services.scorer import score_package
-from dashboard_utils import apply_style, run_async, risk_color, COLORS
+from dashboard_utils import apply_style, run_async, risk_color, COLORS, VERSION
 
 st.set_page_config(page_title="Ossuary — Score", layout="wide", initial_sidebar_state="collapsed")
 apply_style()
@@ -138,4 +138,4 @@ with col3:
 with col4:
     st.page_link("pages/4_Methodology.py", label="Methodology")
 
-st.caption("Ossuary v0.3.0")
+st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")
