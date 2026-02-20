@@ -1,0 +1,88 @@
+# Ossuary seed — Data science & ML stack
+#
+# The Python data science and machine learning ecosystem.
+# Mix of foundational libraries, ML frameworks, and tooling.
+# Interesting governance diversity: NumFOCUS-backed vs solo maintainers.
+#
+# Usage: ossuary seed-custom seeds/data-science-ml.yaml
+
+packages:
+  # Foundational
+  - name: numpy
+    ecosystem: pypi
+  - name: pandas
+    ecosystem: pypi
+  - name: scipy
+    ecosystem: pypi
+  - name: matplotlib
+    ecosystem: pypi
+  - name: polars
+    ecosystem: pypi
+
+  # ML frameworks
+  - name: scikit-learn
+    ecosystem: pypi
+  - name: xgboost
+    ecosystem: pypi
+  - name: lightgbm
+    ecosystem: pypi
+  - name: catboost
+    ecosystem: pypi
+
+  # Deep learning
+  - name: pytorch/pytorch
+    repo: https://github.com/pytorch/pytorch
+  - name: keras-team/keras
+    repo: https://github.com/keras-team/keras
+  - name: huggingface/transformers
+    repo: https://github.com/huggingface/transformers
+
+  # LLM & GenAI
+  - name: ggerganov/llama.cpp
+    repo: https://github.com/ggerganov/llama.cpp
+  - name: langchain-ai/langchain
+    repo: https://github.com/langchain-ai/langchain
+  - name: vllm-project/vllm
+    repo: https://github.com/vllm-project/vllm
+  - name: ollama/ollama
+    repo: https://github.com/ollama/ollama
+
+  # NLP
+  - name: nltk
+    ecosystem: pypi
+  - name: spacy
+    ecosystem: pypi
+
+  # Visualization
+  - name: plotly
+    ecosystem: pypi
+  - name: seaborn
+    ecosystem: pypi
+  - name: bokeh
+    ecosystem: pypi
+  - name: streamlit
+    ecosystem: pypi
+
+  # Notebooks & workflow
+  - name: jupyterlab
+    ecosystem: pypi
+  - name: ipython
+    ecosystem: pypi
+  - name: papermill
+    ecosystem: pypi
+
+  # Data processing
+  - name: dask
+    ecosystem: pypi
+  - name: pyarrow
+    ecosystem: pypi
+  - name: vaex
+    ecosystem: pypi
+
+  # MLOps
+  - name: mlflow/mlflow
+    repo: https://github.com/mlflow/mlflow
+  - name: iterative/dvc
+    repo: https://github.com/iterative/dvc
+  - name: great-expectations/great_expectations
+    repo: https://github.com/great-expectations/great_expectations

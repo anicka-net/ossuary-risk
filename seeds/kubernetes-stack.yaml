@@ -1,0 +1,86 @@
+# Ossuary seed — Kubernetes ecosystem
+#
+# Core components, operators, and common tools that make up
+# a typical Kubernetes deployment. Mix of CNCF-governed and
+# community-maintained projects.
+#
+# Usage: ossuary seed-custom seeds/kubernetes-stack.yaml
+
+packages:
+  # Core Kubernetes
+  - name: kubernetes/kubernetes
+    repo: https://github.com/kubernetes/kubernetes
+  - name: etcd-io/etcd
+    repo: https://github.com/etcd-io/etcd
+  - name: coredns/coredns
+    repo: https://github.com/coredns/coredns
+  - name: kubernetes/kube-state-metrics
+    repo: https://github.com/kubernetes/kube-state-metrics
+
+  # Networking
+  - name: projectcalico/calico
+    repo: https://github.com/projectcalico/calico
+  - name: cilium/cilium
+    repo: https://github.com/cilium/cilium
+  - name: flannel-io/flannel
+    repo: https://github.com/flannel-io/flannel
+
+  # Ingress & service mesh
+  - name: kubernetes/ingress-nginx
+    repo: https://github.com/kubernetes/ingress-nginx
+  - name: istio/istio
+    repo: https://github.com/istio/istio
+  - name: envoyproxy/envoy
+    repo: https://github.com/envoyproxy/envoy
+  - name: traefik/traefik
+    repo: https://github.com/traefik/traefik
+
+  # Package management & templating
+  - name: helm/helm
+    repo: https://github.com/helm/helm
+  - name: helmfile/helmfile
+    repo: https://github.com/helmfile/helmfile
+  - name: kubernetes-sigs/kustomize
+    repo: https://github.com/kubernetes-sigs/kustomize
+
+  # Monitoring & observability
+  - name: prometheus/prometheus
+    repo: https://github.com/prometheus/prometheus
+  - name: grafana/grafana
+    repo: https://github.com/grafana/grafana
+  - name: grafana/loki
+    repo: https://github.com/grafana/loki
+  - name: jaegertracing/jaeger
+    repo: https://github.com/jaegertracing/jaeger
+  - name: open-telemetry/opentelemetry-collector
+    repo: https://github.com/open-telemetry/opentelemetry-collector
+
+  # Storage
+  - name: rook/rook
+    repo: https://github.com/rook/rook
+  - name: longhorn/longhorn
+    repo: https://github.com/longhorn/longhorn
+
+  # Security
+  - name: cert-manager/cert-manager
+    repo: https://github.com/cert-manager/cert-manager
+  - name: external-secrets/external-secrets
+    repo: https://github.com/external-secrets/external-secrets
+  - name: aquasecurity/trivy
+    repo: https://github.com/aquasecurity/trivy
+  - name: falcosecurity/falco
+    repo: https://github.com/falcosecurity/falco
+
+  # GitOps & CD
+  - name: argoproj/argo-cd
+    repo: https://github.com/argoproj/argo-cd
+  - name: fluxcd/flux2
+    repo: https://github.com/fluxcd/flux2
+
+  # CLI tools
+  - name: derailed/k9s
+    repo: https://github.com/derailed/k9s
+  - name: ahmetb/kubectx
+    repo: https://github.com/ahmetb/kubectx
+  - name: stern/stern
+    repo: https://github.com/stern/stern

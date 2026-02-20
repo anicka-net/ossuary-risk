@@ -1,0 +1,86 @@
+# Ossuary seed — Web framework stacks
+#
+# Cross-ecosystem web development: Node.js, Python, Go, Rust, Ruby.
+# Covers frameworks, ORMs, auth, and critical middleware.
+# Good test of cross-ecosystem scoring consistency.
+#
+# Usage: ossuary seed-custom seeds/web-frameworks.yaml
+
+packages:
+  # Node.js / npm
+  - name: express
+    ecosystem: npm
+  - name: fastify
+    ecosystem: npm
+  - name: next
+    ecosystem: npm
+  - name: nuxt
+    ecosystem: npm
+  - name: hono
+    ecosystem: npm
+  - name: socket.io
+    ecosystem: npm
+  - name: jsonwebtoken
+    ecosystem: npm
+  - name: passport
+    ecosystem: npm
+  - name: prisma
+    ecosystem: npm
+  - name: drizzle-orm
+    ecosystem: npm
+  - name: zod
+    ecosystem: npm
+
+  # Python / pypi
+  - name: django
+    ecosystem: pypi
+  - name: flask
+    ecosystem: pypi
+  - name: fastapi
+    ecosystem: pypi
+  - name: starlette
+    ecosystem: pypi
+  - name: uvicorn
+    ecosystem: pypi
+  - name: gunicorn
+    ecosystem: pypi
+  - name: sqlalchemy
+    ecosystem: pypi
+  - name: celery
+    ecosystem: pypi
+  - name: pyjwt
+    ecosystem: pypi
+  - name: authlib
+    ecosystem: pypi
+  - name: httpx
+    ecosystem: pypi
+
+  # Go
+  - name: gin-gonic/gin
+    repo: https://github.com/gin-gonic/gin
+  - name: gofiber/fiber
+    repo: https://github.com/gofiber/fiber
+  - name: labstack/echo
+    repo: https://github.com/labstack/echo
+  - name: go-chi/chi
+    repo: https://github.com/go-chi/chi
+
+  # Rust
+  - name: actix-web
+    ecosystem: cargo
+  - name: axum
+    ecosystem: cargo
+  - name: rocket
+    ecosystem: cargo
+
+  # Ruby
+  - name: rails
+    ecosystem: rubygems
+  - name: sinatra
+    ecosystem: rubygems
+  - name: sidekiq
+    ecosystem: rubygems
+  - name: devise
+    ecosystem: rubygems
+  - name: puma
+    ecosystem: rubygems
