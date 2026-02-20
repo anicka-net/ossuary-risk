@@ -689,6 +689,128 @@ def trends(
 
 
 @app.command()
+def diff(
+    before: str = typer.Argument(..., help="Baseline scan report (JSON from 'ossuary scan -o')"),
+    after: str = typer.Argument(..., help="New scan report (JSON from 'ossuary scan -o')"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Compare two scan reports to show added, removed, and changed packages."""
+    for path, label in [(before, "before"), (after, "after")]:
+        if not os.path.exists(path):
+            console.print(f"[red]File not found ({label}): {path}[/red]")
+            raise typer.Exit(1)
+
+    try:
+        with open(before) as f:
+            before_data = json.load(f)
+        with open(after) as f:
+            after_data = json.load(f)
+    except (json.JSONDecodeError, KeyError) as e:
+        console.print(f"[red]Invalid JSON report: {e}[/red]")
+        raise typer.Exit(1)
+
+    before_pkgs = {r["package"]: r for r in before_data.get("results", [])}
+    after_pkgs = {r["package"]: r for r in after_data.get("results", [])}
+
+    added_names = sorted(after_pkgs.keys() - before_pkgs.keys())
+    removed_names = sorted(before_pkgs.keys() - after_pkgs.keys())
+    common_names = before_pkgs.keys() & after_pkgs.keys()
+
+    changed = []
+    for name in sorted(common_names):
+        old_score = before_pkgs[name]["score"]
+        new_score = after_pkgs[name]["score"]
+        if old_score != new_score:
+            changed.append({
+                "package": name,
+                "old_score": old_score,
+                "new_score": new_score,
+                "delta": new_score - old_score,
+                "risk_level": after_pkgs[name]["risk_level"],
+            })
+    changed.sort(key=lambda x: -abs(x["delta"]))
+
+    unchanged_count = len(common_names) - len(changed)
+
+    if json_output:
+        console.print(json.dumps({
+            "before_file": before_data.get("file", before),
+            "after_file": after_data.get("file", after),
+            "added": [after_pkgs[n] for n in added_names],
+            "removed": [before_pkgs[n] for n in removed_names],
+            "changed": changed,
+            "unchanged_count": unchanged_count,
+        }, indent=2))
+        return
+
+    after_file = after_data.get("file", after)
+    console.print(f"\n[bold]Dependency diff:[/bold] {after_file}\n")
+
+    if added_names:
+        added_sorted = sorted(added_names, key=lambda n: -after_pkgs[n]["score"])
+        console.print(f"[bold green]Added ({len(added_names)} package{'s' if len(added_names) != 1 else ''}):[/bold green]")
+        for name in added_sorted:
+            r = after_pkgs[name]
+            color = {
+                "CRITICAL": "red", "HIGH": "orange1", "MODERATE": "yellow",
+                "LOW": "green", "VERY_LOW": "green",
+            }.get(r["risk_level"], "white")
+            console.print(
+                f"  {name:40s} [{color}]{r['score']:3d}  {r['risk_level']:10s}[/{color}] "
+                f"{r['concentration']:.0f}% conc  {r['commits_last_year']} commits/yr"
+            )
+        console.print()
+
+    if removed_names:
+        console.print(f"[bold red]Removed ({len(removed_names)} package{'s' if len(removed_names) != 1 else ''}):[/bold red]")
+        for name in removed_names:
+            r = before_pkgs[name]
+            console.print(f"  {name:40s} [dim]{r['score']:3d}  {r['risk_level']}[/dim]")
+        console.print()
+
+    if changed:
+        console.print(f"[bold yellow]Changed ({len(changed)} package{'s' if len(changed) != 1 else ''}):[/bold yellow]")
+        for c in changed:
+            d = c["delta"]
+            color = "red" if d > 0 else "green"
+            sign = "+" if d > 0 else ""
+            console.print(
+                f"  {c['package']:40s} {c['old_score']:3d} -> {c['new_score']:3d}  "
+                f"[{color}]({sign}{d})[/{color}]  now {c['risk_level']}"
+            )
+        console.print()
+
+    if not added_names and not removed_names and not changed:
+        console.print("[dim]No differences found.[/dim]\n")
+
+    # Summary
+    parts = []
+    if added_names:
+        parts.append(f"+{len(added_names)} added")
+    if removed_names:
+        parts.append(f"-{len(removed_names)} removed")
+    if changed:
+        parts.append(f"{len(changed)} changed")
+    parts.append(f"{unchanged_count} unchanged")
+    console.print(f"[bold]Summary:[/bold] {', '.join(parts)}")
+
+    # Risk impact of added packages
+    if added_names:
+        added_levels = {}
+        for name in added_names:
+            lvl = after_pkgs[name]["risk_level"]
+            added_levels[lvl] = added_levels.get(lvl, 0) + 1
+        impact_parts = []
+        for lvl in ["CRITICAL", "HIGH", "MODERATE", "LOW", "VERY_LOW"]:
+            if lvl in added_levels:
+                impact_parts.append(f"+{added_levels[lvl]} {lvl}")
+        if impact_parts:
+            console.print(f"  Risk impact: {', '.join(impact_parts)}")
+
+    console.print()
+
+
+@app.command()
 def refresh(
     ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Only refresh this ecosystem (npm, pypi, cargo, rubygems, packagist, nuget, go, github)"),
     max_age: int = typer.Option(7, "--max-age", help="Re-score packages older than N days"),
