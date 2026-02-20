@@ -1,0 +1,186 @@
+name: "Ossuary Dependency Risk Scan"
+description: "Score dependency files for governance risk using Ossuary"
+branding:
+  icon: "shield"
+  color: "orange"
+
+inputs:
+  github-token:
+    description: "GitHub token for PR comments and API access"
+    required: false
+    default: ${{ github.token }}
+  fail-threshold:
+    description: "Fail if any package scores >= this value (0 = disabled)"
+    required: false
+    default: "0"
+  files:
+    description: "Comma-separated dependency files to scan (empty = auto-detect from PR diff)"
+    required: false
+    default: ""
+  args:
+    description: "Extra arguments for ossuary scan (e.g. --no-dev)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Install Ossuary
+      shell: bash
+      run: pip install ossuary-risk
+
+    - name: Detect and scan dependency files
+      id: scan
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        FAIL_THRESHOLD: ${{ inputs.fail-threshold }}
+        INPUT_FILES: ${{ inputs.files }}
+        EXTRA_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+
+        # Known dependency file patterns
+        DEP_PATTERNS="requirements.txt|constraints.txt|package.json|Cargo.toml|go.mod|Gemfile|composer.json|packages.config"
+        DEP_EXTENSIONS="\.csproj$"
+
+        # Detect files to scan
+        if [ -n "$INPUT_FILES" ]; then
+          # Explicit file list
+          IFS=',' read -ra FILES <<< "$INPUT_FILES"
+        else
+          # Auto-detect from PR diff
+          FILES=()
+          while IFS= read -r f; do
+            base=$(basename "$f")
+            if echo "$base" | grep -qiE "($DEP_PATTERNS)" || echo "$f" | grep -qiE "$DEP_EXTENSIONS"; then
+              if [ -f "$f" ]; then
+                FILES+=("$f")
+              fi
+            fi
+          done < <(git diff --name-only "origin/${{ github.base_ref }}...HEAD" 2>/dev/null || echo "")
+        fi
+
+        if [ ${#FILES[@]} -eq 0 ]; then
+          echo "No dependency files found to scan."
+          echo "comment=" >> "$GITHUB_OUTPUT"
+          echo "failed=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "Scanning ${#FILES[@]} dependency file(s): ${FILES[*]}"
+
+        # Build markdown comment
+        COMMENT="## Ossuary Dependency Risk Scan\n\n"
+        FAILED=false
+        MAX_SCORE=0
+
+        for file in "${FILES[@]}"; do
+          echo "--- Scanning $file ---"
+          REPORT="/tmp/ossuary_$(echo "$file" | tr '/' '_').json"
+
+          if ossuary scan "$file" $EXTRA_ARGS -o "$REPORT" 2>&1; then
+            # Parse JSON report
+            ECO=$(python3 -c "import json; print(json.load(open('$REPORT'))['ecosystem'])")
+            TOTAL=$(python3 -c "import json; print(json.load(open('$REPORT'))['packages_scored'])")
+            ERRORS=$(python3 -c "import json; print(json.load(open('$REPORT'))['packages_errored'])")
+
+            COMMENT+="### \`$file\` ($ECO, $TOTAL packages)\n\n"
+            COMMENT+="| Package | Score | Risk | Concentration | Commits/yr |\n"
+            COMMENT+="|---------|-------|------|---------------|------------|\n"
+
+            # Add rows for packages scoring >= 30 (skip VERY_LOW noise)
+            python3 -c "
+        import json
+        d = json.load(open('$REPORT'))
+        for r in d['results']:
+            score = r['score']
+            risk = r['risk_level']
+            semaphore = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MODERATE': '🟡', 'LOW': '🟢', 'VERY_LOW': '🟢'}.get(risk, '')
+            if score >= 30:
+                print(f\"| {r['package']} | {score} | {semaphore} {risk} | {r['concentration']:.0f}% | {r['commits_last_year']} |\")
+        " >> /tmp/ossuary_rows.md 2>/dev/null || true
+
+            if [ -f /tmp/ossuary_rows.md ] && [ -s /tmp/ossuary_rows.md ]; then
+              COMMENT+="$(cat /tmp/ossuary_rows.md)\n"
+            else
+              COMMENT+="| *(all packages score below 30)* | | | | |\n"
+            fi
+            rm -f /tmp/ossuary_rows.md
+
+            # Summary line
+            SUMMARY=$(python3 -c "
+        import json
+        d = json.load(open('$REPORT'))
+        s = d['risk_summary']
+        parts = []
+        for lvl in ['CRITICAL', 'HIGH', 'MODERATE', 'LOW', 'VERY_LOW']:
+            if lvl in s:
+                parts.append(f\"{s[lvl]} {lvl}\")
+        print(', '.join(parts))
+        ")
+            COMMENT+="\n**Summary:** $SUMMARY"
+            [ "$ERRORS" -gt 0 ] && COMMENT+=" ($ERRORS errors)"
+            COMMENT+="\n\n"
+
+            # Check threshold
+            FILE_MAX=$(python3 -c "
+        import json
+        d = json.load(open('$REPORT'))
+        print(max((r['score'] for r in d['results']), default=0))
+        ")
+            [ "$FILE_MAX" -gt "$MAX_SCORE" ] && MAX_SCORE="$FILE_MAX"
+          else
+            COMMENT+="### \`$file\`\n\n> Scan failed. Check action logs for details.\n\n"
+          fi
+        done
+
+        COMMENT+="---\n*Generated by [Ossuary](https://github.com/anicka-net/ossuary-risk) — OSS governance risk scoring*"
+
+        # Check fail threshold
+        if [ "$FAIL_THRESHOLD" -gt 0 ] && [ "$MAX_SCORE" -ge "$FAIL_THRESHOLD" ]; then
+          COMMENT+="\n\n> **Warning:** Package(s) scored $MAX_SCORE, exceeding threshold of $FAIL_THRESHOLD."
+          FAILED=true
+        fi
+
+        # Write outputs
+        printf '%b' "$COMMENT" > /tmp/ossuary_comment.md
+        echo "has_results=true" >> "$GITHUB_OUTPUT"
+        echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+
+    - name: Post PR comment
+      if: github.event_name == 'pull_request' && steps.scan.outputs.has_results == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        if [ ! -f /tmp/ossuary_comment.md ]; then
+          echo "No scan results to post."
+          exit 0
+        fi
+
+        # Try to update existing comment, otherwise create new one
+        COMMENT_BODY=$(cat /tmp/ossuary_comment.md)
+        EXISTING=$(gh pr view ${{ github.event.pull_request.number }} --json comments \
+          --jq '.comments[] | select(.body | startswith("## Ossuary")) | .id' | tail -1 2>/dev/null || echo "")
+
+        if [ -n "$EXISTING" ]; then
+          gh api repos/${{ github.repository }}/issues/comments/$EXISTING \
+            -X PATCH -f body="$COMMENT_BODY"
+          echo "Updated existing Ossuary comment."
+        else
+          gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT_BODY"
+          echo "Posted new Ossuary comment."
+        fi
+
+    - name: Check threshold
+      if: steps.scan.outputs.failed == 'true'
+      shell: bash
+      run: |
+        echo "::error::Ossuary scan found packages exceeding the risk threshold."
+        exit 1
