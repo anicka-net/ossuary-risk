@@ -228,13 +228,178 @@ def _display_results(breakdown):
 
 
 @app.command()
-def check(
-    packages_file: str = typer.Argument(..., help="JSON file with packages to check"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output JSON file"),
+def scan(
+    file: str = typer.Argument(..., help="Dependency file to scan (requirements.txt, package.json, Cargo.toml, go.mod, Gemfile, composer.json, *.csproj)"),
+    output: Optional[str] = typer.Option(None, "-o", "--output", help="Output JSON report file"),
+    ecosystem: Optional[str] = typer.Option(None, "-e", "--ecosystem", help="Override ecosystem detection"),
+    concurrent: int = typer.Option(3, "-c", "--concurrent", help="Parallel scoring workers"),
+    limit: int = typer.Option(0, "-l", "--limit", help="Score first N packages (0=all)"),
+    no_dev: bool = typer.Option(False, "--no-dev", help="Skip dev dependencies"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON to stdout"),
 ):
-    """Check multiple packages from a JSON file."""
-    console.print(f"[yellow]Batch checking not yet implemented[/yellow]")
-    raise typer.Exit(1)
+    """Scan a dependency file and score all packages.
+
+    Automatically detects the ecosystem from the filename.
+    Use -e to override for non-standard filenames.
+    """
+    asyncio.run(_scan(file, output, ecosystem, concurrent, limit, no_dev, json_output))
+
+
+async def _scan(
+    file: str,
+    output: Optional[str],
+    ecosystem_override: Optional[str],
+    concurrent: int,
+    limit: int,
+    no_dev: bool,
+    json_output: bool,
+):
+    """Score all packages from a dependency file."""
+    from ossuary.services.batch import parse_dependency_file
+    from ossuary.services.scorer import score_package as svc_score
+
+    init_db()
+
+    if not os.path.exists(file):
+        console.print(f"[red]File not found: {file}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        eco, entries = parse_dependency_file(file, ecosystem_override, include_dev=not no_dev)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+    if not entries:
+        console.print("[yellow]No packages found in file.[/yellow]")
+        raise typer.Exit(0)
+
+    if limit > 0:
+        entries = entries[:limit]
+
+    console.print(f"\n[bold]Scanning {file}[/bold] ({eco}, {len(entries)} packages)\n")
+
+    # Score all packages, collecting results
+    semaphore = asyncio.Semaphore(concurrent)
+    results = []
+
+    async def score_one(entry):
+        async with semaphore:
+            try:
+                result = await svc_score(entry.obs_package, entry.ecosystem, force=True)
+                return entry.obs_package, result
+            except Exception as e:
+                from ossuary.services.scorer import ScoringResult
+                return entry.obs_package, ScoringResult(success=False, error=str(e))
+
+    tasks = [score_one(e) for e in entries]
+    scored = 0
+    errors = 0
+
+    for coro in asyncio.as_completed(tasks):
+        name, result = await coro
+        scored += 1
+        if result.success:
+            b = result.breakdown
+            color = {
+                "CRITICAL": "red",
+                "HIGH": "orange1",
+                "MODERATE": "yellow",
+                "LOW": "green",
+                "VERY_LOW": "green",
+            }.get(b.risk_level.value, "white")
+            console.print(
+                f"  [{scored}/{len(entries)}] [{color}]{b.final_score:3d} {b.risk_level.value:8s}[/{color}] {name}"
+            )
+        else:
+            errors += 1
+            console.print(f"  [{scored}/{len(entries)}] [red]ERROR[/red] {name}: {result.error}")
+        results.append((name, result))
+
+    # Sort by score descending for summary
+    scored_results = [(n, r) for n, r in results if r.success]
+    scored_results.sort(key=lambda x: -x[1].breakdown.final_score)
+    error_results = [(n, r) for n, r in results if not r.success]
+
+    # Summary table
+    if scored_results:
+        console.print()
+        table = Table(title="Risk Summary")
+        table.add_column("Package", style="cyan", min_width=20)
+        table.add_column("Score", justify="right")
+        table.add_column("Risk", min_width=10)
+        table.add_column("Concentration", justify="right")
+        table.add_column("Commits/yr", justify="right")
+
+        for name, result in scored_results:
+            b = result.breakdown
+            color = {
+                "CRITICAL": "red",
+                "HIGH": "orange1",
+                "MODERATE": "yellow",
+                "LOW": "green",
+                "VERY_LOW": "green",
+            }.get(b.risk_level.value, "white")
+            table.add_row(
+                name,
+                f"[{color}]{b.final_score}[/{color}]",
+                f"[{color}]{b.risk_level.semaphore} {b.risk_level.value}[/{color}]",
+                f"{b.maintainer_concentration:.0f}%",
+                str(b.commits_last_year),
+            )
+
+        console.print(table)
+
+    # Count by risk level
+    level_counts = {}
+    for _, r in scored_results:
+        lvl = r.breakdown.risk_level.value
+        level_counts[lvl] = level_counts.get(lvl, 0) + 1
+
+    parts = []
+    for lvl in ["CRITICAL", "HIGH", "MODERATE", "LOW", "VERY_LOW"]:
+        if lvl in level_counts:
+            parts.append(f"{level_counts[lvl]} {lvl}")
+
+    console.print(
+        f"\n[bold]Summary:[/bold] {len(scored_results)} scored, {errors} errors"
+        + (f" — {', '.join(parts)}" if parts else "")
+    )
+
+    # JSON output
+    report_data = {
+        "file": file,
+        "ecosystem": eco,
+        "packages_total": len(entries),
+        "packages_scored": len(scored_results),
+        "packages_errored": errors,
+        "risk_summary": level_counts,
+        "results": [
+            {
+                "package": name,
+                "score": r.breakdown.final_score,
+                "risk_level": r.breakdown.risk_level.value,
+                "concentration": round(r.breakdown.maintainer_concentration, 1),
+                "commits_last_year": r.breakdown.commits_last_year,
+                "unique_contributors": r.breakdown.unique_contributors,
+                "explanation": r.breakdown.explanation,
+                "recommendations": r.breakdown.recommendations,
+            }
+            for name, r in scored_results
+        ],
+        "errors": [
+            {"package": name, "error": r.error}
+            for name, r in error_results
+        ],
+    }
+
+    if json_output:
+        console.print(json.dumps(report_data, indent=2))
+
+    if output:
+        with open(output, "w") as f:
+            json.dump(report_data, f, indent=2)
+        console.print(f"\nReport saved to {output}")
 
 
 @app.command()

@@ -160,6 +160,234 @@ def load_custom_seed(path: str) -> list[PackageEntry]:
     return entries
 
 
+# ---------------------------------------------------------------------------
+# Dependency file parsers for `ossuary scan`
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ParsedPackage:
+    """A package extracted from a dependency file."""
+    name: str
+    is_dev: bool = False
+
+
+def _parse_requirements_txt(path: str) -> list[ParsedPackage]:
+    """Parse requirements.txt / constraints.txt."""
+    packages = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("-"):
+                continue
+            # Strip version specifiers: requests>=2.28,<3 → requests
+            name = re.split(r"[><=!~;@\[]", line)[0].strip()
+            if name:
+                packages.append(ParsedPackage(name=name))
+    return packages
+
+
+def _parse_package_json(path: str) -> list[ParsedPackage]:
+    """Parse package.json for npm dependencies."""
+    with open(path) as f:
+        data = json.load(f)
+    packages = []
+    for name in data.get("dependencies", {}):
+        packages.append(ParsedPackage(name=name, is_dev=False))
+    for name in data.get("devDependencies", {}):
+        packages.append(ParsedPackage(name=name, is_dev=True))
+    return packages
+
+
+def _parse_cargo_toml(path: str) -> list[ParsedPackage]:
+    """Parse Cargo.toml for Rust crate dependencies."""
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib  # type: ignore[no-redef]
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    packages = []
+    for name in data.get("dependencies", {}):
+        packages.append(ParsedPackage(name=name, is_dev=False))
+    for name in data.get("dev-dependencies", {}):
+        packages.append(ParsedPackage(name=name, is_dev=True))
+    for name in data.get("build-dependencies", {}):
+        packages.append(ParsedPackage(name=name, is_dev=True))
+    return packages
+
+
+def _parse_go_mod(path: str) -> list[ParsedPackage]:
+    """Parse go.mod for Go module dependencies."""
+    packages = []
+    in_require = False
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("require ("):
+                in_require = True
+                continue
+            if in_require and line == ")":
+                in_require = False
+                continue
+            if in_require:
+                # e.g. "github.com/gin-gonic/gin v1.9.1"
+                parts = line.split()
+                if parts and not parts[0].startswith("//"):
+                    packages.append(ParsedPackage(name=parts[0]))
+            elif line.startswith("require "):
+                # Single-line require: "require github.com/foo/bar v1.0.0"
+                parts = line.split()
+                if len(parts) >= 2:
+                    packages.append(ParsedPackage(name=parts[1]))
+    return packages
+
+
+def _parse_gemfile(path: str) -> list[ParsedPackage]:
+    """Parse Gemfile for Ruby gem dependencies."""
+    packages = []
+    gem_re = re.compile(r"""^\s*gem\s+['"]([^'"]+)['"]""")
+    # Dev groups
+    in_dev_group = False
+    group_re = re.compile(r"""^\s*group\s+.*:(?:development|test)""")
+    with open(path) as f:
+        for line in f:
+            if group_re.search(line):
+                in_dev_group = True
+            elif line.strip() == "end":
+                in_dev_group = False
+            m = gem_re.match(line)
+            if m:
+                packages.append(ParsedPackage(name=m.group(1), is_dev=in_dev_group))
+    return packages
+
+
+def _parse_composer_json(path: str) -> list[ParsedPackage]:
+    """Parse composer.json for PHP Packagist dependencies."""
+    with open(path) as f:
+        data = json.load(f)
+    packages = []
+    for name in data.get("require", {}):
+        # Skip PHP itself and extensions
+        if name == "php" or name.startswith("ext-"):
+            continue
+        packages.append(ParsedPackage(name=name, is_dev=False))
+    for name in data.get("require-dev", {}):
+        if name == "php" or name.startswith("ext-"):
+            continue
+        packages.append(ParsedPackage(name=name, is_dev=True))
+    return packages
+
+
+def _parse_csproj(path: str) -> list[ParsedPackage]:
+    """Parse .csproj or packages.config for NuGet dependencies."""
+    import xml.etree.ElementTree as ET
+    tree = ET.parse(path)
+    root = tree.getroot()
+    packages = []
+    # .csproj format: <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    for elem in root.iter():
+        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+        if tag == "PackageReference":
+            name = elem.get("Include")
+            if name:
+                packages.append(ParsedPackage(name=name))
+        # packages.config format: <package id="Newtonsoft.Json" version="13.0.1" />
+        elif tag == "package":
+            name = elem.get("id")
+            if name:
+                packages.append(ParsedPackage(name=name))
+    return packages
+
+
+# Map filename patterns to (ecosystem, parser)
+_FILE_PARSERS: dict[str, tuple[str, callable]] = {
+    "requirements.txt": ("pypi", _parse_requirements_txt),
+    "constraints.txt": ("pypi", _parse_requirements_txt),
+    "package.json": ("npm", _parse_package_json),
+    "cargo.toml": ("cargo", _parse_cargo_toml),
+    "go.mod": ("go", _parse_go_mod),
+    "gemfile": ("rubygems", _parse_gemfile),
+    "composer.json": ("packagist", _parse_composer_json),
+}
+
+
+def parse_dependency_file(
+    path: str,
+    ecosystem_override: Optional[str] = None,
+    include_dev: bool = True,
+) -> tuple[str, list[PackageEntry]]:
+    """Parse a dependency file and return (ecosystem, package_entries).
+
+    Detects file type from filename. Use ecosystem_override for
+    non-standard filenames (e.g. 'deps.txt' with -e pypi).
+    """
+    filename = Path(path).name.lower()
+
+    # Detect parser
+    parser_fn = None
+    ecosystem = ecosystem_override
+
+    if ecosystem_override:
+        # Use override ecosystem with matching parser
+        eco_to_parser = {
+            "pypi": _parse_requirements_txt,
+            "npm": _parse_package_json,
+            "cargo": _parse_cargo_toml,
+            "go": _parse_go_mod,
+            "rubygems": _parse_gemfile,
+            "packagist": _parse_composer_json,
+            "nuget": _parse_csproj,
+        }
+        parser_fn = eco_to_parser.get(ecosystem_override)
+        if not parser_fn:
+            raise ValueError(f"No parser for ecosystem '{ecosystem_override}'")
+    else:
+        # Auto-detect from filename
+        if filename in _FILE_PARSERS:
+            ecosystem, parser_fn = _FILE_PARSERS[filename]
+        elif filename.endswith(".txt") and "requirements" in filename:
+            ecosystem, parser_fn = "pypi", _parse_requirements_txt
+        elif filename.endswith(".txt") and "constraints" in filename:
+            ecosystem, parser_fn = "pypi", _parse_requirements_txt
+        elif filename.endswith("package.json"):
+            ecosystem, parser_fn = "npm", _parse_package_json
+        elif filename.endswith("composer.json"):
+            ecosystem, parser_fn = "packagist", _parse_composer_json
+        elif filename.endswith(".csproj") or filename == "packages.config":
+            ecosystem, parser_fn = "nuget", _parse_csproj
+        else:
+            raise ValueError(
+                f"Cannot detect ecosystem from '{filename}'. "
+                f"Use -e/--ecosystem to specify (pypi, npm, cargo, go, rubygems, packagist, nuget)."
+            )
+
+    parsed = parser_fn(path)
+
+    if not include_dev:
+        parsed = [p for p in parsed if not p.is_dev]
+
+    # Deduplicate
+    seen = set()
+    entries = []
+    for p in parsed:
+        key = p.name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        entries.append(
+            PackageEntry(
+                obs_package=p.name,
+                github_owner="",
+                github_repo="",
+                repo_url="",
+                source="scan",
+                ecosystem=ecosystem,
+            )
+        )
+
+    return ecosystem, entries
+
+
 def is_fresh(package_name: str, ecosystem: str, max_age_days: int = 7) -> bool:
     """Check if a package has been scored recently enough to skip."""
     try:
