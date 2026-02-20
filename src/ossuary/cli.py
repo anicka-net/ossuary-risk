@@ -457,6 +457,238 @@ def movers(
 
 
 @app.command()
+def history(
+    package: str = typer.Argument(..., help="Package name (e.g., 'requests', 'openSUSE/aaa_base')"),
+    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Package ecosystem (required if name exists in multiple ecosystems)"),
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of records to show"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Show score history for a package over time."""
+    from ossuary.db.session import session_scope
+    from ossuary.db.models import Package, Score
+
+    init_db()
+
+    with session_scope() as session:
+        query = session.query(Package).filter(Package.name == package)
+        if ecosystem:
+            query = query.filter(Package.ecosystem == ecosystem)
+        packages = query.all()
+
+        if not packages:
+            console.print(f"[red]Package '{package}' not found in database.[/red]")
+            console.print(f"Score it first with: ossuary score {package}")
+            raise typer.Exit(1)
+
+        if len(packages) > 1:
+            ecosystems = [p.ecosystem for p in packages]
+            console.print(f"[red]'{package}' exists in multiple ecosystems: {', '.join(ecosystems)}[/red]")
+            console.print("Use -e/--ecosystem to specify which one.")
+            raise typer.Exit(1)
+
+        pkg = packages[0]
+
+        scores = (
+            session.query(Score)
+            .filter(Score.package_id == pkg.id)
+            .order_by(Score.calculated_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        if not scores:
+            console.print(f"[yellow]No scores found for {package} ({pkg.ecosystem})[/yellow]")
+            raise typer.Exit(0)
+
+        total_count = session.query(Score).filter(Score.package_id == pkg.id).count()
+
+        if json_output:
+            records = [
+                {
+                    "date": s.calculated_at.isoformat(),
+                    "score": s.final_score,
+                    "risk_level": s.risk_level,
+                    "concentration": round(s.maintainer_concentration, 1),
+                    "commits_year": s.commits_last_year,
+                    "contributors": s.unique_contributors,
+                }
+                for s in scores
+            ]
+            console.print(json.dumps({
+                "package": pkg.name,
+                "ecosystem": pkg.ecosystem,
+                "total_records": total_count,
+                "records": records,
+            }, indent=2))
+            return
+
+        console.print(f"\n[bold]Score history for {pkg.name} ({pkg.ecosystem})[/bold]\n")
+
+        table = Table()
+        table.add_column("Date", style="cyan", min_width=12)
+        table.add_column("Score", justify="right")
+        table.add_column("Risk", min_width=10)
+        table.add_column("Conc%", justify="right")
+        table.add_column("Commits/yr", justify="right")
+        table.add_column("Change", justify="right")
+
+        for i, s in enumerate(scores):
+            if i < len(scores) - 1:
+                delta = s.final_score - scores[i + 1].final_score
+                change_str = f"[{'red' if delta > 0 else 'green'}]{delta:+d}[/]" if delta != 0 else "[dim]0[/dim]"
+            else:
+                change_str = "[dim]--[/dim]"
+
+            color = {
+                "CRITICAL": "red", "HIGH": "orange1", "MODERATE": "yellow",
+                "LOW": "green", "VERY_LOW": "green",
+            }.get(s.risk_level, "white")
+
+            table.add_row(
+                s.calculated_at.strftime("%Y-%m-%d %H:%M"),
+                f"[{color}]{s.final_score}[/{color}]",
+                f"[{color}]{s.risk_level}[/{color}]",
+                f"{s.maintainer_concentration:.0f}%",
+                str(s.commits_last_year),
+                change_str,
+            )
+
+        console.print(table)
+        if total_count > limit:
+            console.print(f"\n[dim]Showing {len(scores)} of {total_count} records (use -n to see more)[/dim]")
+        console.print()
+
+
+@app.command()
+def trends(
+    seed: Optional[str] = typer.Option(None, "--seed", "-s", help="Filter to packages in a YAML seed file"),
+    ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Filter by ecosystem"),
+    days: int = typer.Option(90, "--days", "-d", help="Look back N days for comparison"),
+    threshold: int = typer.Option(0, "--threshold", "-t", help="Minimum absolute score change to show"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Show score trends across tracked packages over a time window."""
+    from ossuary.db.session import session_scope
+    from ossuary.db.models import Package, Score
+    from datetime import timedelta
+
+    init_db()
+
+    filter_set = None
+    if seed:
+        from ossuary.services.batch import load_custom_seed
+        if not os.path.exists(seed):
+            console.print(f"[red]Seed file not found: {seed}[/red]")
+            raise typer.Exit(1)
+        entries = load_custom_seed(seed)
+        filter_set = set()
+        for e in entries:
+            if e.ecosystem == "github":
+                filter_set.add((f"{e.github_owner}/{e.github_repo}", e.ecosystem))
+            else:
+                filter_set.add((e.obs_package, e.ecosystem))
+
+    with session_scope() as session:
+        query = session.query(Package)
+        if ecosystem:
+            query = query.filter(Package.ecosystem == ecosystem)
+        all_packages = query.all()
+
+        if filter_set:
+            all_packages = [p for p in all_packages if (p.name, p.ecosystem) in filter_set]
+
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        rising = []
+        falling = []
+        stable_count = 0
+        no_history = 0
+
+        for pkg in all_packages:
+            latest = (
+                session.query(Score)
+                .filter(Score.package_id == pkg.id)
+                .order_by(Score.calculated_at.desc())
+                .first()
+            )
+            if not latest:
+                no_history += 1
+                continue
+
+            oldest_in_window = (
+                session.query(Score)
+                .filter(Score.package_id == pkg.id, Score.calculated_at >= cutoff_date)
+                .order_by(Score.calculated_at.asc())
+                .first()
+            )
+
+            if not oldest_in_window or oldest_in_window.id == latest.id:
+                stable_count += 1
+                continue
+
+            delta = latest.final_score - oldest_in_window.final_score
+            if abs(delta) <= threshold:
+                stable_count += 1
+                continue
+
+            entry = {
+                "name": pkg.name,
+                "ecosystem": pkg.ecosystem,
+                "old_score": oldest_in_window.final_score,
+                "new_score": latest.final_score,
+                "delta": delta,
+                "risk_level": latest.risk_level,
+            }
+
+            if delta > 0:
+                rising.append(entry)
+            else:
+                falling.append(entry)
+
+        rising.sort(key=lambda x: x["delta"], reverse=True)
+        falling.sort(key=lambda x: x["delta"])
+
+        total = len(all_packages)
+        source_label = f"seed {os.path.basename(seed)}" if seed else (f"{ecosystem} packages" if ecosystem else "all packages")
+
+        if json_output:
+            console.print(json.dumps({
+                "days": days,
+                "source": source_label,
+                "packages_analyzed": total,
+                "rising": rising,
+                "falling": falling,
+                "stable_count": stable_count,
+            }, indent=2))
+            return
+
+        console.print(f"\n[bold]Score trends[/bold] (last {days} days, {total} packages from {source_label})\n")
+
+        if rising:
+            console.print("[bold red]Rising risk:[/bold red]")
+            for r in rising:
+                console.print(
+                    f"  {r['name']:40s} {r['old_score']:3d} -> {r['new_score']:3d}  "
+                    f"[red](+{r['delta']})[/red]  now {r['risk_level']}"
+                )
+            console.print()
+
+        if falling:
+            console.print("[bold green]Falling risk:[/bold green]")
+            for f_ in falling:
+                console.print(
+                    f"  {f_['name']:40s} {f_['old_score']:3d} -> {f_['new_score']:3d}  "
+                    f"[green]({f_['delta']})[/green]  now {f_['risk_level']}"
+                )
+            console.print()
+
+        if not rising and not falling:
+            console.print("[dim]No score changes detected in this window.[/dim]\n")
+
+        console.print(f"[bold]Summary:[/bold] {len(rising)} rising, {len(falling)} falling, {stable_count} stable")
+        console.print()
+
+
+@app.command()
 def refresh(
     ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Only refresh this ecosystem (npm, pypi, cargo, rubygems, packagist, nuget, go, github)"),
     max_age: int = typer.Option(7, "--max-age", help="Re-score packages older than N days"),
