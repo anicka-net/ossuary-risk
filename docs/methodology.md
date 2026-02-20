@@ -914,6 +914,48 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 - Reputation scoring for maintainer assessment
 - Weighted scoring formula calibrated against known incidents
 
+### 11.6 Real-World Dependency Scanning
+
+To demonstrate practical applicability, we scanned the dependency trees of two major open source projects using `ossuary scan`.
+
+#### Express.js (npm, 28 runtime dependencies)
+
+Express is the most widely-used Node.js web framework. Scanning its `package.json` runtime dependencies:
+
+| Risk Level | Count | Examples |
+|------------|-------|---------|
+| CRITICAL | 2 | escape-html (100% conc., 0 commits/yr), depd (100% conc., 0 commits/yr) |
+| HIGH | 3 | once (100% conc., 1 commit/yr), merge-descriptors (100% conc., 0 commits/yr), cookie-signature (100% conc., 0 commits/yr) |
+| MODERATE | 1 | etag (67% conc., 3 commits/yr) |
+| LOW | 10 | debug, qs, statuses, proxy-addr, http-errors, ... |
+| VERY_LOW | 12 | body-parser, accepts, router, mime-types, ... |
+
+**18% of Express's runtime dependencies score HIGH or CRITICAL.** These are single-maintainer micro-packages with no recent activity — exactly the governance profile that preceded the event-stream compromise. A security team reviewing this output would prioritize `escape-html` and `depd` for governance review or vendoring.
+
+#### Home Assistant (PyPI, 58 core dependencies)
+
+Home Assistant is one of the largest Python open source projects, with over 2,000 integrations. Scanning its core `requirements.txt`:
+
+| Risk Level | Count | Examples |
+|------------|-------|---------|
+| CRITICAL | 9 | standard-aifc, standard-telnetlib, atomicwrites-homeassistant, ifaddr, astral, cronsim, ... |
+| HIGH | 6 | ciso8601, orjson, audioop-lts, psutil-home-assistant, ha-ffmpeg, ... |
+| MODERATE | 3 | python-slugify, webrtc-models, lru-dict |
+| LOW | 11 | PyYAML, aiohttp_cors, packaging, bcrypt, Jinja2, ... |
+| VERY_LOW | 28 | aiohttp, requests, cryptography, Pillow, SQLAlchemy, ... |
+
+**26% of Home Assistant's core dependencies score HIGH or CRITICAL.** Several CRITICAL packages are HA-specific forks (`atomicwrites-homeassistant`, `psutil-home-assistant`) or niche single-maintainer libraries (`ifaddr`, `astral`) — packages unlikely to appear in vulnerability scanners but carrying real governance risk.
+
+#### Practical Implications
+
+These scans reveal a pattern common across large projects: the core framework dependencies (aiohttp, requests, cryptography) are well-governed, but the **long tail of utility dependencies** carries significant governance risk. This aligns with the "Roads and Bridges" thesis (Eghbal, 2016) — critical infrastructure depends on small, undermaintained packages that receive no attention until they fail.
+
+The `ossuary scan` command makes this risk visible in seconds, enabling:
+1. **Dependency review** during security audits
+2. **CI/CD integration** to flag new high-risk dependencies in pull requests
+3. **Vendoring decisions** — CRITICAL-scored packages are candidates for vendoring or replacement
+4. **Maintainer outreach** — identifying which upstream packages need community investment
+
 ---
 
 ## 12. Future Work
@@ -921,7 +963,8 @@ Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor]
 1. ~~**Expand ecosystem support**~~: Done - 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub)
 2. **Historical snapshots**: Archive reputation/org data for better T-1 analysis
 3. **ML enhancement**: Train classifier on larger incident corpus
-4. **Dependency graph analysis**: Transitive risk aggregation
+4. ~~**Dependency file scanning**~~: Done - `ossuary scan` supports requirements.txt, package.json, Cargo.toml, go.mod, Gemfile, composer.json, .csproj
+5. **Dependency graph analysis**: Transitive risk aggregation
 5. **Maintainer network analysis**: Identify shared maintainer risks across packages
 6. ~~**PyPI repository URL discovery**~~: Done - case-insensitive URL extraction with multi-priority fallback
 7. ~~**Mature project detection**~~: Done - two-track scoring for projects >5 years old with established history

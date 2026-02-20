@@ -1,0 +1,753 @@
+{
+  "file": "/tmp/ha_reqs.txt",
+  "ecosystem": "pypi",
+  "packages_total": 58,
+  "packages_scored": 57,
+  "packages_errored": 1,
+  "risk_summary": {
+    "CRITICAL": 9,
+    "HIGH": 6,
+    "MODERATE": 3,
+    "LOW": 11,
+    "VERY_LOW": 28
+  },
+  "results": [
+    {
+      "package": "standard-aifc",
+      "score": 100,
+      "risk_level": "CRITICAL",
+      "concentration": 100,
+      "commits_last_year": 0,
+      "unique_contributors": 0,
+      "explanation": "\ud83d\udd34 CRITICAL (100). Critical concentration (100%): single person controls nearly all commits. Project appears abandoned (<4 commits/year)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "cronsim",
+      "score": 100,
+      "risk_level": "CRITICAL",
+      "concentration": 100.0,
+      "commits_last_year": 10,
+      "unique_contributors": 1,
+      "explanation": "\ud83d\udd34 CRITICAL (100). Critical concentration (100%): single person controls nearly all commits. Low activity (4-11 commits/year)",
+      "recommendations": [
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "atomicwrites-homeassistant",
+      "score": 100,
+      "risk_level": "CRITICAL",
+      "concentration": 100,
+      "commits_last_year": 0,
+      "unique_contributors": 0,
+      "explanation": "\ud83d\udd34 CRITICAL (100). Mature project (11 years, 16 lifetime contributors). Moderately concentrated lifetime (84% lifetime). Project appears abandoned (<4 commits/year)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "standard-telnetlib",
+      "score": 100,
+      "risk_level": "CRITICAL",
+      "concentration": 100,
+      "commits_last_year": 0,
+      "unique_contributors": 0,
+      "explanation": "\ud83d\udd34 CRITICAL (100). Critical concentration (100%): single person controls nearly all commits. Project appears abandoned (<4 commits/year)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "ifaddr",
+      "score": 100,
+      "risk_level": "CRITICAL",
+      "concentration": 100,
+      "commits_last_year": 0,
+      "unique_contributors": 0,
+      "explanation": "\ud83d\udd34 CRITICAL (100). Mature project (12 years, 21 lifetime contributors). Moderately concentrated lifetime (53% lifetime). Project appears abandoned (<4 commits/year)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "astral",
+      "score": 100,
+      "risk_level": "CRITICAL",
+      "concentration": 100,
+      "commits_last_year": 0,
+      "unique_contributors": 0,
+      "explanation": "\ud83d\udd34 CRITICAL (100). Mature project (17 years, 17 lifetime contributors). Moderately concentrated lifetime (72% lifetime). Project appears abandoned (<4 commits/year)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "pyspeex-noise",
+      "score": 90,
+      "risk_level": "CRITICAL",
+      "concentration": 100.0,
+      "commits_last_year": 2,
+      "unique_contributors": 1,
+      "explanation": "\ud83d\udd34 CRITICAL (90). Critical concentration (100%): single person controls nearly all commits. Project appears abandoned (<4 commits/year). Some protective factors (-30 points)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "pymicro-vad",
+      "score": 90,
+      "risk_level": "CRITICAL",
+      "concentration": 100.0,
+      "commits_last_year": 3,
+      "unique_contributors": 1,
+      "explanation": "\ud83d\udd34 CRITICAL (90). Critical concentration (100%): single person controls nearly all commits. Project appears abandoned (<4 commits/year). Some protective factors (-30 points)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "PyTurboJPEG",
+      "score": 85,
+      "risk_level": "CRITICAL",
+      "concentration": 92.9,
+      "commits_last_year": 14,
+      "unique_contributors": 2,
+      "explanation": "\ud83d\udd34 CRITICAL (85). Mature project (8 years, 11 lifetime contributors). Moderately concentrated lifetime (85% lifetime). Moderately active (12-50 commits/year)",
+      "recommendations": [
+        "IMMEDIATE: Identify alternative packages or prepare to fork",
+        "Do not accept new versions without manual code review",
+        "Monitor for maintainer changes or ownership transfers"
+      ]
+    },
+    {
+      "package": "psutil-home-assistant",
+      "score": 70,
+      "risk_level": "HIGH",
+      "concentration": 96.3,
+      "commits_last_year": 27,
+      "unique_contributors": 2,
+      "explanation": "\ud83d\udfe0 HIGH (70). Critical concentration (96%): single person controls nearly all commits. Moderately active (12-50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Review new releases carefully before updating",
+        "Consider contributing to reduce maintainer concentration",
+        "Monitor project health metrics monthly"
+      ]
+    },
+    {
+      "package": "ha-ffmpeg",
+      "score": 70,
+      "risk_level": "HIGH",
+      "concentration": 96.6,
+      "commits_last_year": 29,
+      "unique_contributors": 2,
+      "explanation": "\ud83d\udfe0 HIGH (70). Mature project (10 years, 16 lifetime contributors). Moderately concentrated lifetime (57% lifetime). Moderately active (12-50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Review new releases carefully before updating",
+        "Consider contributing to reduce maintainer concentration",
+        "Monitor project health metrics monthly"
+      ]
+    },
+    {
+      "package": "aiohttp-asyncmdnsresolver",
+      "score": 70,
+      "risk_level": "HIGH",
+      "concentration": 95.5,
+      "commits_last_year": 22,
+      "unique_contributors": 2,
+      "explanation": "\ud83d\udfe0 HIGH (70). Critical concentration (95%): single person controls nearly all commits. Moderately active (12-50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Review new releases carefully before updating",
+        "Consider contributing to reduce maintainer concentration",
+        "Monitor project health metrics monthly"
+      ]
+    },
+    {
+      "package": "ciso8601",
+      "score": 65,
+      "risk_level": "HIGH",
+      "concentration": 50.0,
+      "commits_last_year": 8,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe0 HIGH (65). Mature project (12 years, 29 lifetime contributors). Distributed lifetime contributors (27% lifetime). Low activity (4-11 commits/year). Warning signals present (+5 points). ALERT: Newcomer takeover pattern detected on mature project",
+      "recommendations": [
+        "ALERT: New contributor dominates recent commits on mature project \u2014 review carefully (xz-utils pattern)",
+        "Review new releases carefully before updating",
+        "Consider contributing to reduce maintainer concentration",
+        "Monitor project health metrics monthly"
+      ]
+    },
+    {
+      "package": "audioop-lts",
+      "score": 65,
+      "risk_level": "HIGH",
+      "concentration": 66.7,
+      "commits_last_year": 21,
+      "unique_contributors": 4,
+      "explanation": "\ud83d\udfe0 HIGH (65). Moderate concentration (67%): some bus factor risk. Moderately active (12-50 commits/year). Warning signals present (+20 points). ALERT: Economic frustration signals detected",
+      "recommendations": [
+        "URGENT: Maintainer frustration detected - elevated sabotage risk",
+        "Review new releases carefully before updating",
+        "Consider contributing to reduce maintainer concentration",
+        "Monitor project health metrics monthly"
+      ]
+    },
+    {
+      "package": "orjson",
+      "score": 60,
+      "risk_level": "HIGH",
+      "concentration": 100.0,
+      "commits_last_year": 65,
+      "unique_contributors": 1,
+      "explanation": "\ud83d\udfe0 HIGH (60). Mature project (7 years, 25 lifetime contributors). Single-maintainer lifetime (95% lifetime concentration). Actively maintained (>50 commits/year). Some protective factors (-10 points)",
+      "recommendations": [
+        "Review new releases carefully before updating",
+        "Consider contributing to reduce maintainer concentration",
+        "Monitor project health metrics monthly"
+      ]
+    },
+    {
+      "package": "python-slugify",
+      "score": 55,
+      "risk_level": "MODERATE",
+      "concentration": 56.2,
+      "commits_last_year": 16,
+      "unique_contributors": 4,
+      "explanation": "\ud83d\udfe1 MODERATE (55). Mature project (13 years, 44 lifetime contributors). Distributed lifetime contributors (47% lifetime). Low activity (4-11 commits/year). Some protective factors (-5 points). ALERT: Newcomer takeover pattern detected on mature project",
+      "recommendations": [
+        "ALERT: New contributor dominates recent commits on mature project \u2014 review carefully (xz-utils pattern)",
+        "Standard monitoring recommended",
+        "Keep dependencies updated"
+      ]
+    },
+    {
+      "package": "webrtc-models",
+      "score": 55,
+      "risk_level": "MODERATE",
+      "concentration": 100.0,
+      "commits_last_year": 120,
+      "unique_contributors": 1,
+      "explanation": "\ud83d\udfe1 MODERATE (55). Critical concentration (100%): single person controls nearly all commits. Actively maintained (>50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Standard monitoring recommended",
+        "Keep dependencies updated"
+      ]
+    },
+    {
+      "package": "lru-dict",
+      "score": 50,
+      "risk_level": "MODERATE",
+      "concentration": 32.4,
+      "commits_last_year": 34,
+      "unique_contributors": 6,
+      "explanation": "\ud83d\udfe1 MODERATE (50). Mature project (13 years, 23 lifetime contributors). Distributed lifetime contributors (50% lifetime). Low activity (4-11 commits/year). Warning signals present (+10 points). ALERT: Newcomer takeover pattern detected on mature project",
+      "recommendations": [
+        "ALERT: New contributor dominates recent commits on mature project \u2014 review carefully (xz-utils pattern)",
+        "Standard monitoring recommended",
+        "Keep dependencies updated"
+      ]
+    },
+    {
+      "package": "aiohasupervisor",
+      "score": 35,
+      "risk_level": "LOW",
+      "concentration": 85.7,
+      "commits_last_year": 210,
+      "unique_contributors": 8,
+      "explanation": "\ud83d\udfe2 LOW (35). High concentration (86%): majority of commits from one person. Actively maintained (>50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "voluptuous-serialize",
+      "score": 35,
+      "risk_level": "LOW",
+      "concentration": 73.2,
+      "commits_last_year": 56,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe2 LOW (35). Mature project (10 years, 16 lifetime contributors). Moderately concentrated lifetime (73% lifetime). Actively maintained (>50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "aiohttp_cors",
+      "score": 35,
+      "risk_level": "LOW",
+      "concentration": 76.2,
+      "commits_last_year": 80,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe2 LOW (35). Mature project (10 years, 20 lifetime contributors). Distributed lifetime contributors (42% lifetime). Actively maintained (>50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "PyYAML",
+      "score": 35,
+      "risk_level": "LOW",
+      "concentration": 100.0,
+      "commits_last_year": 1,
+      "unique_contributors": 1,
+      "explanation": "\ud83d\udfe2 LOW (35). Mature project (20 years, 42 lifetime contributors). Moderately concentrated lifetime (54% lifetime). Low recent activity (expected for mature project). Some protective factors (-25 points)",
+      "recommendations": [
+        "HIGH PRIORITY: Single maintainer + low activity = prime takeover target",
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "awesomeversion",
+      "score": 30,
+      "risk_level": "LOW",
+      "concentration": 65.1,
+      "commits_last_year": 126,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe2 LOW (30). Mature project (5 years, 14 lifetime contributors). Distributed lifetime contributors (42% lifetime). Actively maintained (>50 commits/year)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "aiozoneinfo",
+      "score": 30,
+      "risk_level": "LOW",
+      "concentration": 56.5,
+      "commits_last_year": 23,
+      "unique_contributors": 2,
+      "explanation": "\ud83d\udfe2 LOW (30). Moderate concentration (57%): some bus factor risk. Moderately active (12-50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "voluptuous-openapi",
+      "score": 30,
+      "risk_level": "LOW",
+      "concentration": 67.6,
+      "commits_last_year": 34,
+      "unique_contributors": 7,
+      "explanation": "\ud83d\udfe2 LOW (30). Mature project (10 years, 19 lifetime contributors). Moderately concentrated lifetime (64% lifetime). Moderately active (12-50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "packaging",
+      "score": 25,
+      "risk_level": "LOW",
+      "concentration": 54.9,
+      "commits_last_year": 175,
+      "unique_contributors": 32,
+      "explanation": "\ud83d\udfe2 LOW (25). Mature project (12 years, 145 lifetime contributors). Distributed lifetime contributors (19% lifetime). Low activity (4-11 commits/year). Strong protective factors (-35 points). ALERT: Newcomer takeover pattern detected on mature project",
+      "recommendations": [
+        "ALERT: New contributor dominates recent commits on mature project \u2014 review carefully (xz-utils pattern)",
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "bcrypt",
+      "score": 25,
+      "risk_level": "LOW",
+      "concentration": 83.3,
+      "commits_last_year": 168,
+      "unique_contributors": 11,
+      "explanation": "\ud83d\udfe2 LOW (25). Mature project (13 years, 42 lifetime contributors). Moderately concentrated lifetime (63% lifetime). Actively maintained (>50 commits/year). Some protective factors (-25 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "Jinja2",
+      "score": 20,
+      "risk_level": "LOW",
+      "concentration": 92.9,
+      "commits_last_year": 28,
+      "unique_contributors": 2,
+      "explanation": "\ud83d\udfe2 LOW (20). Mature project (19 years, 341 lifetime contributors). Distributed lifetime contributors (44% lifetime). Moderately active (12-50 commits/year). Strong protective factors (-65 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "hassil",
+      "score": 20,
+      "risk_level": "LOW",
+      "concentration": 72.5,
+      "commits_last_year": 120,
+      "unique_contributors": 7,
+      "explanation": "\ud83d\udfe2 LOW (20). High concentration (72%): majority of commits from one person. Actively maintained (>50 commits/year). Some protective factors (-30 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "aiodns",
+      "score": 15,
+      "risk_level": "VERY_LOW",
+      "concentration": 66.7,
+      "commits_last_year": 78,
+      "unique_contributors": 7,
+      "explanation": "\ud83d\udfe2 VERY_LOW (15). Mature project (12 years, 37 lifetime contributors). Distributed lifetime contributors (25% lifetime). Actively maintained (>50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "securetar",
+      "score": 15,
+      "risk_level": "VERY_LOW",
+      "concentration": 59.6,
+      "commits_last_year": 47,
+      "unique_contributors": 3,
+      "explanation": "\ud83d\udfe2 VERY_LOW (15). Moderate concentration (60%): some bus factor risk. Moderately active (12-50 commits/year). Some protective factors (-30 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "mutagen",
+      "score": 15,
+      "risk_level": "VERY_LOW",
+      "concentration": 64.0,
+      "commits_last_year": 25,
+      "unique_contributors": 6,
+      "explanation": "\ud83d\udfe2 VERY_LOW (15). Mature project (21 years, 50 lifetime contributors). Moderately concentrated lifetime (55% lifetime). Moderately active (12-50 commits/year). Some protective factors (-30 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "home-assistant-bluetooth",
+      "score": 15,
+      "risk_level": "VERY_LOW",
+      "concentration": 64.7,
+      "commits_last_year": 51,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe2 VERY_LOW (15). Moderate concentration (65%): some bus factor risk. Actively maintained (>50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "async-interrupt",
+      "score": 10,
+      "risk_level": "VERY_LOW",
+      "concentration": 41.7,
+      "commits_last_year": 12,
+      "unique_contributors": 4,
+      "explanation": "\ud83d\udfe2 VERY_LOW (10). Distributed commits (42%): healthy contributor diversity. Moderately active (12-50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "aiogithubapi",
+      "score": 10,
+      "risk_level": "VERY_LOW",
+      "concentration": 42.4,
+      "commits_last_year": 99,
+      "unique_contributors": 4,
+      "explanation": "\ud83d\udfe2 VERY_LOW (10). Mature project (7 years, 14 lifetime contributors). Moderately concentrated lifetime (52% lifetime). Actively maintained (>50 commits/year)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "zeroconf",
+      "score": 10,
+      "risk_level": "VERY_LOW",
+      "concentration": 42.4,
+      "commits_last_year": 99,
+      "unique_contributors": 8,
+      "explanation": "\ud83d\udfe2 VERY_LOW (10). Mature project (17 years, 74 lifetime contributors). Moderately concentrated lifetime (55% lifetime). Actively maintained (>50 commits/year)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "aiohttp-fast-zlib",
+      "score": 10,
+      "risk_level": "VERY_LOW",
+      "concentration": 40.7,
+      "commits_last_year": 27,
+      "unique_contributors": 4,
+      "explanation": "\ud83d\udfe2 VERY_LOW (10). Distributed commits (41%): healthy contributor diversity. Moderately active (12-50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "home-assistant-intents",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 29.2,
+      "commits_last_year": 600,
+      "unique_contributors": 72,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Distributed commits (29%): healthy contributor diversity. Actively maintained (>50 commits/year). Strong protective factors (-35 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "voluptuous",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 20.0,
+      "commits_last_year": 5,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (16 years, 109 lifetime contributors). Distributed lifetime contributors (36% lifetime). Low activity (4-11 commits/year). Some protective factors (-25 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "Pillow",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 55.8,
+      "commits_last_year": 1062,
+      "unique_contributors": 20,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (16 years, 529 lifetime contributors). Distributed lifetime contributors (31% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-50 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "httpx",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 10.5,
+      "commits_last_year": 19,
+      "unique_contributors": 17,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (7 years, 257 lifetime contributors). Distributed lifetime contributors (47% lifetime). Moderately active (12-50 commits/year). Strong protective factors (-40 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "cryptography",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 42.1,
+      "commits_last_year": 1519,
+      "unique_contributors": 42,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (13 years, 384 lifetime contributors). Distributed lifetime contributors (32% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-55 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "attrs",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 76.9,
+      "commits_last_year": 117,
+      "unique_contributors": 16,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (11 years, 198 lifetime contributors). Moderately concentrated lifetime (77% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-60 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "typing-extensions",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 28.4,
+      "commits_last_year": 102,
+      "unique_contributors": 18,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (9 years, 80 lifetime contributors). Distributed lifetime contributors (31% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-70 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "propcache",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 57.6,
+      "commits_last_year": 85,
+      "unique_contributors": 12,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Moderate concentration (58%): some bus factor risk. Actively maintained (>50 commits/year). Strong protective factors (-35 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "fnv-hash-fast",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 35.6,
+      "commits_last_year": 59,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Distributed commits (36%): healthy contributor diversity. Actively maintained (>50 commits/year). Some protective factors (-25 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "yarl",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 46.8,
+      "commits_last_year": 154,
+      "unique_contributors": 14,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (10 years, 110 lifetime contributors). Distributed lifetime contributors (24% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-35 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "ulid-transform",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 39.4,
+      "commits_last_year": 71,
+      "unique_contributors": 6,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Distributed commits (39%): healthy contributor diversity. Actively maintained (>50 commits/year). Some protective factors (-25 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "aiohttp",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 48.9,
+      "commits_last_year": 1312,
+      "unique_contributors": 61,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (12 years, 835 lifetime contributors). Distributed lifetime contributors (34% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-55 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "PyJWT",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 28.1,
+      "commits_last_year": 64,
+      "unique_contributors": 16,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (15 years, 170 lifetime contributors). Distributed lifetime contributors (24% lifetime). Actively maintained (>50 commits/year). Some protective factors (-10 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "urllib3",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 36.0,
+      "commits_last_year": 111,
+      "unique_contributors": 31,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (16 years, 417 lifetime contributors). Distributed lifetime contributors (19% lifetime). Low activity (4-11 commits/year). Strong protective factors (-60 points). ALERT: Newcomer takeover pattern detected on mature project",
+      "recommendations": [
+        "ALERT: New contributor dominates recent commits on mature project \u2014 review carefully (xz-utils pattern)",
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "requests",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 48.4,
+      "commits_last_year": 64,
+      "unique_contributors": 14,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (15 years, 785 lifetime contributors). Distributed lifetime contributors (33% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-60 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "annotatedyaml",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 37.0,
+      "commits_last_year": 108,
+      "unique_contributors": 6,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Distributed commits (37%): healthy contributor diversity. Actively maintained (>50 commits/year). Some protective factors (-25 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "uv",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 25.2,
+      "commits_last_year": 2609,
+      "unique_contributors": 252,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Distributed commits (25%): healthy contributor diversity. Actively maintained (>50 commits/year). Strong protective factors (-45 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "certifi",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 68.3,
+      "commits_last_year": 41,
+      "unique_contributors": 5,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (14 years, 43 lifetime contributors). Distributed lifetime contributors (30% lifetime). Moderately active (12-50 commits/year). Strong protective factors (-45 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "pyOpenSSL",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 48.1,
+      "commits_last_year": 54,
+      "unique_contributors": 10,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (18 years, 120 lifetime contributors). Distributed lifetime contributors (20% lifetime). Actively maintained (>50 commits/year). Some protective factors (-15 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    },
+    {
+      "package": "SQLAlchemy",
+      "score": 0,
+      "risk_level": "VERY_LOW",
+      "concentration": 67.9,
+      "commits_last_year": 604,
+      "unique_contributors": 65,
+      "explanation": "\ud83d\udfe2 VERY_LOW (0). Mature project (21 years, 826 lifetime contributors). Moderately concentrated lifetime (79% lifetime). Actively maintained (>50 commits/year). Strong protective factors (-45 points)",
+      "recommendations": [
+        "Low risk - standard dependency management practices apply"
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "package": "hass-nabucasa",
+      "error": "Package 'hass-nabucasa' not found on pypi (no repository URL)"
+    }
+  ]
+}
