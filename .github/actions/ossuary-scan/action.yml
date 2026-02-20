@@ -46,7 +46,7 @@ runs:
         set -euo pipefail
 
         # Known dependency file patterns
-        DEP_PATTERNS="requirements.txt|constraints.txt|package.json|Cargo.toml|go.mod|Gemfile|composer.json|packages.config"
+        DEP_PATTERNS="requirements.txt|constraints.txt|package.json|pyproject.toml|Cargo.toml|go.mod|Gemfile|composer.json|packages.config"
         DEP_EXTENSIONS="\.csproj$"
 
         # Detect files to scan

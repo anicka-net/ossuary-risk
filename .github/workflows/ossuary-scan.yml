@@ -6,6 +6,7 @@ on:
       - "**/requirements*.txt"
       - "**/constraints.txt"
       - "**/package.json"
+      - "**/pyproject.toml"
       - "**/Cargo.toml"
       - "**/go.mod"
       - "**/Gemfile"

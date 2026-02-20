@@ -229,7 +229,7 @@ def _display_results(breakdown):
 
 @app.command()
 def scan(
-    file: str = typer.Argument(..., help="Dependency file to scan (requirements.txt, package.json, Cargo.toml, go.mod, Gemfile, composer.json, *.csproj)"),
+    file: str = typer.Argument(..., help="Dependency file to scan (requirements.txt, pyproject.toml, package.json, Cargo.toml, go.mod, Gemfile, composer.json, *.csproj)"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output JSON report file"),
     ecosystem: Optional[str] = typer.Option(None, "-e", "--ecosystem", help="Override ecosystem detection"),
     concurrent: int = typer.Option(3, "-c", "--concurrent", help="Parallel scoring workers"),

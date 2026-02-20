@@ -299,11 +299,34 @@ def _parse_csproj(path: str) -> list[ParsedPackage]:
     return packages
 
 
+def _parse_pyproject_toml(path: str) -> list[ParsedPackage]:
+    """Parse pyproject.toml for Python dependencies."""
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib  # type: ignore[no-redef]
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    packages = []
+    project = data.get("project", {})
+    for dep in project.get("dependencies", []):
+        name = re.split(r"[><=!~;\[@ ]", dep)[0].strip()
+        if name:
+            packages.append(ParsedPackage(name=name, is_dev=False))
+    for group_deps in project.get("optional-dependencies", {}).values():
+        for dep in group_deps:
+            name = re.split(r"[><=!~;\[@ ]", dep)[0].strip()
+            if name:
+                packages.append(ParsedPackage(name=name, is_dev=True))
+    return packages
+
+
 # Map filename patterns to (ecosystem, parser)
 _FILE_PARSERS: dict[str, tuple[str, callable]] = {
     "requirements.txt": ("pypi", _parse_requirements_txt),
     "constraints.txt": ("pypi", _parse_requirements_txt),
     "package.json": ("npm", _parse_package_json),
+    "pyproject.toml": ("pypi", _parse_pyproject_toml),
     "cargo.toml": ("cargo", _parse_cargo_toml),
     "go.mod": ("go", _parse_go_mod),
     "gemfile": ("rubygems", _parse_gemfile),
