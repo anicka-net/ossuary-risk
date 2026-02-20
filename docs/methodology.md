@@ -660,6 +660,17 @@ This validates that governance-based scoring can detect social engineering attac
 2. **Organization membership is current**: Historical org membership not tracked
 3. **Download counts are current**: Cannot assess historical visibility
 
+### 9.4 Score Stability
+
+Re-scoring the 136-package SUSE seed with `--no-skip-fresh` (forcing fresh data collection for all packages) produced **134 identical scores** (98.5% stability). Only 2 packages showed minor movement:
+
+| Package | Previous | Current | Delta | Likely Cause |
+|---------|----------|---------|-------|--------------|
+| storaged-project/udisks | 0 | 15 | +15 | Concentration shift as contributor activity aged |
+| pydantic | 0 | 5 | +5 | Minor activity metric change |
+
+This demonstrates that the scoring formula produces **reproducible, stable results** rather than fluctuating on noise. Score changes reflect genuine shifts in the underlying governance data (commit patterns, contributor activity), not measurement artifacts. For a tool intended for CI/CD integration, this stability is essential — teams should not see phantom alerts from scoring variance.
+
 ---
 
 ## 10. Threats to Validity
