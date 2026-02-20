@@ -147,6 +147,69 @@ The key insight from validation is that governance scoring and credential/CI/CD-
 
 A well-governed project can still be compromised via phishing (chalk 2025, solana-web3.js) or CI/CD exploits (tj-actions, Nx). Conversely, a poorly-governed project might never be attacked. The two dimensions are orthogonal — organizations should assess both.
 
+### 3.4 Case Study: The 2025 npm Phishing Wave
+
+The 2025 npm supply chain attacks represent the most significant series of package ecosystem compromises to date, affecting over 2.6 billion weekly downloads across multiple interconnected attack waves. Three packages from our validation set — `chalk`, `eslint-config-prettier`, and `is` — were compromised in this campaign, and their contrasting Ossuary scores illustrate the detection boundary precisely.
+
+#### Timeline
+
+| Wave | Date | Vector | Scale |
+|------|------|--------|-------|
+| eslint-config-prettier | July 17–19 | Phishing via typosquatted `npnjs.com` | 5 packages, 78M weekly downloads |
+| `is` package | July 19 | Phished inactive maintainer + social engineering | 1 package, 6 hours undetected |
+| s1ngularity / Nx | August 21–31 | GitHub Actions injection → token theft | 500+ packages, 2,349 credentials harvested |
+| chalk / "Great Heist" | September 8 | Phishing via `npmjs.help` | 18+ packages, 2.6B weekly downloads |
+| Shai-Hulud 1.0 | September | Self-replicating worm using stolen tokens | 500+ packages |
+| Shai-Hulud 2.0 | November 21–24 | Unrotated tokens from prior waves | 796 packages, 14,000 secrets exposed |
+
+The waves were causally linked: credentials stolen in the s1ngularity attack (August) were never rotated, directly enabling the Shai-Hulud worm (September–November). CISA issued alert AA25-266A on September 23, and CERT/CC published VU#534320 identifying "longstanding design weaknesses in npm's architecture."
+
+#### Three Packages, Three Outcomes
+
+| Package | Ossuary | Scorecard | Classification | Why |
+|---------|---------|-----------|----------------|-----|
+| **`is`** | **100 CRITICAL** | 3.4 | **True Positive** | Single inactive maintainer (100% concentration, 0 commits/year), no protective factors |
+| **eslint-config-prettier** | 35 LOW | 4.5 | Expected FN | Prettier org, active development, 32 commits/year, multiple contributors |
+| **chalk** | 20 LOW | 3.8 | Expected FN | Sindre Sorhus (Tier 1 reputation), established project, strong protective factors (−60) |
+
+All three were compromised by the same attack class (credential phishing), yet Ossuary correctly scored them on opposite sides of the risk threshold. This is not a bug — it reflects the fundamental distinction between **governance vulnerability** and **attack occurrence**:
+
+**`is`** — The `is` package had a single maintainer (enricomarino) who had not committed in years, with 100% contributor concentration and no organizational backing. Ossuary scored it 100 CRITICAL. When the attacker phished this inactive maintainer's npm credentials and then social-engineered the current team into re-granting publish access, the governance weakness was the enabling condition: a dormant account with live publish rights on a package with no review process for ownership changes.
+
+**chalk** — chalk is maintained by Sindre Sorhus, one of npm's most prolific contributors (Tier 1 reputation in Ossuary's system), with an active contributor base and organizational backing. Ossuary scored it 20 LOW. The attacker phished a co-maintainer (Qix-) via a fake `npmjs.help` domain and published malicious versions that intercepted cryptocurrency wallet transactions. The attack succeeded not because of governance weakness but because npm's authentication infrastructure allowed phishable TOTP-based MFA and long-lived publish tokens.
+
+**eslint-config-prettier** — Part of the Prettier organization with active development (32 commits/year). Ossuary scored it 35 LOW. Maintainer JounQin was phished via the typosquatted `npnjs.com` domain, and malicious versions delivered a Windows RAT via disguised postinstall scripts. Again, the attack vector was credential theft against a well-governed project.
+
+#### The Complementarity Argument
+
+The 2025 npm wave demonstrates that governance scoring and credential/infrastructure hardening are **complementary layers**, not alternative approaches:
+
+| Defense Layer | Would Prevent | 2025 Example |
+|---------------|---------------|--------------|
+| **Governance: Mandatory phishing-resistant MFA** | Credential phishing entirely | `npmjs.help` and `npnjs.com` attacks used phishable TOTP codes; FIDO/WebAuthn keys cannot be phished |
+| **Governance: Short-lived scoped tokens** | Cross-wave credential reuse | s1ngularity tokens (August) enabled Shai-Hulud (September–November) because they were never rotated |
+| **Governance: Publish review for dormant accounts** | `is`-style social engineering | Inactive maintainer regained publish access via email claim |
+| **Governance scoring (Ossuary)** | Identifying high-risk targets | `is` scored 100 CRITICAL — the governance weakness that made it a soft target was detectable months before the attack |
+| **Detection: Anomalous publish monitoring** | Rapid exploitation | Aikido detected chalk compromise in 5 minutes; 2.5M downloads still occurred in the 2-hour remediation window |
+| **Detection: Credential scanning** | Token reuse chains | The 2,349 tokens leaked by s1ngularity were publicly visible on GitHub; automated scanning would have flagged them |
+
+The critical insight for the thesis: **Ossuary cannot prevent the chalk attack** (score 20, correctly assessed as low governance risk), **but it can identify packages like `is` where governance weakness creates the preconditions for exactly this type of attack** (score 100). A security team using both Ossuary and credential monitoring would have:
+
+1. **Pre-attack**: Flagged `is` as CRITICAL risk (governance scoring), prioritized it for publish-access audit
+2. **During attack**: Detected anomalous publish from dormant account (credential monitoring)
+3. **Post-attack**: Known that chalk's governance was healthy (score 20) and focused remediation on the credential vector, not governance restructuring
+
+Neither tool alone provides this complete picture. The npm phishing wave is empirical evidence that the two dimensions — governance risk and credential/infrastructure security — require distinct measurement approaches used in concert.
+
+#### References
+
+- CISA Alert AA25-266A: "Widespread Supply Chain Compromise Impacting npm Ecosystem" (September 23, 2025)
+- CERT/CC VU#534320: npm architecture design weaknesses
+- Sonatype: "npm chalk and debug packages hit in software supply chain attack" (September 2025)
+- Aikido Security: Detection timeline for the September 8 chalk compromise
+- StepSecurity: "Another npm Supply Chain Attack — The 'is' Package Compromise" (July 2025)
+- SafeDep: "eslint-config-prettier: Major npm Supply Chain Hack" (July 2025)
+
 ---
 
 ## 4. Scoring Formula
@@ -898,10 +961,14 @@ These papers directly inform the methodology and should be read in full:
 10. OpenSSF Scorecard - https://securityscorecards.dev/
 11. CHAOSS Project - https://chaoss.community/
 12. CHAOSS Contributor Absence Factor - https://chaoss.community/kb/metric-bus-factor/
+13. CISA Alert AA25-266A. "Widespread Supply Chain Compromise Impacting npm Ecosystem." September 23, 2025. https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem
+14. CERT/CC VU#534320. "npm ecosystem design weaknesses enabling supply chain compromise." https://kb.cert.org/vuls/id/534320
+15. Check Point Research. "The Great NPM Heist: September 2025." https://blog.checkpoint.com/crypto/the-great-npm-heist-september-2025/
+16. Unit 42 / Palo Alto Networks. "Shai-Hulud: npm Supply Chain Worm." https://unit42.paloaltonetworks.com/npm-supply-chain-attack/
 
 ---
 
-*Document version: 5.0*
+*Document version: 5.1*
 *Last updated: February 2026*
 *Validation dataset: 158 packages across 8 ecosystems (89.9% accuracy, 100% precision, 0 false positives)*
 *Run validation: `python scripts/validate.py -o validation_results.json`*
