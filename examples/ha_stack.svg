@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="2440" style="background: #fafafa; font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;">
+<text x="400.0" y="35" text-anchor="middle" font-size="22" font-weight="bold" fill="#333">Home Assistant — dependency risk</text>
+<rect x="98.5" y="2300" width="603" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2321.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">SQLAlchemy</text>
+<rect x="171.5" y="2260" width="457" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2281.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">typing-extensions</text>
+<rect x="141.0" y="2220" width="518" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2241.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">urllib3</text>
+<rect x="222.0" y="2180" width="356" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2201.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiodns</text>
+<rect x="215.0" y="2140" width="370" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2161.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">zeroconf</text>
+<rect x="238.5" y="2100" width="323" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2121.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">awesomeversion</text>
+<rect x="303.0" y="2060" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2081.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">standard-aifc</text>
+<line x1="499.0" y1="2080.0" x2="505.0" y2="2080.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="2081.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
+<rect x="249.5" y="2020" width="301" height="38" rx="3" ry="3" fill="#f9a825" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2041.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">python-slugify</text>
+<rect x="238.5" y="1980" width="323" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="2001.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">voluptuous-serialize</text>
+<rect x="185.0" y="1940" width="430" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1961.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">requests</text>
+<rect x="178.0" y="1900" width="444" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1921.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">attrs</text>
+<rect x="249.5" y="1860" width="301" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1881.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiohttp-fast-zlib</text>
+<rect x="185.0" y="1820" width="430" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1841.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">yarl</text>
+<rect x="178.0" y="1780" width="444" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1801.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">PyJWT</text>
+<rect x="303.0" y="1740" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1761.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">standard-telnetlib</text>
+<line x1="499.0" y1="1760.0" x2="505.0" y2="1760.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="1761.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
+<rect x="303.0" y="1700" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1721.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">pymicro-vad</text>
+<line x1="499.0" y1="1720.0" x2="505.0" y2="1720.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="1721.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 3 commits/yr</text>
+<rect x="222.0" y="1660" width="356" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1681.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">hassil</text>
+<rect x="165.5" y="1620" width="469" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1641.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">Pillow</text>
+<rect x="303.0" y="1580" width="194" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1601.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">PyYAML</text>
+<rect x="279.0" y="1540" width="242" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1561.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiohttp-asyncmdnsresolver</text>
+<line x1="523.0" y1="1560.0" x2="529.0" y2="1560.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="531.0" y="1561.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">2 contributors, 22 commits/yr</text>
+<rect x="238.5" y="1500" width="323" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1521.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">fnv-hash-fast</text>
+<rect x="238.5" y="1460" width="323" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1481.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">certifi</text>
+<rect x="303.0" y="1420" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1441.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">astral</text>
+<line x1="499.0" y1="1440.0" x2="505.0" y2="1440.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="1441.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
+<rect x="123.5" y="1380" width="553" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1401.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">cryptography</text>
+<rect x="249.5" y="1340" width="301" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1361.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">audioop-lts</text>
+<line x1="552.5" y1="1360.0" x2="558.5" y2="1360.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="560.5" y="1361.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">4 contributors, 21 commits/yr</text>
+<rect x="229.5" y="1300" width="341" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1321.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">ulid-transform</text>
+<rect x="198.0" y="1260" width="404" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1281.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">bcrypt</text>
+<rect x="102.5" y="1220" width="595" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1241.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiohttp</text>
+<rect x="229.5" y="1180" width="341" height="38" rx="3" ry="3" fill="#f9a825" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1201.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">lru-dict</text>
+<rect x="238.5" y="1140" width="323" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1161.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">ciso8601</text>
+<line x1="563.5" y1="1160.0" x2="569.5" y2="1160.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="571.5" y="1161.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">5 contributors, 8 commits/yr</text>
+<rect x="303.0" y="1100" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1121.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">ifaddr</text>
+<line x1="499.0" y1="1120.0" x2="505.0" y2="1120.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="1121.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
+<rect x="279.0" y="1060" width="242" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1081.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">psutil-home-assistant</text>
+<line x1="523.0" y1="1080.0" x2="529.0" y2="1080.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="531.0" y="1081.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">2 contributors, 27 commits/yr</text>
+<rect x="279.0" y="1020" width="242" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1041.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">PyTurboJPEG</text>
+<line x1="523.0" y1="1040.0" x2="529.0" y2="1040.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="531.0" y="1041.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">2 contributors, 14 commits/yr</text>
+<rect x="303.0" y="980" width="194" height="38" rx="3" ry="3" fill="#f9a825" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="1001.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">webrtc-models</text>
+<rect x="249.5" y="940" width="301" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="961.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiogithubapi</text>
+<rect x="229.5" y="900" width="341" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="921.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">mutagen</text>
+<rect x="303.0" y="860" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="881.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">pyspeex-noise</text>
+<line x1="499.0" y1="880.0" x2="505.0" y2="880.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="881.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 2 commits/yr</text>
+<rect x="139.0" y="820" width="522" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="841.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">packaging</text>
+<rect x="193.5" y="780" width="413" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="801.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">propcache</text>
+<rect x="203.5" y="740" width="393" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="761.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">pyOpenSSL</text>
+<rect x="20.0" y="700" width="760" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="721.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">uv</text>
+<rect x="249.5" y="660" width="301" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="681.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">async-interrupt</text>
+<rect x="279.0" y="620" width="242" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="641.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">ha-ffmpeg</text>
+<line x1="523.0" y1="640.0" x2="529.0" y2="640.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="531.0" y="641.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">2 contributors, 29 commits/yr</text>
+<rect x="229.5" y="580" width="341" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="601.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">annotatedyaml</text>
+<rect x="222.0" y="540" width="356" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="561.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">voluptuous-openapi</text>
+<rect x="174.5" y="500" width="451" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="521.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">httpx</text>
+<rect x="279.0" y="460" width="242" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="481.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">Jinja2</text>
+<rect x="215.0" y="420" width="370" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="441.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiohasupervisor</text>
+<rect x="262.5" y="380" width="275" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="401.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">securetar</text>
+<rect x="238.5" y="340" width="323" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="361.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiohttp_cors</text>
+<rect x="238.5" y="300" width="323" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="321.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">home-assistant-bluetooth</text>
+<rect x="303.0" y="260" width="194" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="281.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">orjson</text>
+<line x1="499.0" y1="280.0" x2="505.0" y2="280.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="281.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 65 commits/yr</text>
+<rect x="303.0" y="220" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="241.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">cronsim</text>
+<line x1="499.0" y1="240.0" x2="505.0" y2="240.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="241.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 10 commits/yr</text>
+<rect x="238.5" y="180" width="323" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="201.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">voluptuous</text>
+<rect x="93.0" y="140" width="614" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="161.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">home-assistant-intents</text>
+<rect x="279.0" y="100" width="242" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="121.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">aiozoneinfo</text>
+<rect x="303.0" y="60" width="194" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
+<text x="400.0" y="81.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">atomicwrites-homeassistant</text>
+<line x1="499.0" y1="80.0" x2="505.0" y2="80.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
+<text x="507.0" y="81.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
+<text x="400.0" y="2370" text-anchor="middle" font-size="13" fill="#666" font-style="italic">All of Home Assistant rests on "standard-aifc" (1 contributor, 0 commits/yr, score 100)</text>
+<text x="400.0" y="2395" text-anchor="middle" font-size="10" fill="#aaa">Generated by ossuary — inspired by xkcd.com/2347</text>
+</svg>

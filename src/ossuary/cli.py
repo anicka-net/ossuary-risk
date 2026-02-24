@@ -689,6 +689,192 @@ def trends(
 
 
 @app.command()
+def xkcd(
+    report: str = typer.Argument(..., help="Scan report JSON (from 'ossuary scan -o')"),
+    output: str = typer.Option("stack.svg", "-o", "--output", help="Output SVG file"),
+    title: Optional[str] = typer.Option(None, "-t", "--title", help="Title (default: from report filename)"),
+    max_width: int = typer.Option(800, "--width", help="Max SVG width in pixels"),
+):
+    """Generate an xkcd-2347-style dependency stack diagram.
+
+    Block width = number of contributors (team size).
+    Block color = risk score (red=critical, green=safe).
+    Order preserved from scan report (intermingled for maximum comic effect).
+    """
+    if not os.path.exists(report):
+        console.print(f"[red]File not found: {report}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        with open(report) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Invalid JSON: {e}[/red]")
+        raise typer.Exit(1)
+
+    results = data.get("results", [])
+    if not results:
+        console.print("[yellow]No packages in report.[/yellow]")
+        raise typer.Exit(0)
+
+    # Shuffle to intermingle risk levels (the xkcd comic effect)
+    import random
+    random.seed(len(results))  # deterministic for same input
+    results = results[:]
+    random.shuffle(results)
+
+    if not title:
+        title = os.path.basename(data.get("file", report))
+
+    _generate_xkcd_svg(results, output, title, max_width)
+    console.print(f"[green]Generated {output}[/green] ({len(results)} packages)")
+
+
+def _generate_xkcd_svg(results: list, output: str, title: str, max_width: int):
+    """Generate the SVG stack diagram."""
+    import html as html_module
+
+    # Block dimensions
+    block_height = 40
+    padding = 20
+    min_block_width = 80
+    title_height = 60
+    caption_height = 80
+
+    # Risk level to color gradient
+    def score_to_color(score):
+        if score >= 80:
+            return "#d32f2f"  # red
+        elif score >= 60:
+            return "#e65100"  # deep orange
+        elif score >= 40:
+            return "#f9a825"  # amber
+        elif score >= 20:
+            return "#7cb342"  # light green
+        else:
+            return "#388e3c"  # green
+
+    def score_to_text_color(score):
+        if score >= 40:
+            return "#ffffff"
+        return "#ffffff"
+
+    # Calculate block widths from contributor count
+    # Use log scale so 1 person isn't invisible vs 500 people
+    import math
+
+    max_contributors = max(max(r.get("unique_contributors", 1), 1) for r in results)
+    usable_width = max_width - 2 * padding
+
+    blocks = []
+    for r in results:
+        contributors = max(r.get("unique_contributors", 1), 1)
+        # Log scale: width proportional to log(contributors + 1)
+        log_ratio = math.log(contributors + 1) / math.log(max_contributors + 1)
+        width = max(min_block_width, int(usable_width * (0.15 + 0.85 * log_ratio)))
+        blocks.append({
+            "name": r["package"],
+            "score": r["score"],
+            "risk_level": r["risk_level"],
+            "contributors": contributors,
+            "commits": r.get("commits_last_year", 0),
+            "concentration": r.get("concentration", 0),
+            "width": width,
+            "color": score_to_color(r["score"]),
+            "text_color": score_to_text_color(r["score"]),
+        })
+
+    # Find the scariest package for the caption
+    worst = max(blocks, key=lambda b: b["score"])
+
+    # Total SVG height
+    total_height = title_height + len(blocks) * block_height + caption_height + padding
+    center_x = max_width / 2
+
+    # Build SVG
+    svg_parts = []
+    svg_parts.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{max_width}" height="{total_height}" '
+        f'style="background: #fafafa; font-family: \'Comic Sans MS\', \'Chalkboard SE\', cursive, sans-serif;">'
+    )
+
+    # Title
+    svg_parts.append(
+        f'<text x="{center_x}" y="35" text-anchor="middle" '
+        f'font-size="22" font-weight="bold" fill="#333">'
+        f'{html_module.escape(title)} — dependency risk</text>'
+    )
+
+    # Draw blocks bottom-up (first package = bottom of stack)
+    y = title_height + (len(blocks) - 1) * block_height
+
+    for block in blocks:
+        bw = block["width"]
+        bx = center_x - bw / 2
+
+        # Block rectangle with slight rounded corners
+        svg_parts.append(
+            f'<rect x="{bx:.1f}" y="{y}" width="{bw}" height="{block_height - 2}" '
+            f'rx="3" ry="3" fill="{block["color"]}" stroke="#333" stroke-width="1.5"/>'
+        )
+
+        # Label: package name (truncate if too long)
+        name = block["name"]
+        if len(name) > int(bw / 7):
+            name = name[:int(bw / 7) - 1] + ".."
+
+        svg_parts.append(
+            f'<text x="{center_x}" y="{y + block_height / 2 + 1}" '
+            f'text-anchor="middle" dominant-baseline="middle" '
+            f'font-size="12" fill="{block["text_color"]}">'
+            f'{html_module.escape(name)}</text>'
+        )
+
+        # Side annotation for high-risk packages
+        if block["score"] >= 60:
+            annotation = f'{block["contributors"]} contributor{"s" if block["contributors"] != 1 else ""}, {block["commits"]} commits/yr'
+            ax = center_x + bw / 2 + 10
+            svg_parts.append(
+                f'<line x1="{center_x + bw / 2 + 2}" y1="{y + block_height / 2}" '
+                f'x2="{ax - 2}" y2="{y + block_height / 2}" '
+                f'stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>'
+            )
+            svg_parts.append(
+                f'<text x="{ax}" y="{y + block_height / 2 + 1}" '
+                f'dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">'
+                f'{html_module.escape(annotation)}</text>'
+            )
+
+        y -= block_height
+
+    # Caption at bottom (xkcd style)
+    caption_y = title_height + len(blocks) * block_height + 30
+    if worst["score"] >= 60:
+        caption = (
+            f'All of {html_module.escape(title)} rests on "{html_module.escape(worst["name"])}" '
+            f'({worst["contributors"]} contributor{"s" if worst["contributors"] != 1 else ""}, '
+            f'{worst["commits"]} commits/yr, score {worst["score"]})'
+        )
+    else:
+        caption = f'{len(blocks)} dependencies — looking healthy!'
+    svg_parts.append(
+        f'<text x="{center_x}" y="{caption_y}" text-anchor="middle" '
+        f'font-size="13" fill="#666" font-style="italic">{caption}</text>'
+    )
+
+    # Footer
+    svg_parts.append(
+        f'<text x="{center_x}" y="{caption_y + 25}" text-anchor="middle" '
+        f'font-size="10" fill="#aaa">Generated by ossuary — inspired by xkcd.com/2347</text>'
+    )
+
+    svg_parts.append('</svg>')
+
+    with open(output, "w") as f:
+        f.write('\n'.join(svg_parts))
+
+
+@app.command()
 def diff(
     before: str = typer.Argument(..., help="Baseline scan report (JSON from 'ossuary scan -o')"),
     after: str = typer.Argument(..., help="New scan report (JSON from 'ossuary scan -o')"),
