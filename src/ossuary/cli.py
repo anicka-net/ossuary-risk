@@ -932,6 +932,713 @@ def _generate_xkcd_svg(results: list, output: str, title: str, max_width: int):
         f.write('\n'.join(svg))
 
 
+@app.command("xkcd-tree")
+def xkcd_tree(
+    package: str = typer.Argument(..., help="Root package (e.g., 'express')"),
+    ecosystem: str = typer.Option("npm", "-e", "--ecosystem", help="Package ecosystem (npm or pypi)"),
+    output: str = typer.Option("tree.svg", "-o", "--output", help="Output SVG file"),
+    max_depth: int = typer.Option(6, "--depth", help="Max dependency depth to traverse"),
+    max_packages: int = typer.Option(80, "--max", help="Max packages to include"),
+    tower: bool = typer.Option(False, "--tower", help="Render as Jenga tower instead of tree graph"),
+    title: Optional[str] = typer.Option(None, "-t", "--title"),
+    max_width: int = typer.Option(1200, "--width", help="SVG width in pixels"),
+):
+    """Generate a dependency tree diagram (xkcd-2347 style).
+
+    Fetches the full dependency tree from the package registry and renders
+    it as a layered graph where branches converge onto shared foundations.
+    Block width = contributors, block color = risk score.
+
+    With --tower, renders as a Jenga-style wobble tower ordered by real
+    dependency structure: foundation packages at the bottom, root at the top.
+    """
+    if ecosystem not in ("npm", "pypi"):
+        console.print("[red]Tree diagrams support npm and pypi ecosystems.[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[bold]Fetching dependency tree for {package} ({ecosystem})...[/bold]")
+
+    adj = _fetch_dep_tree(package, ecosystem, max_depth, max_packages)
+    if not adj:
+        console.print(f"[red]Could not fetch dependencies for {package}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"\n  [bold]{len(adj)} packages[/bold] in dependency tree")
+
+    if not title:
+        title = f"{package} — dependency tree" if not tower else package
+
+    if tower:
+        _generate_tower_from_tree(adj, package, ecosystem, output, title, max_width)
+    else:
+        _generate_tree_svg(adj, package, ecosystem, output, title, max_width)
+    console.print(f"[green]Generated {output}[/green]")
+
+
+def _fetch_dep_tree(package, ecosystem, max_depth, max_packages):
+    """Fetch dependency tree from package registry (BFS, concurrent)."""
+    import re
+    import urllib.parse
+    import urllib.request
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    adj = {}
+    to_fetch = {package: 0}
+
+    def fetch_npm(name):
+        try:
+            url = f"https://registry.npmjs.org/{urllib.parse.quote(name, safe='@/')}/latest"
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read())
+            return name, list(data.get("dependencies", {}).keys())
+        except Exception:
+            return name, []
+
+    def fetch_pypi(name):
+        try:
+            url = f"https://pypi.org/pypi/{urllib.parse.quote(name, safe='')}/json"
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read())
+            requires = data.get("info", {}).get("requires_dist") or []
+            deps = []
+            for r in requires:
+                # Skip extras-only dependencies
+                if "extra ==" in r or "extra==" in r:
+                    continue
+                m = re.match(r'^([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?)', r)
+                if m:
+                    deps.append(m.group(1))
+            return name, deps
+        except Exception:
+            return name, []
+
+    fetcher = fetch_npm if ecosystem == "npm" else fetch_pypi
+
+    while to_fetch and len(adj) < max_packages:
+        batch = {n: d for n, d in to_fetch.items() if n not in adj}
+        if not batch:
+            break
+
+        new_to_fetch = {}
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            futures = {pool.submit(fetcher, name): (name, depth) for name, depth in batch.items()}
+            for future in as_completed(futures):
+                name, depth = futures[future]
+                pkg_name, deps = future.result()
+                adj[pkg_name] = deps
+                console.print(f"  [{len(adj):3d}] {pkg_name} ({len(deps)} deps)", highlight=False)
+                if depth < max_depth:
+                    for dep in deps:
+                        if dep not in adj and dep not in new_to_fetch:
+                            new_to_fetch[dep] = depth + 1
+
+        to_fetch = new_to_fetch
+
+    return adj
+
+
+def _generate_tree_svg(adj, root, ecosystem, output, title, max_width):
+    """Generate layered DAG SVG showing dependency convergence."""
+    import html as html_module
+    import math
+
+    # --- 1. Assign layers — shared packages pushed to their deepest reachable layer ---
+    layer_map = {}
+
+    def assign_layers(name, depth, stack):
+        if name in stack:
+            return
+        if name in layer_map and layer_map[name] >= depth:
+            return
+        layer_map[name] = depth
+        stack.add(name)
+        for dep in adj.get(name, []):
+            if dep in adj:
+                assign_layers(dep, depth + 1, stack)
+        stack.discard(name)
+
+    assign_layers(root, 0, set())
+    if not layer_map:
+        return
+
+    # --- 2. Group by layer, order to minimize edge crossings ---
+    max_layer = max(layer_map.values())
+    layers = [[] for _ in range(max_layer + 1)]
+    for name, layer in layer_map.items():
+        layers[layer].append(name)
+
+    # Reverse adjacency for parent lookup
+    parents_of = {}
+    for parent, children in adj.items():
+        for child in children:
+            if child in layer_map:
+                parents_of.setdefault(child, []).append(parent)
+
+    # Barycenter heuristic — order by average parent position
+    for layer in layers:
+        layer.sort()
+    for _ in range(8):
+        for l in range(1, len(layers)):
+            order = {}
+            for node in layers[l]:
+                parent_pos = []
+                for p in parents_of.get(node, []):
+                    if p in layer_map and p in layers[layer_map[p]]:
+                        parent_pos.append(layers[layer_map[p]].index(p))
+                if parent_pos:
+                    order[node] = sum(parent_pos) / len(parent_pos)
+            layers[l].sort(key=lambda n: order.get(n, float('inf')))
+
+    # --- 3. Risk scores from DB ---
+    scores_db = {}
+    try:
+        from ossuary.db.session import session_scope
+        from ossuary.db.models import Package, Score
+        with session_scope() as session:
+            for name in layer_map:
+                pkg = session.query(Package).filter(
+                    Package.name == name, Package.ecosystem == ecosystem,
+                ).first()
+                if pkg:
+                    latest = (
+                        session.query(Score).filter(Score.package_id == pkg.id)
+                        .order_by(Score.calculated_at.desc()).first()
+                    )
+                    if latest:
+                        scores_db[name] = {
+                            "score": latest.final_score,
+                            "risk_level": latest.risk_level,
+                            "contributors": max(latest.unique_contributors, 1),
+                        }
+    except Exception:
+        pass
+
+    def score_color(score):
+        if score >= 80: return "#c62828"
+        elif score >= 60: return "#d84315"
+        elif score >= 40: return "#f57f17"
+        elif score >= 20: return "#558b2f"
+        else: return "#2e7d32"
+
+    # --- 4. Block positions ---
+    block_h = 26
+    layer_gap = 50
+    pad_top = 55
+    pad_bottom = 70
+    pad_x = 20
+    min_bw = 36
+    max_bw = 180
+    gap = 6
+
+    max_contribs = max(
+        (scores_db.get(n, {}).get("contributors", 1) for n in layer_map),
+        default=1,
+    )
+
+    def bwidth(name):
+        c = scores_db.get(name, {}).get("contributors", 1)
+        ratio = math.sqrt(c) / math.sqrt(max(max_contribs, 1))
+        return max(min_bw, int(max_bw * (0.15 + 0.85 * ratio)))
+
+    positions = {}
+    available = max_width - 2 * pad_x
+
+    for l, layer in enumerate(layers):
+        y = pad_top + l * (block_h + layer_gap)
+        widths = [bwidth(n) for n in layer]
+        total = sum(widths) + gap * max(len(layer) - 1, 0)
+
+        # Scale down if too wide
+        g = gap
+        if total > available and len(layer) > 1:
+            scale = available / total
+            widths = [max(min_bw, int(w * scale)) for w in widths]
+            total = sum(widths) + gap * max(len(layer) - 1, 0)
+            if total > available:
+                g = max(2, (available - sum(widths)) // max(len(layer) - 1, 1))
+                total = sum(widths) + g * max(len(layer) - 1, 0)
+
+        x = pad_x + (available - total) / 2
+        for i, name in enumerate(layer):
+            positions[name] = (x, y, widths[i])
+            x += widths[i] + g
+
+    # --- 5. Build SVG ---
+    total_h = pad_top + (max_layer + 1) * (block_h + layer_gap) + pad_bottom
+    cx = max_width / 2
+
+    svg = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{max_width}" height="{int(total_h)}" '
+        f'style="background: #fafafa; font-family: \'Comic Sans MS\', \'Chalkboard SE\', cursive, sans-serif;">',
+
+        f'<text x="{cx}" y="32" text-anchor="middle" '
+        f'font-size="20" font-weight="bold" fill="#333">'
+        f'{html_module.escape(title)}</text>',
+    ]
+
+    # Edges (behind blocks) — S-curves
+    for parent, children in adj.items():
+        if parent not in positions:
+            continue
+        px, py, pw = positions[parent]
+        pcx = px + pw / 2
+        pby = py + block_h
+        for child in children:
+            if child not in positions:
+                continue
+            ccx_pos, cy, cw = positions[child]
+            ccx = ccx_pos + cw / 2
+            mid = (pby + cy) / 2
+            svg.append(
+                f'<path d="M{pcx:.0f},{pby:.0f} C{pcx:.0f},{mid:.0f} {ccx:.0f},{mid:.0f} {ccx:.0f},{cy:.0f}" '
+                f'fill="none" stroke="#ddd" stroke-width="1" opacity="0.5"/>'
+            )
+
+    # Blocks + labels
+    for name, (x, y, w) in positions.items():
+        info = scores_db.get(name, {})
+        score = info.get("score", -1)
+        color = score_color(score) if score >= 0 else "#9e9e9e"
+
+        svg.append(
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{w}" height="{block_h}" '
+            f'rx="2" ry="2" fill="{color}" stroke="#222" stroke-width="0.8"/>'
+        )
+
+        max_chars = max(2, int(w / 7))
+        display = name if len(name) <= max_chars else name[:max_chars - 2] + ".."
+        fs = 10 if w >= 120 else (9 if w >= 60 else 7)
+        svg.append(
+            f'<text x="{x + w/2:.1f}" y="{y + block_h/2 + 1:.1f}" '
+            f'text-anchor="middle" dominant-baseline="middle" '
+            f'font-size="{fs}" fill="#fff">{html_module.escape(display)}</text>'
+        )
+
+    # Caption — worst foundation package (bottom half of tree)
+    mid_layer = max_layer // 2
+    foundation = [n for n in layer_map if layer_map[n] >= mid_layer and n in scores_db]
+    worst = max(foundation, key=lambda n: scores_db[n]["score"], default=None) if foundation else None
+
+    caption_y = total_h - pad_bottom + 20
+    if worst:
+        wi = scores_db[worst]
+        svg.append(
+            f'<text x="{cx}" y="{caption_y}" text-anchor="middle" '
+            f'font-size="13" fill="#555" font-style="italic">'
+            f'Everything converges on \u201c{html_module.escape(worst)}\u201d '
+            f'({wi["contributors"]} contributor{"s" if wi["contributors"] != 1 else ""}, '
+            f'score {wi["score"]})</text>'
+        )
+    else:
+        svg.append(
+            f'<text x="{cx}" y="{caption_y}" text-anchor="middle" '
+            f'font-size="13" fill="#555" font-style="italic">'
+            f'{len(layer_map)} packages in the dependency tree</text>'
+        )
+
+    svg.append(
+        f'<text x="{cx}" y="{caption_y + 22}" text-anchor="middle" '
+        f'font-size="9" fill="#bbb">generated by ossuary \u2014 inspired by xkcd.com/2347</text>'
+    )
+    svg.append('</svg>')
+
+    with open(output, "w") as f:
+        f.write('\n'.join(svg))
+
+
+def _generate_tower_from_tree(adj, root, ecosystem, output, title, max_width):
+    """Generate wide Jenga tower from real dependency graph.
+
+    Each topological layer = a row of blocks. Blocks are positioned under
+    their parents so the dependency structure is visible through spatial
+    alignment alone — no explicit edges needed.
+    Width = contributors, color = risk score.
+    """
+    import html as html_module
+    import math
+    from collections import deque
+
+    # --- 1. Assign layers (shared packages pushed to deepest layer) ---
+    layer_map = {}
+
+    def assign_layers(name, depth, stack):
+        if name in stack:
+            return
+        if name in layer_map and layer_map[name] >= depth:
+            return
+        layer_map[name] = depth
+        stack.add(name)
+        for dep in adj.get(name, []):
+            if dep in adj:
+                assign_layers(dep, depth + 1, stack)
+        stack.discard(name)
+
+    assign_layers(root, 0, set())
+    if not layer_map:
+        return
+
+    # --- 2. Transitive dependents (for caption) ---
+    reverse = {name: [] for name in adj}
+    for parent, children in adj.items():
+        for child in children:
+            if child in reverse:
+                reverse[child].append(parent)
+
+    dependents = {name: set() for name in adj}
+    for node in adj:
+        visited = set()
+        queue = deque(reverse.get(node, []))
+        while queue:
+            p = queue.popleft()
+            if p in visited:
+                continue
+            visited.add(p)
+            dependents[node].add(p)
+            for gp in reverse.get(p, []):
+                if gp not in visited:
+                    queue.append(gp)
+
+    # --- 3. Group by layer ---
+    max_layer = max(layer_map.values())
+    layers = [[] for _ in range(max_layer + 1)]
+    for name, layer in layer_map.items():
+        layers[layer].append(name)
+
+    # --- 4. Get risk scores from DB ---
+    scores_db = {}
+    try:
+        from ossuary.db.session import session_scope
+        from ossuary.db.models import Package, Score
+        with session_scope() as session:
+            for name in layer_map:
+                pkg = session.query(Package).filter(
+                    Package.name == name, Package.ecosystem == ecosystem,
+                ).first()
+                if pkg:
+                    latest = (
+                        session.query(Score).filter(Score.package_id == pkg.id)
+                        .order_by(Score.calculated_at.desc()).first()
+                    )
+                    if latest:
+                        # Parse lifetime commits from maturity evidence
+                        lifetime_commits = 0
+                        lifetime_years = 0
+                        bd = latest.breakdown or {}
+                        if isinstance(bd, str):
+                            import json as _json
+                            bd = _json.loads(bd)
+                        maturity_ev = (
+                            bd.get("score", {})
+                            .get("components", {})
+                            .get("protective_factors", {})
+                            .get("maturity", {})
+                            .get("evidence", "") or ""
+                        )
+                        import re as _re
+                        m = _re.search(r"(\d+)\s+commits?\s+over\s+(\d+)\s+year", maturity_ev)
+                        if m:
+                            lifetime_commits = int(m.group(1))
+                            lifetime_years = int(m.group(2))
+                        scores_db[name] = {
+                            "score": latest.final_score,
+                            "base_risk": bd.get("score", {}).get("components", {}).get("base_risk", latest.final_score),
+                            "risk_level": latest.risk_level,
+                            "contributors": max(latest.unique_contributors, 1),
+                            "commits": latest.commits_last_year,
+                            "concentration": latest.maintainer_concentration,
+                            "lifetime_commits": lifetime_commits,
+                            "lifetime_years": lifetime_years,
+                        }
+    except Exception:
+        pass
+
+    def score_color(score):
+        if score >= 80: return "#c62828"
+        elif score >= 60: return "#d84315"
+        elif score >= 40: return "#f57f17"
+        elif score >= 20: return "#558b2f"
+        else: return "#2e7d32"
+
+    # --- 5. Block sizing ---
+    block_h = 32
+    row_gap = 4
+    pad_x = 30
+    available_w = max_width - 2 * pad_x
+    min_gap = 3
+    branch_gap = 18  # wider gap between unrelated subtrees
+
+    max_contribs = max(
+        (scores_db.get(n, {}).get("contributors", 1) for n in layer_map),
+        default=1,
+    )
+
+    def raw_width(name):
+        c = scores_db.get(name, {}).get("contributors", 1)
+        ratio = math.sqrt(c) / math.sqrt(max(max_contribs, 1))
+        return max(38, int(150 * (0.1 + 0.9 * ratio)))
+
+    # --- 6. Position blocks: each block sits under its parents ---
+    # positions[name] = (x_center, width)
+    positions = {}
+
+    # Layer 0: root centered
+    root_w = raw_width(root)
+    positions[root] = (available_w / 2, root_w)
+
+    # Reverse adj lookup: child → [parents that are in the tree]
+    parents_of = {}
+    for parent, children in adj.items():
+        for child in children:
+            if child in layer_map and parent in layer_map:
+                parents_of.setdefault(child, []).append(parent)
+
+    for l in range(1, max_layer + 1):
+        row = layers[l]
+
+        # Compute target x for each block = average center of parents
+        targets = {}
+        for name in row:
+            parents = [p for p in parents_of.get(name, []) if p in positions]
+            if parents:
+                targets[name] = sum(positions[p][0] for p in parents) / len(parents)
+            else:
+                targets[name] = available_w / 2
+
+        # Sort by target x
+        row.sort(key=lambda n: targets[n])
+
+        # Compute widths
+        widths = {n: raw_width(n) for n in row}
+
+        # Place blocks: honor target x, push apart on overlap,
+        # add wider gaps between blocks from different parent groups
+        placed = []  # [(name, x_left, width)]
+        for i, name in enumerate(row):
+            w = widths[name]
+            ideal_left = targets[name] - w / 2
+
+            if i > 0:
+                prev_name, prev_left, prev_w = placed[-1]
+                prev_right = prev_left + prev_w
+
+                # Determine gap: wider if from different parent group
+                my_parents = set(parents_of.get(name, []))
+                prev_parents = set(parents_of.get(prev_name, []))
+                if my_parents & prev_parents:
+                    gap = min_gap  # siblings — tight
+                else:
+                    gap = branch_gap  # different branches — wide gap
+
+                min_left = prev_right + gap
+                actual_left = max(ideal_left, min_left)
+            else:
+                actual_left = ideal_left
+
+            placed.append((name, actual_left, w))
+
+        # Center the whole row
+        if placed:
+            row_left = placed[0][1]
+            row_right = placed[-1][1] + placed[-1][2]
+            row_w = row_right - row_left
+            shift = (available_w - row_w) / 2 - row_left
+            for j, (n, xl, w) in enumerate(placed):
+                placed[j] = (n, xl + shift, w)
+
+            # Clamp to canvas
+            if placed[0][1] < 0:
+                nudge = -placed[0][1]
+                placed = [(n, xl + nudge, w) for n, xl, w in placed]
+            last_right = placed[-1][1] + placed[-1][2]
+            if last_right > available_w:
+                scale = available_w / last_right
+                placed = [(n, xl * scale, max(20, int(w * scale))) for n, xl, w in placed]
+
+        for name, xl, w in placed:
+            positions[name] = (xl + w / 2, w)
+
+    # --- 7. Build SVG ---
+    title_h = 50
+    caption_h = 70
+    n_rows = max_layer + 1
+    stack_h = n_rows * (block_h + row_gap)
+    total_h = title_h + stack_h + caption_h + 20
+    center_x = max_width / 2
+
+    svg = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{max_width}" height="{int(total_h)}" '
+        f'style="background: #fafafa; font-family: \'Comic Sans MS\', \'Chalkboard SE\', cursive, sans-serif;">',
+
+        '<defs><marker id="arr" markerWidth="10" markerHeight="7" '
+        'refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">'
+        '<polygon points="0 0, 10 3.5, 0 7" fill="#1a237e"/>'
+        '</marker></defs>',
+
+        f'<text x="{center_x}" y="32" text-anchor="middle" '
+        f'font-size="20" font-weight="bold" fill="#333">'
+        f'{html_module.escape(title)}</text>',
+    ]
+
+    # Draw rows top-down (layer 0 = root = top)
+    worst_block = None
+    worst_threat = -1
+
+    for l in range(max_layer + 1):
+        row_y = title_h + l * (block_h + row_gap)
+
+        for name in layers[l]:
+            cx, w = positions[name]
+            bx = pad_x + cx - w / 2
+
+            info = scores_db.get(name, {})
+            score = info.get("score", -1)
+            color = score_color(score) if score >= 0 else "#9e9e9e"
+            n_dep = len(dependents.get(name, set()))
+
+            svg.append(
+                f'<rect x="{bx:.1f}" y="{row_y:.1f}" width="{w}" height="{block_h}" '
+                f'rx="2" ry="2" fill="{color}" stroke="#222" stroke-width="1"/>'
+            )
+
+            # Label — always inside the block, multi-line if needed
+            if w >= 120:
+                fs = 10
+            elif w >= 70:
+                fs = 9
+            elif w >= 55:
+                fs = 7
+            else:
+                fs = 6
+            char_w = fs * 0.65  # approximate char width
+            max_chars = max(2, int((w - 4) / char_w))
+            if len(name) <= max_chars:
+                # Single line — fits
+                svg.append(
+                    f'<text x="{bx + w/2:.1f}" y="{row_y + block_h/2 + 1:.1f}" '
+                    f'text-anchor="middle" dominant-baseline="middle" '
+                    f'font-size="{fs}" fill="#fff">{html_module.escape(name)}</text>'
+                )
+            else:
+                # Split into two lines at hyphen or midpoint
+                mid = len(name) // 2
+                # Prefer splitting at a hyphen near the middle
+                best = mid
+                best_dist = len(name)
+                for k, ch in enumerate(name):
+                    if ch in ('-', '.', '_') and 0 < k < len(name) - 1:
+                        if abs(k - mid) < best_dist:
+                            best_dist = abs(k - mid)
+                            best = k + 1  # split after the delimiter
+                line1 = name[:best]
+                line2 = name[best:]
+                ty1 = row_y + block_h / 2 - fs * 0.45
+                ty2 = row_y + block_h / 2 + fs * 0.65
+                tx = bx + w / 2
+                svg.append(
+                    f'<text x="{tx:.1f}" y="{ty1:.1f}" '
+                    f'text-anchor="middle" dominant-baseline="middle" '
+                    f'font-size="{fs}" fill="#fff">{html_module.escape(line1)}</text>'
+                )
+                svg.append(
+                    f'<text x="{tx:.1f}" y="{ty2:.1f}" '
+                    f'text-anchor="middle" dominant-baseline="middle" '
+                    f'font-size="{fs}" fill="#fff">{html_module.escape(line2)}</text>'
+                )
+
+            # Track worst structural threat
+            # Combines: maintenance fragility × code complexity × tree position
+            #
+            # Fragility: concentration / sqrt(contributors) — having 20
+            #   contributors makes high concentration safe; having 1 doesn't.
+            # Irreplaceability: log2(lifetime_commits) — a 10-line utility
+            #   is trivial to fork; a 20-year protocol impl is not.
+            # Tree impact: how many packages in this tree break if it fails.
+            if score >= 0 and n_dep > 0 and name != root:
+                contribs = info.get("contributors", 1)
+                conc = info.get("concentration", 50)
+                commits = info.get("commits", 0)
+                lt_commits = info.get("lifetime_commits", 0)
+
+                # Fragility: concentration adjusted by contributor depth
+                # 1 contrib → full concentration risk
+                # 4 contribs → halved, 16 contribs → quartered
+                fragility = (conc / 100) / math.sqrt(max(contribs, 1))
+                # Low recent activity amplifies fragility
+                if commits <= 1:
+                    fragility = min(1.0, fragility * 1.5)
+                elif commits <= 5:
+                    fragility = min(1.0, fragility * 1.2)
+
+                # Irreplaceability: accumulated code complexity (log-scale)
+                # log2(10)/12≈0.28, log2(300)/12≈0.69, log2(2000)/12≈0.92
+                irreplaceability = min(1.0, math.log2(max(lt_commits, 10)) / 12)
+
+                # Tree impact: how much breaks if it fails
+                tree_impact = 1 + n_dep
+
+                threat = fragility * irreplaceability * tree_impact * 100
+                if threat > worst_threat:
+                    worst_threat = threat
+                    worst_block = {
+                        "name": name, "x": bx, "y": row_y, "w": w,
+                        "score": score, "contributors": contribs,
+                        "commits": commits, "dependents": n_dep,
+                        "concentration": conc,
+                        "lifetime_commits": lt_commits,
+                        "lifetime_years": info.get("lifetime_years", 0),
+                    }
+
+    # Arrow
+    if worst_block:
+        wb = worst_block
+        tip_x = wb["x"] - 2
+        tip_y = wb["y"] + block_h / 2
+        start_x = max(tip_x - 120, 10)
+        start_y = tip_y + 60
+        svg.append(
+            f'<line x1="{start_x:.1f}" y1="{start_y:.1f}" '
+            f'x2="{tip_x:.1f}" y2="{tip_y:.1f}" '
+            f'stroke="#1a237e" stroke-width="2.5" marker-end="url(#arr)"/>'
+        )
+
+    # Caption
+    caption_y = title_h + stack_h + 20
+    if worst_block:
+        w = worst_block
+        parts = []
+        if w.get("lifetime_years"):
+            parts.append(f'{w["lifetime_years"]} years of code')
+        parts.append(f'{w["contributors"]} active maintainer{"s" if w["contributors"] != 1 else ""}')
+        if w["commits"] == 0:
+            parts.append("no commits this year")
+        else:
+            parts.append(f'{w["commits"]} commit{"s" if w["commits"] != 1 else ""}/yr')
+        caption_detail = ", ".join(parts)
+        svg.append(
+            f'<text x="{center_x}" y="{caption_y}" text-anchor="middle" '
+            f'font-size="13" fill="#555" font-style="italic">'
+            f'\u201c{html_module.escape(w["name"])}\u201d: {caption_detail}. '
+            f'{w["dependents"]} package{"s" if w["dependents"] != 1 else ""} depend on it.</text>'
+        )
+    else:
+        svg.append(
+            f'<text x="{center_x}" y="{caption_y}" text-anchor="middle" '
+            f'font-size="13" fill="#555" font-style="italic">'
+            f'{len(layer_map)} packages in the dependency tree</text>'
+        )
+
+    svg.append(
+        f'<text x="{center_x}" y="{caption_y + 22}" text-anchor="middle" '
+        f'font-size="9" fill="#bbb">generated by ossuary \u2014 inspired by xkcd.com/2347</text>'
+    )
+    svg.append('</svg>')
+
+    with open(output, "w") as f:
+        f.write('\n'.join(svg))
+
+
 @app.command()
 def diff(
     before: str = typer.Argument(..., help="Baseline scan report (JSON from 'ossuary scan -o')"),

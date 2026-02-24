@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="428" style="background: #fafafa; font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;">
+<defs><marker id="arr" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth"><polygon points="0 0, 10 3.5, 0 7" fill="#1a237e"/></marker></defs>
+<text x="600.0" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">transformers</text>
+<rect x="525.0" y="50.0" width="150" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="600.0" y="67.0" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#fff">transformers</text>
+<rect x="493.5" y="86.0" width="85" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="536.0" y="103.0" text-anchor="middle" dominant-baseline="middle" font-size="9" fill="#fff">numpy</text>
+<rect x="581.5" y="86.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="600.5" y="103.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">regex</text>
+<rect x="622.5" y="86.0" width="43" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="644.0" y="99.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">token</text>
+<text x="644.0" y="105.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">izers</text>
+<rect x="668.5" y="86.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="687.5" y="99.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">safet</text>
+<text x="687.5" y="105.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">ensors</text>
+<rect x="569.0" y="122.0" width="62" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="600.0" y="134.8" text-anchor="middle" dominant-baseline="middle" font-size="7" fill="#fff">huggingface-</text>
+<text x="600.0" y="142.6" text-anchor="middle" dominant-baseline="middle" font-size="7" fill="#fff">hub</text>
+<rect x="429.0" y="158.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="448.0" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">filelock</text>
+<rect x="470.0" y="158.0" width="48" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="494.0" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">fsspec</text>
+<rect x="521.0" y="158.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="540.0" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">hf-xet</text>
+<rect x="562.0" y="158.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="581.0" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">httpx</text>
+<rect x="603.0" y="158.0" width="40" height="32" rx="2" ry="2" fill="#f57f17" stroke="#222" stroke-width="1"/>
+<text x="623.0" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">packaging</text>
+<rect x="646.0" y="158.0" width="38" height="32" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1"/>
+<text x="665.0" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">pyyaml</text>
+<rect x="687.0" y="158.0" width="38" height="32" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1"/>
+<text x="706.0" y="175.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">tqdm</text>
+<rect x="728.0" y="158.0" width="43" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="749.5" y="171.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">typer-</text>
+<text x="749.5" y="177.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">slim</text>
+<rect x="488.0" y="194.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="507.0" y="211.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">anyio</text>
+<rect x="529.0" y="194.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="548.0" y="211.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">httpcore</text>
+<rect x="613.0" y="194.0" width="38" height="32" rx="2" ry="2" fill="#9e9e9e" stroke="#222" stroke-width="1"/>
+<text x="632.0" y="207.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">importlib_</text>
+<text x="632.0" y="213.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">metadata</text>
+<rect x="669.0" y="194.0" width="43" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="690.5" y="211.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">typer</text>
+<rect x="371.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#d84315" stroke="#222" stroke-width="1"/>
+<text x="390.0" y="243.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">excepti</text>
+<text x="390.0" y="249.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">ongroup</text>
+<rect x="412.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#9e9e9e" stroke="#222" stroke-width="1"/>
+<text x="431.0" y="243.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">typing_</text>
+<text x="431.0" y="249.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">extensions</text>
+<rect x="453.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#c62828" stroke="#222" stroke-width="1"/>
+<text x="472.0" y="247.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">idna</text>
+<rect x="509.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#f57f17" stroke="#222" stroke-width="1"/>
+<text x="528.0" y="247.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">h11</text>
+<rect x="550.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="569.0" y="247.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">certifi</text>
+<rect x="606.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="625.0" y="247.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">zipp</text>
+<rect x="662.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#c62828" stroke="#222" stroke-width="1"/>
+<text x="681.0" y="243.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">shell</text>
+<text x="681.0" y="249.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">ingham</text>
+<rect x="703.0" y="230.0" width="44" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="725.0" y="247.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">click</text>
+<rect x="750.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="769.0" y="247.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">rich</text>
+<rect x="791.0" y="230.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="810.0" y="243.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">annotated-</text>
+<text x="810.0" y="249.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">doc</text>
+<rect x="417.8" y="266.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="436.8" y="279.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">typing-</text>
+<text x="436.8" y="285.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">extensions</text>
+<rect x="638.2" y="266.0" width="38" height="32" rx="2" ry="2" fill="#d84315" stroke="#222" stroke-width="1"/>
+<text x="657.2" y="283.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">colorama</text>
+<rect x="694.2" y="266.0" width="38" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="713.2" y="279.3" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">markdown-</text>
+<text x="713.2" y="285.9" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">it-py</text>
+<rect x="735.2" y="266.0" width="47" height="32" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1"/>
+<text x="758.8" y="283.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">pygments</text>
+<rect x="581.0" y="302.0" width="38" height="32" rx="2" ry="2" fill="#d84315" stroke="#222" stroke-width="1"/>
+<text x="600.0" y="319.0" text-anchor="middle" dominant-baseline="middle" font-size="6" fill="#fff">mdurl</text>
+<line x1="540.0" y1="306.0" x2="660.0" y2="246.0" stroke="#1a237e" stroke-width="2.5" marker-end="url(#arr)"/>
+<text x="600.0" y="358" text-anchor="middle" font-size="13" fill="#555" font-style="italic">“shellingham”: 8 years of code, 1 active maintainer, no commits this year. 5 packages depend on it.</text>
+<text x="600.0" y="380" text-anchor="middle" font-size="9" fill="#bbb">generated by ossuary — inspired by xkcd.com/2347</text>
+</svg>

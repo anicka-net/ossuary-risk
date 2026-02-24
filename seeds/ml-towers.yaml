@@ -1,0 +1,211 @@
+packages:
+  - name: absl-py
+    ecosystem: pypi
+  - name: annotated-doc
+    ecosystem: pypi
+  - name: annotated-types
+    ecosystem: pypi
+  - name: anyio
+    ecosystem: pypi
+  - name: astunparse
+    ecosystem: pypi
+  - name: certifi
+    ecosystem: pypi
+  - name: charset-normalizer
+    ecosystem: pypi
+  - name: click
+    ecosystem: pypi
+  - name: colorama
+    ecosystem: pypi
+  - name: cuda-bindings
+    ecosystem: pypi
+  - name: cuda-pathfinder
+    ecosystem: pypi
+  - name: exceptiongroup
+    ecosystem: pypi
+  - name: filelock
+    ecosystem: pypi
+  - name: flatbuffers
+    ecosystem: pypi
+  - name: fsspec
+    ecosystem: pypi
+  - name: gast
+    ecosystem: pypi
+  - name: google-pasta
+    ecosystem: pypi
+  - name: grpcio
+    ecosystem: pypi
+  - name: h11
+    ecosystem: pypi
+  - name: h5py
+    ecosystem: pypi
+  - name: hf-xet
+    ecosystem: pypi
+  - name: httpcore
+    ecosystem: pypi
+  - name: httpx
+    ecosystem: pypi
+  - name: huggingface-hub
+    ecosystem: pypi
+  - name: idna
+    ecosystem: pypi
+  - name: importlib-metadata
+    ecosystem: pypi
+  - name: jinja2
+    ecosystem: pypi
+  - name: jsonpatch
+    ecosystem: pypi
+  - name: jsonpointer
+    ecosystem: pypi
+  - name: keras
+    ecosystem: pypi
+  - name: langchain
+    ecosystem: pypi
+  - name: langchain-core
+    ecosystem: pypi
+  - name: langgraph
+    ecosystem: pypi
+  - name: langgraph-checkpoint
+    ecosystem: pypi
+  - name: langgraph-prebuilt
+    ecosystem: pypi
+  - name: langgraph-sdk
+    ecosystem: pypi
+  - name: langsmith
+    ecosystem: pypi
+  - name: libclang
+    ecosystem: pypi
+  - name: markdown
+    ecosystem: pypi
+  - name: markdown-it-py
+    ecosystem: pypi
+  - name: markupsafe
+    ecosystem: pypi
+  - name: mdurl
+    ecosystem: pypi
+  - name: ml-dtypes
+    ecosystem: pypi
+  - name: mpmath
+    ecosystem: pypi
+  - name: namex
+    ecosystem: pypi
+  - name: networkx
+    ecosystem: pypi
+  - name: numpy
+    ecosystem: pypi
+  - name: nvidia-cublas-cu12
+    ecosystem: pypi
+  - name: nvidia-cuda-cccl-cu12
+    ecosystem: pypi
+  - name: nvidia-cuda-cupti-cu12
+    ecosystem: pypi
+  - name: nvidia-cuda-nvrtc-cu12
+    ecosystem: pypi
+  - name: nvidia-cuda-runtime-cu12
+    ecosystem: pypi
+  - name: nvidia-cudnn-cu12
+    ecosystem: pypi
+  - name: nvidia-cufft-cu12
+    ecosystem: pypi
+  - name: nvidia-cufile-cu12
+    ecosystem: pypi
+  - name: nvidia-curand-cu12
+    ecosystem: pypi
+  - name: nvidia-cusolver-cu12
+    ecosystem: pypi
+  - name: nvidia-cusparse-cu12
+    ecosystem: pypi
+  - name: nvidia-cusparselt-cu12
+    ecosystem: pypi
+  - name: nvidia-nccl-cu12
+    ecosystem: pypi
+  - name: nvidia-nvjitlink-cu12
+    ecosystem: pypi
+  - name: nvidia-nvshmem-cu12
+    ecosystem: pypi
+  - name: nvidia-nvtx-cu12
+    ecosystem: pypi
+  - name: opt-einsum
+    ecosystem: pypi
+  - name: optree
+    ecosystem: pypi
+  - name: orjson
+    ecosystem: pypi
+  - name: ormsgpack
+    ecosystem: pypi
+  - name: packaging
+    ecosystem: pypi
+  - name: pillow
+    ecosystem: pypi
+  - name: protobuf
+    ecosystem: pypi
+  - name: pydantic
+    ecosystem: pypi
+  - name: pydantic-core
+    ecosystem: pypi
+  - name: pygments
+    ecosystem: pypi
+  - name: pyyaml
+    ecosystem: pypi
+  - name: regex
+    ecosystem: pypi
+  - name: requests
+    ecosystem: pypi
+  - name: requests-toolbelt
+    ecosystem: pypi
+  - name: rich
+    ecosystem: pypi
+  - name: safetensors
+    ecosystem: pypi
+  - name: setuptools
+    ecosystem: pypi
+  - name: shellingham
+    ecosystem: pypi
+  - name: six
+    ecosystem: pypi
+  - name: sympy
+    ecosystem: pypi
+  - name: tenacity
+    ecosystem: pypi
+  - name: tensorboard
+    ecosystem: pypi
+  - name: tensorboard-data-server
+    ecosystem: pypi
+  - name: tensorflow
+    ecosystem: pypi
+  - name: termcolor
+    ecosystem: pypi
+  - name: tokenizers
+    ecosystem: pypi
+  - name: torch
+    ecosystem: pypi
+  - name: tqdm
+    ecosystem: pypi
+  - name: transformers
+    ecosystem: pypi
+  - name: triton
+    ecosystem: pypi
+  - name: typer
+    ecosystem: pypi
+  - name: typer-slim
+    ecosystem: pypi
+  - name: typing-extensions
+    ecosystem: pypi
+  - name: typing-inspection
+    ecosystem: pypi
+  - name: urllib3
+    ecosystem: pypi
+  - name: uuid-utils
+    ecosystem: pypi
+  - name: werkzeug
+    ecosystem: pypi
+  - name: wheel
+    ecosystem: pypi
+  - name: wrapt
+    ecosystem: pypi
+  - name: xxhash
+    ecosystem: pypi
+  - name: zipp
+    ecosystem: pypi
+  - name: zstandard
+    ecosystem: pypi
