@@ -733,45 +733,44 @@ def xkcd(
 def _generate_xkcd_svg(results: list, output: str, title: str, max_width: int):
     """Generate the SVG stack diagram."""
     import html as html_module
+    import math
+    import random
+
+    # Deterministic wobble per input
+    rng = random.Random(sum(ord(c) for r in results for c in r["package"]))
 
     # Block dimensions
-    block_height = 40
-    padding = 20
-    min_block_width = 80
-    title_height = 60
-    caption_height = 80
+    block_height = 36
+    block_gap = 2
+    padding_left = 40
+    padding_right = 220  # room for side labels
+    title_height = 50
+    caption_margin = 70
 
-    # Risk level to color gradient
+    # Risk level to color
     def score_to_color(score):
         if score >= 80:
-            return "#d32f2f"  # red
+            return "#c62828"  # deep red
         elif score >= 60:
-            return "#e65100"  # deep orange
+            return "#d84315"  # deep orange
         elif score >= 40:
-            return "#f9a825"  # amber
+            return "#f57f17"  # amber
         elif score >= 20:
-            return "#7cb342"  # light green
+            return "#558b2f"  # olive green
         else:
-            return "#388e3c"  # green
+            return "#2e7d32"  # forest green
 
-    def score_to_text_color(score):
-        if score >= 40:
-            return "#ffffff"
-        return "#ffffff"
-
-    # Calculate block widths from contributor count
-    # Use log scale so 1 person isn't invisible vs 500 people
-    import math
-
+    # Scale: sqrt for dramatic contrast
+    # 1-person = tiny 18px sliver, many contributors = fills the tower area
     max_contributors = max(max(r.get("unique_contributors", 1), 1) for r in results)
-    usable_width = max_width - 2 * padding
+    tower_width = max_width - padding_left - padding_right
+    min_block_width = 18
 
     blocks = []
     for r in results:
         contributors = max(r.get("unique_contributors", 1), 1)
-        # Log scale: width proportional to log(contributors + 1)
-        log_ratio = math.log(contributors + 1) / math.log(max_contributors + 1)
-        width = max(min_block_width, int(usable_width * (0.15 + 0.85 * log_ratio)))
+        ratio = math.sqrt(contributors) / math.sqrt(max_contributors)
+        width = max(min_block_width, int(tower_width * (0.03 + 0.97 * ratio)))
         blocks.append({
             "name": r["package"],
             "score": r["score"],
@@ -781,97 +780,156 @@ def _generate_xkcd_svg(results: list, output: str, title: str, max_width: int):
             "concentration": r.get("concentration", 0),
             "width": width,
             "color": score_to_color(r["score"]),
-            "text_color": score_to_text_color(r["score"]),
         })
 
-    # Find the scariest package for the caption
-    worst = max(blocks, key=lambda b: b["score"])
+    # Find the scariest package for the callout
+    worst = max(blocks, key=lambda b: (b["score"], -b["contributors"]))
+    worst_idx = blocks.index(worst)
+
+    # Calculate wobble offsets — each block sits on the one below,
+    # shifted randomly within overlap constraints
+    tower_center = padding_left + tower_width / 2
+    offsets = [0.0]
+    for i in range(1, len(blocks)):
+        below_w = blocks[i - 1]["width"]
+        this_w = blocks[i]["width"]
+        # Smaller blocks can perch more precariously (less overlap required)
+        smaller = min(below_w, this_w)
+        overlap_min = smaller * 0.45
+        max_shift = (below_w + this_w) / 2 - overlap_min
+        max_shift = max(0, max_shift)
+        wobble = rng.uniform(-max_shift, max_shift)
+        drift = offsets[i - 1] + wobble
+        # Dampen drift to prevent walking off canvas
+        drift *= 0.82
+        half = this_w / 2
+        limit = tower_width / 2 - half
+        drift = max(-limit, min(limit, drift))
+        offsets.append(drift)
 
     # Total SVG height
-    total_height = title_height + len(blocks) * block_height + caption_height + padding
-    center_x = max_width / 2
+    stack_height = len(blocks) * (block_height + block_gap)
+    total_height = title_height + stack_height + caption_margin + 20
 
     # Build SVG
-    svg_parts = []
-    svg_parts.append(
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{max_width}" height="{total_height}" '
+    svg = []
+    svg.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{max_width}" height="{int(total_height)}" '
         f'style="background: #fafafa; font-family: \'Comic Sans MS\', \'Chalkboard SE\', cursive, sans-serif;">'
     )
 
-    # Title
-    svg_parts.append(
-        f'<text x="{center_x}" y="35" text-anchor="middle" '
-        f'font-size="22" font-weight="bold" fill="#333">'
-        f'{html_module.escape(title)} — dependency risk</text>'
+    # Arrow marker — dark blue, refX=10 so the tip lands at the endpoint
+    svg.append(
+        '<defs><marker id="arr" markerWidth="10" markerHeight="7" '
+        'refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">'
+        '<polygon points="0 0, 10 3.5, 0 7" fill="#1a237e"/>'
+        '</marker></defs>'
     )
 
-    # Draw blocks bottom-up (first package = bottom of stack)
-    y = title_height + (len(blocks) - 1) * block_height
+    # Title
+    svg.append(
+        f'<text x="{tower_center}" y="32" text-anchor="middle" '
+        f'font-size="20" font-weight="bold" fill="#333">'
+        f'{html_module.escape(title)}</text>'
+    )
 
-    for block in blocks:
+    # Draw blocks bottom-up, track positions for labels and callout
+    block_positions = []
+    for i, block in enumerate(blocks):
         bw = block["width"]
-        bx = center_x - bw / 2
+        bx = tower_center + offsets[i] - bw / 2
+        by = title_height + (len(blocks) - 1 - i) * (block_height + block_gap)
+        bcx = bx + bw / 2
+        block_positions.append((bx, by, bw, bcx))
 
-        # Block rectangle with slight rounded corners
-        svg_parts.append(
-            f'<rect x="{bx:.1f}" y="{y}" width="{bw}" height="{block_height - 2}" '
-            f'rx="3" ry="3" fill="{block["color"]}" stroke="#333" stroke-width="1.5"/>'
+        # Block rectangle
+        svg.append(
+            f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw}" height="{block_height}" '
+            f'rx="2" ry="2" fill="{block["color"]}" stroke="#222" stroke-width="1.2"/>'
         )
 
-        # Label: package name (truncate if too long)
+        # Label: inside if fits, beside if not
         name = block["name"]
-        if len(name) > int(bw / 7):
-            name = name[:int(bw / 7) - 1] + ".."
+        max_inside_chars = max(1, int(bw / 7.5))
 
-        svg_parts.append(
-            f'<text x="{center_x}" y="{y + block_height / 2 + 1}" '
-            f'text-anchor="middle" dominant-baseline="middle" '
-            f'font-size="12" fill="{block["text_color"]}">'
-            f'{html_module.escape(name)}</text>'
+        if bw >= 100:
+            # Label fits inside
+            display = name if len(name) <= max_inside_chars else name[:max_inside_chars - 2] + ".."
+            font_size = 11 if bw >= 140 else 10
+            svg.append(
+                f'<text x="{bcx:.1f}" y="{by + block_height / 2 + 1:.1f}" '
+                f'text-anchor="middle" dominant-baseline="middle" '
+                f'font-size="{font_size}" fill="#fff">'
+                f'{html_module.escape(display)}</text>'
+            )
+        else:
+            # Label to the right, connected by a thin line
+            label_x = bx + bw + 6
+            svg.append(
+                f'<line x1="{bx + bw + 1:.1f}" y1="{by + block_height / 2:.1f}" '
+                f'x2="{label_x - 1:.1f}" y2="{by + block_height / 2:.1f}" '
+                f'stroke="#888" stroke-width="0.7"/>'
+            )
+            svg.append(
+                f'<text x="{label_x:.1f}" y="{by + block_height / 2 + 1:.1f}" '
+                f'dominant-baseline="middle" font-size="9" fill="#555">'
+                f'{html_module.escape(name)}</text>'
+            )
+
+    # Callout arrow for the worst block — from the left side, dark blue
+    if worst["score"] >= 40:
+        bx, by, bw, bcx = block_positions[worst_idx]
+
+        # Arrow tip: left edge of the block
+        arrow_tip_x = bx - 2
+        arrow_tip_y = by + block_height / 2
+
+        # Arrow starts further left and below
+        arrow_start_x = max(arrow_tip_x - 120, 10)
+        arrow_start_y = arrow_tip_y + 60
+
+        svg.append(
+            f'<line x1="{arrow_start_x:.1f}" y1="{arrow_start_y:.1f}" '
+            f'x2="{arrow_tip_x:.1f}" y2="{arrow_tip_y:.1f}" '
+            f'stroke="#1a237e" stroke-width="2.5" marker-end="url(#arr)"/>'
         )
 
-        # Side annotation for high-risk packages
-        if block["score"] >= 60:
-            annotation = f'{block["contributors"]} contributor{"s" if block["contributors"] != 1 else ""}, {block["commits"]} commits/yr'
-            ax = center_x + bw / 2 + 10
-            svg_parts.append(
-                f'<line x1="{center_x + bw / 2 + 2}" y1="{y + block_height / 2}" '
-                f'x2="{ax - 2}" y2="{y + block_height / 2}" '
-                f'stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>'
-            )
-            svg_parts.append(
-                f'<text x="{ax}" y="{y + block_height / 2 + 1}" '
-                f'dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">'
-                f'{html_module.escape(annotation)}</text>'
-            )
+    # Caption at bottom
+    caption_y = title_height + stack_height + 20
+    if worst["score"] >= 40:
+        if worst["commits"] == 0:
+            activity = "No commits this year."
+        elif worst["commits"] <= 4:
+            activity = f'{worst["commits"]} commit{"s" if worst["commits"] != 1 else ""} this year.'
+        else:
+            activity = f'{worst["commits"]} commits/yr, {worst["concentration"]:.0f}% one person.'
 
-        y -= block_height
-
-    # Caption at bottom (xkcd style)
-    caption_y = title_height + len(blocks) * block_height + 30
-    if worst["score"] >= 60:
-        caption = (
-            f'All of {html_module.escape(title)} rests on "{html_module.escape(worst["name"])}" '
-            f'({worst["contributors"]} contributor{"s" if worst["contributors"] != 1 else ""}, '
-            f'{worst["commits"]} commits/yr, score {worst["score"]})'
+        line1 = (
+            f'All of this rests on "{html_module.escape(worst["name"])}", '
+            f'maintained by {worst["contributors"]} '
+            f'person{"" if worst["contributors"] == 1 else "s"}. {activity}'
+        )
+        svg.append(
+            f'<text x="{tower_center}" y="{caption_y}" text-anchor="middle" '
+            f'font-size="13" fill="#555" font-style="italic">{line1}</text>'
         )
     else:
-        caption = f'{len(blocks)} dependencies — looking healthy!'
-    svg_parts.append(
-        f'<text x="{center_x}" y="{caption_y}" text-anchor="middle" '
-        f'font-size="13" fill="#666" font-style="italic">{caption}</text>'
-    )
+        svg.append(
+            f'<text x="{tower_center}" y="{caption_y}" text-anchor="middle" '
+            f'font-size="13" fill="#555" font-style="italic">'
+            f'{len(blocks)} dependencies — looking healthy!</text>'
+        )
 
     # Footer
-    svg_parts.append(
-        f'<text x="{center_x}" y="{caption_y + 25}" text-anchor="middle" '
-        f'font-size="10" fill="#aaa">Generated by ossuary — inspired by xkcd.com/2347</text>'
+    svg.append(
+        f'<text x="{tower_center}" y="{caption_y + 25}" text-anchor="middle" '
+        f'font-size="9" fill="#bbb">generated by ossuary // inspired by xkcd.com/2347</text>'
     )
 
-    svg_parts.append('</svg>')
+    svg.append('</svg>')
 
     with open(output, "w") as f:
-        f.write('\n'.join(svg_parts))
+        f.write('\n'.join(svg))
 
 
 @app.command()

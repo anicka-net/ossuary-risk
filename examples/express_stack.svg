@@ -1,71 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1280" style="background: #fafafa; font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;">
-<text x="400.0" y="35" text-anchor="middle" font-size="22" font-weight="bold" fill="#333">express_package.json — dependency risk</text>
-<rect x="102.0" y="1140" width="596" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="1161.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">range-parser</text>
-<rect x="156.5" y="1100" width="487" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="1121.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">parseurl</text>
-<rect x="102.0" y="1060" width="596" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="1081.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">send</text>
-<rect x="33.0" y="1020" width="734" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="1041.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">router</text>
-<rect x="126.5" y="980" width="547" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="1001.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">fresh</text>
-<rect x="250.0" y="940" width="300" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="961.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">depd</text>
-<line x1="552.0" y1="960.0" x2="558.0" y2="960.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
-<text x="560.0" y="961.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
-<rect x="156.5" y="900" width="487" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="921.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">proxy-addr</text>
-<rect x="250.0" y="860" width="300" height="38" rx="3" ry="3" fill="#d32f2f" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="881.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">escape-html</text>
-<line x1="552.0" y1="880.0" x2="558.0" y2="880.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
-<text x="560.0" y="881.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
-<rect x="126.5" y="820" width="547" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="841.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">debug</text>
-<rect x="20.0" y="780" width="760" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="801.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">mime-types</text>
-<rect x="102.0" y="740" width="596" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="761.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">http-errors</text>
-<rect x="156.5" y="700" width="487" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="721.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">vary</text>
-<rect x="126.5" y="660" width="547" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="681.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">finalhandler</text>
-<rect x="102.0" y="620" width="596" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="641.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">content-type</text>
-<rect x="250.0" y="580" width="300" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="601.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">once</text>
-<line x1="552.0" y1="600.0" x2="558.0" y2="600.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
-<text x="560.0" y="601.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 1 commits/yr</text>
-<rect x="102.0" y="540" width="596" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="561.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">content-disposition</text>
-<rect x="63.0" y="500" width="674" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="521.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">cookie</text>
-<rect x="156.5" y="460" width="487" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="481.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">qs</text>
-<rect x="126.5" y="420" width="547" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="441.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">encodeurl</text>
-<rect x="81.0" y="380" width="638" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="401.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">accepts</text>
-<rect x="102.0" y="340" width="596" height="38" rx="3" ry="3" fill="#7cb342" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="361.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">statuses</text>
-<rect x="195.5" y="300" width="409" height="38" rx="3" ry="3" fill="#f9a825" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="321.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">etag</text>
-<rect x="102.0" y="260" width="596" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="281.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">on-finished</text>
-<rect x="81.0" y="220" width="638" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="241.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">type-is</text>
-<rect x="20.0" y="180" width="760" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="201.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">body-parser</text>
-<rect x="250.0" y="140" width="300" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="161.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">cookie-signature</text>
-<line x1="552.0" y1="160.0" x2="558.0" y2="160.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
-<text x="560.0" y="161.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
-<rect x="102.0" y="100" width="596" height="38" rx="3" ry="3" fill="#388e3c" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="121.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">serve-static</text>
-<rect x="250.0" y="60" width="300" height="38" rx="3" ry="3" fill="#e65100" stroke="#333" stroke-width="1.5"/>
-<text x="400.0" y="81.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#ffffff">merge-descriptors</text>
-<line x1="552.0" y1="80.0" x2="558.0" y2="80.0" stroke="#999" stroke-width="0.5" stroke-dasharray="2,2"/>
-<text x="560.0" y="81.0" dominant-baseline="middle" font-size="10" fill="#666" font-style="italic">1 contributor, 0 commits/yr</text>
-<text x="400.0" y="1210" text-anchor="middle" font-size="13" fill="#666" font-style="italic">All of express_package.json rests on "escape-html" (1 contributor, 0 commits/yr, score 95)</text>
-<text x="400.0" y="1235" text-anchor="middle" font-size="10" fill="#aaa">Generated by ossuary — inspired by xkcd.com/2347</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1204" style="background: #fafafa; font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;">
+<defs><marker id="arr" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth"><polygon points="0 0, 10 3.5, 0 7" fill="#1a237e"/></marker></defs>
+<text x="310.0" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">express_package.json</text>
+<rect x="117.0" y="1076.0" width="386" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="310.0" y="1095.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">range-parser</text>
+<rect x="142.0" y="1038.0" width="303" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="293.5" y="1057.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">parseurl</text>
+<rect x="40.0" y="1000.0" width="386" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="233.0" y="1019.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">send</text>
+<rect x="40.0" y="962.0" width="513" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="296.5" y="981.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">router</text>
+<rect x="221.9" y="924.0" width="347" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="395.4" y="943.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">fresh</text>
+<rect x="399.0" y="886.0" width="181" height="36" rx="2" ry="2" fill="#c62828" stroke="#222" stroke-width="1.2"/>
+<text x="489.5" y="905.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">depd</text>
+<rect x="194.9" y="848.0" width="303" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="346.4" y="867.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">proxy-addr</text>
+<rect x="323.2" y="810.0" width="181" height="36" rx="2" ry="2" fill="#c62828" stroke="#222" stroke-width="1.2"/>
+<text x="413.7" y="829.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">escape-html</text>
+<rect x="233.0" y="772.0" width="347" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="406.5" y="791.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">debug</text>
+<rect x="40.0" y="734.0" width="540" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="310.0" y="753.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">mime-types</text>
+<rect x="40.0" y="696.0" width="386" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="233.0" y="715.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">http-errors</text>
+<rect x="138.7" y="658.0" width="303" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="290.2" y="677.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">vary</text>
+<rect x="40.0" y="620.0" width="347" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="213.5" y="639.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">finalhandler</text>
+<rect x="119.1" y="582.0" width="386" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="312.1" y="601.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">content-type</text>
+<rect x="243.3" y="544.0" width="181" height="36" rx="2" ry="2" fill="#d84315" stroke="#222" stroke-width="1.2"/>
+<text x="333.8" y="563.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">once</text>
+<rect x="104.0" y="506.0" width="386" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="297.0" y="525.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">content-disposition</text>
+<rect x="126.0" y="468.0" width="454" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="353.0" y="487.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">cookie</text>
+<rect x="222.9" y="430.0" width="303" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="374.4" y="449.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">qs</text>
+<rect x="144.3" y="392.0" width="347" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="317.8" y="411.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">encodeurl</text>
+<rect x="115.7" y="354.0" width="421" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="326.2" y="373.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">accepts</text>
+<rect x="92.2" y="316.0" width="386" height="36" rx="2" ry="2" fill="#558b2f" stroke="#222" stroke-width="1.2"/>
+<text x="285.2" y="335.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">statuses</text>
+<rect x="198.4" y="278.0" width="250" height="36" rx="2" ry="2" fill="#f57f17" stroke="#222" stroke-width="1.2"/>
+<text x="323.4" y="297.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">etag</text>
+<rect x="40.0" y="240.0" width="386" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="233.0" y="259.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">on-finished</text>
+<rect x="49.1" y="202.0" width="421" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="259.6" y="221.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">type-is</text>
+<rect x="40.0" y="164.0" width="540" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="310.0" y="183.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">body-parser</text>
+<rect x="112.8" y="126.0" width="181" height="36" rx="2" ry="2" fill="#d84315" stroke="#222" stroke-width="1.2"/>
+<text x="203.3" y="145.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">cookie-signature</text>
+<rect x="156.0" y="88.0" width="386" height="36" rx="2" ry="2" fill="#2e7d32" stroke="#222" stroke-width="1.2"/>
+<text x="349.0" y="107.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">serve-static</text>
+<rect x="399.0" y="50.0" width="181" height="36" rx="2" ry="2" fill="#d84315" stroke="#222" stroke-width="1.2"/>
+<text x="489.5" y="69.0" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#fff">merge-descriptors</text>
+<line x1="201.2" y1="888.0" x2="321.2" y2="828.0" stroke="#1a237e" stroke-width="2.5" marker-end="url(#arr)"/>
+<text x="310.0" y="1134" text-anchor="middle" font-size="13" fill="#555" font-style="italic">All of this rests on "escape-html", maintained by 1 person. No commits this year.</text>
+<text x="310.0" y="1159" text-anchor="middle" font-size="9" fill="#bbb">generated by ossuary // inspired by xkcd.com/2347</text>
 </svg>
