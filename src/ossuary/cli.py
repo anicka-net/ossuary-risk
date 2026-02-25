@@ -945,8 +945,8 @@ def deps(
     Fetches the dependency tree from the package registry and displays it
     as an indented tree with risk scores from the database.
     """
-    if ecosystem not in ("npm", "pypi"):
-        console.print("[red]Supported ecosystems: npm, pypi[/red]")
+    if ecosystem not in _DEP_ECOSYSTEMS:
+        console.print(f"[red]Supported ecosystems: {', '.join(_DEP_ECOSYSTEMS)}[/red]")
         raise typer.Exit(1)
 
     console.print(f"[bold]Fetching dependency tree for {package} ({ecosystem})...[/bold]")
@@ -1069,8 +1069,8 @@ def score_deps(
     Fetches the dependency tree and scores every package that hasn't been
     scored yet. Run this before xkcd-tree to get a fully colored visualization.
     """
-    if ecosystem not in ("npm", "pypi"):
-        console.print("[red]Supported ecosystems: npm, pypi[/red]")
+    if ecosystem not in _DEP_ECOSYSTEMS:
+        console.print(f"[red]Supported ecosystems: {', '.join(_DEP_ECOSYSTEMS)}[/red]")
         raise typer.Exit(1)
 
     if not os.environ.get("GITHUB_TOKEN"):
@@ -1178,6 +1178,9 @@ def xkcd_tree(
     console.print(f"[green]Generated {output}[/green]")
 
 
+_DEP_ECOSYSTEMS = ("npm", "pypi", "cargo", "rubygems", "go", "packagist", "nuget", "github")
+
+
 def _fetch_dep_tree(package, ecosystem, max_depth, max_packages):
     """Fetch dependency tree from package registry (BFS, concurrent)."""
     import re
@@ -1185,13 +1188,15 @@ def _fetch_dep_tree(package, ecosystem, max_depth, max_packages):
     import urllib.request
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
+    ua = "ossuary-risk/0.6 (https://github.com/anicka-net/ossuary-risk)"
+
     adj = {}
     to_fetch = {package: 0}
 
     def fetch_npm(name):
         try:
             url = f"https://registry.npmjs.org/{urllib.parse.quote(name, safe='@/')}/latest"
-            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": ua})
             resp = urllib.request.urlopen(req, timeout=10)
             data = json.loads(resp.read())
             return name, list(data.get("dependencies", {}).keys())
@@ -1201,7 +1206,7 @@ def _fetch_dep_tree(package, ecosystem, max_depth, max_packages):
     def fetch_pypi(name):
         try:
             url = f"https://pypi.org/pypi/{urllib.parse.quote(name, safe='')}/json"
-            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": ua})
             resp = urllib.request.urlopen(req, timeout=10)
             data = json.loads(resp.read())
             requires = data.get("info", {}).get("requires_dist") or []
@@ -1217,7 +1222,139 @@ def _fetch_dep_tree(package, ecosystem, max_depth, max_packages):
         except Exception:
             return name, []
 
-    fetcher = fetch_npm if ecosystem == "npm" else fetch_pypi
+    def fetch_cargo(name):
+        try:
+            # First get latest version
+            url = f"https://crates.io/api/v1/crates/{urllib.parse.quote(name, safe='')}"
+            req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": "application/json"})
+            data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+            ver = data["crate"]["newest_version"]
+            # Then get deps for that version
+            url2 = f"https://crates.io/api/v1/crates/{urllib.parse.quote(name, safe='')}/{ver}/dependencies"
+            req2 = urllib.request.Request(url2, headers={"User-Agent": ua, "Accept": "application/json"})
+            data2 = json.loads(urllib.request.urlopen(req2, timeout=10).read())
+            deps = [d["crate_id"] for d in data2.get("dependencies", [])
+                    if d.get("kind") == "normal" and not d.get("optional")]
+            return name, deps
+        except Exception:
+            return name, []
+
+    def fetch_rubygems(name):
+        try:
+            # Get latest version
+            url = f"https://rubygems.org/api/v1/gems/{urllib.parse.quote(name, safe='')}.json"
+            req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": "application/json"})
+            data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+            ver = data.get("version", "")
+            # Get deps for that version
+            url2 = f"https://rubygems.org/api/v2/rubygems/{urllib.parse.quote(name, safe='')}/versions/{ver}.json"
+            req2 = urllib.request.Request(url2, headers={"User-Agent": ua, "Accept": "application/json"})
+            data2 = json.loads(urllib.request.urlopen(req2, timeout=10).read())
+            deps = [d["name"] for d in data2.get("dependencies", {}).get("runtime", [])]
+            return name, deps
+        except Exception:
+            return name, []
+
+    def fetch_go(name):
+        try:
+            # Escape uppercase letters per Go proxy convention
+            escaped = re.sub(r'[A-Z]', lambda m: '!' + m.group().lower(), name)
+            url = f"https://proxy.golang.org/{escaped}/@latest"
+            req = urllib.request.Request(url, headers={"User-Agent": ua})
+            data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+            ver = data["Version"]
+            # Fetch go.mod
+            mod_url = f"https://proxy.golang.org/{escaped}/@v/{ver}.mod"
+            req2 = urllib.request.Request(mod_url, headers={"User-Agent": ua})
+            content = urllib.request.urlopen(req2, timeout=10).read().decode()
+            # Parse require block and single-line requires
+            deps = []
+            in_block = False
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("require ("):
+                    in_block = True
+                    continue
+                if in_block and stripped == ")":
+                    in_block = False
+                    continue
+                if in_block:
+                    m = re.match(r'^(\S+)\s+\S+', stripped)
+                    if m:
+                        deps.append(m.group(1))
+                elif stripped.startswith("require "):
+                    m = re.match(r'^require\s+(\S+)\s+\S+', stripped)
+                    if m:
+                        deps.append(m.group(1))
+            return name, deps
+        except Exception:
+            return name, []
+
+    def fetch_packagist(name):
+        try:
+            url = f"https://repo.packagist.org/p2/{name.lower()}.json"
+            req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": "application/json"})
+            data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+            versions = data.get("packages", {}).get(name.lower(), [])
+            if not versions:
+                return name, []
+            latest = versions[0]
+            deps = [k for k in latest.get("require", {}).keys() if "/" in k]
+            return name, deps
+        except Exception:
+            return name, []
+
+    def fetch_nuget(name):
+        try:
+            url = f"https://api.nuget.org/v3/registration5/{name.lower()}/index.json"
+            req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": "application/json"})
+            data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+            # Get the last page (latest versions)
+            last_page = data["items"][-1]
+            items = last_page.get("items")
+            if items is None:
+                page_req = urllib.request.Request(last_page["@id"], headers={"User-Agent": ua})
+                page_data = json.loads(urllib.request.urlopen(page_req, timeout=10).read())
+                items = page_data["items"]
+            # Get latest version's deps
+            latest = items[-1]["catalogEntry"]
+            deps = set()
+            for group in latest.get("dependencyGroups", []):
+                for dep in group.get("dependencies", []):
+                    deps.add(dep["id"])
+            return name, list(deps)
+        except Exception:
+            return name, []
+
+    def fetch_github(name):
+        """Fetch deps via GitHub SBOM API. Name must be owner/repo."""
+        try:
+            token = os.environ.get("GITHUB_TOKEN", "")
+            headers = {"User-Agent": ua, "Accept": "application/vnd.github+json",
+                       "X-GitHub-Api-Version": "2022-11-28"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            url = f"https://api.github.com/repos/{name}/dependency-graph/sbom"
+            req = urllib.request.Request(url, headers=headers)
+            data = json.loads(urllib.request.urlopen(req, timeout=15).read())
+            deps = []
+            for pkg in data.get("sbom", {}).get("packages", [])[1:]:
+                pname = pkg.get("name", "")
+                # Strip ecosystem prefix (pip:, npm:, etc.)
+                if ":" in pname:
+                    pname = pname.split(":", 1)[1]
+                if pname and pname != name:
+                    deps.append(pname)
+            return name, deps
+        except Exception:
+            return name, []
+
+    fetchers = {
+        "npm": fetch_npm, "pypi": fetch_pypi, "cargo": fetch_cargo,
+        "rubygems": fetch_rubygems, "go": fetch_go, "packagist": fetch_packagist,
+        "nuget": fetch_nuget, "github": fetch_github,
+    }
+    fetcher = fetchers[ecosystem]
 
     while to_fetch and len(adj) < max_packages:
         batch = {n: d for n, d in to_fetch.items() if n not in adj}

@@ -72,8 +72,8 @@ class TestDepsCommand:
 
     @patch("ossuary.cli._fetch_dep_tree")
     def test_unsupported_ecosystem(self, mock_fetch):
-        """Non-npm/pypi ecosystem gives exit code 1."""
-        result = self.runner.invoke(app, ["deps", "foo", "-e", "cargo"])
+        """Unsupported ecosystem gives exit code 1."""
+        result = self.runner.invoke(app, ["deps", "foo", "-e", "maven"])
         assert result.exit_code == 1
         assert "Supported ecosystems" in result.output
         mock_fetch.assert_not_called()
