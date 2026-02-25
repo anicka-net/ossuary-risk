@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ossuary-risk"
-version = "0.6.0"
+version = "0.6.1"
 description = "OSS Supply Chain Risk Scoring - Where abandoned packages come to rest"
 readme = "README.md"
 license = "MIT"
