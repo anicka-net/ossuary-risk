@@ -1057,6 +1057,84 @@ def deps(
     console.print(f"\n[bold]{len(adj)} packages[/bold]: {', '.join(parts)}")
 
 
+@app.command("score-deps")
+def score_deps(
+    package: str = typer.Argument(..., help="Root package (e.g., 'express')"),
+    ecosystem: str = typer.Option("npm", "-e", "--ecosystem", help="Package ecosystem (npm or pypi)"),
+    max_depth: int = typer.Option(6, "--depth", help="Max dependency depth"),
+    max_packages: int = typer.Option(80, "--max", help="Max packages to include"),
+):
+    """Score all packages in a dependency tree.
+
+    Fetches the dependency tree and scores every package that hasn't been
+    scored yet. Run this before xkcd-tree to get a fully colored visualization.
+    """
+    if ecosystem not in ("npm", "pypi"):
+        console.print("[red]Supported ecosystems: npm, pypi[/red]")
+        raise typer.Exit(1)
+
+    if not os.environ.get("GITHUB_TOKEN"):
+        console.print("[yellow]Warning: GITHUB_TOKEN not set — GitHub API will be rate-limited.[/yellow]")
+        console.print("[yellow]Set it: export GITHUB_TOKEN=ghp_your_token[/yellow]\n")
+
+    console.print(f"[bold]Fetching dependency tree for {package} ({ecosystem})...[/bold]")
+    adj = _fetch_dep_tree(package, ecosystem, max_depth, max_packages)
+    if not adj:
+        console.print(f"[red]Could not fetch dependencies for {package}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[bold]{len(adj)} packages[/bold] in dependency tree\n")
+
+    # Check which are already scored
+    from ossuary.db.session import session_scope
+    from ossuary.db.models import Package, Score
+    init_db()
+
+    already_scored = set()
+    with session_scope() as session:
+        for name in adj:
+            db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
+            pkg = session.query(Package).filter(
+                Package.name == db_name, Package.ecosystem == ecosystem,
+            ).first()
+            if pkg:
+                latest = session.query(Score).filter(
+                    Score.package_id == pkg.id,
+                ).first()
+                if latest:
+                    already_scored.add(name)
+
+    to_score = [n for n in sorted(adj) if n not in already_scored]
+    if not to_score:
+        console.print("[green]All packages already scored.[/green]")
+        return
+
+    console.print(f"{len(already_scored)} already scored, [bold]{len(to_score)} to score[/bold]\n")
+
+    from ossuary.services.scorer import score_package as svc_score
+
+    ok, fail = 0, 0
+    for i, name in enumerate(to_score, 1):
+        db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
+        console.print(f"[{i:3}/{len(to_score)}] {name}... ", end="")
+        try:
+            result = asyncio.run(svc_score(db_name, ecosystem, force=True))
+            if result.success:
+                rl = result.breakdown.risk_level.value
+                sc = result.breakdown.final_score
+                color = {"CRITICAL": "red", "HIGH": "orange1", "MODERATE": "yellow"}.get(rl, "green")
+                console.print(f"[{color}]{sc} {rl}[/{color}]")
+                ok += 1
+            else:
+                console.print(f"[red]{result.error}[/red]")
+                fail += 1
+        except Exception as e:
+            console.print(f"[red]{e}[/red]")
+            fail += 1
+
+    console.print(f"\n[bold]Done:[/bold] {ok} scored, {fail} errors")
+
+
 @app.command("xkcd-tree")
 def xkcd_tree(
     package: str = typer.Argument(..., help="Root package (e.g., 'express')"),
