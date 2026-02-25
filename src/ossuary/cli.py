@@ -932,6 +932,130 @@ def _generate_xkcd_svg(results: list, output: str, title: str, max_width: int):
         f.write('\n'.join(svg))
 
 
+@app.command()
+def deps(
+    package: str = typer.Argument(..., help="Root package (e.g., 'express')"),
+    ecosystem: str = typer.Option("npm", "-e", "--ecosystem", help="Package ecosystem (npm or pypi)"),
+    max_depth: int = typer.Option(6, "--depth", help="Max dependency depth"),
+    max_packages: int = typer.Option(80, "--max", help="Max packages to include"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Show the dependency tree of a package with risk scores.
+
+    Fetches the dependency tree from the package registry and displays it
+    as an indented tree with risk scores from the database.
+    """
+    if ecosystem not in ("npm", "pypi"):
+        console.print("[red]Supported ecosystems: npm, pypi[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[bold]Fetching dependency tree for {package} ({ecosystem})...[/bold]")
+    adj = _fetch_dep_tree(package, ecosystem, max_depth, max_packages)
+    if not adj:
+        console.print(f"[red]Could not fetch dependencies for {package}[/red]")
+        raise typer.Exit(1)
+
+    # Load scores from DB
+    scores_db = {}
+    try:
+        from ossuary.db.session import session_scope
+        from ossuary.db.models import Package, Score
+        with session_scope() as session:
+            for name in adj:
+                pkg = session.query(Package).filter(
+                    Package.name == name, Package.ecosystem == ecosystem,
+                ).first()
+                if pkg:
+                    latest = (
+                        session.query(Score).filter(Score.package_id == pkg.id)
+                        .order_by(Score.calculated_at.desc()).first()
+                    )
+                    if latest:
+                        scores_db[name] = {
+                            "score": latest.final_score,
+                            "risk_level": latest.risk_level,
+                        }
+    except Exception:
+        pass
+
+    risk_color = {
+        "CRITICAL": "red", "HIGH": "orange1", "MODERATE": "yellow",
+        "LOW": "green", "VERY_LOW": "green",
+    }
+
+    def label(name):
+        info = scores_db.get(name)
+        if info:
+            rl = info["risk_level"]
+            color = risk_color.get(rl, "white")
+            return f"[cyan]{name}[/cyan] [{color}]{info['score']} {rl}[/{color}]"
+        return f"[cyan]{name}[/cyan] [dim]unscored[/dim]"
+
+    if json_output:
+        visited = set()
+
+        def build_node(name):
+            info = scores_db.get(name, {})
+            node = {"name": name}
+            if info:
+                node["score"] = info["score"]
+                node["risk_level"] = info["risk_level"]
+            children = adj.get(name, [])
+            if children and name not in visited:
+                visited.add(name)
+                node["dependencies"] = [build_node(c) for c in sorted(children) if c in adj]
+            return node
+
+        tree_json = build_node(package)
+        console.print(json.dumps({
+            "root": package,
+            "ecosystem": ecosystem,
+            "packages": len(adj),
+            "tree": tree_json,
+        }, indent=2))
+        return
+
+    # Rich Tree display
+    from rich.tree import Tree
+
+    visited = set()
+
+    def add_branch(tree_node, name):
+        children = adj.get(name, [])
+        for child in sorted(children):
+            if child not in adj:
+                continue
+            if child in visited:
+                tree_node.add(f"{label(child)} [dim](see above)[/dim]")
+            else:
+                visited.add(child)
+                branch = tree_node.add(label(child))
+                add_branch(branch, child)
+
+    tree = Tree(label(package))
+    visited.add(package)
+    add_branch(tree, package)
+    console.print()
+    console.print(tree)
+
+    # Summary
+    level_counts = {}
+    for info in scores_db.values():
+        rl = info["risk_level"]
+        level_counts[rl] = level_counts.get(rl, 0) + 1
+    unscored = len(adj) - len(scores_db)
+
+    parts = []
+    for lvl in ["CRITICAL", "HIGH", "MODERATE", "LOW", "VERY_LOW"]:
+        if lvl in level_counts:
+            color = risk_color[lvl]
+            parts.append(f"[{color}]{level_counts[lvl]} {lvl}[/{color}]")
+    if unscored:
+        parts.append(f"[dim]{unscored} unscored[/dim]")
+
+    console.print(f"\n[bold]{len(adj)} packages[/bold]: {', '.join(parts)}")
+
+
 @app.command("xkcd-tree")
 def xkcd_tree(
     package: str = typer.Argument(..., help="Root package (e.g., 'express')"),
