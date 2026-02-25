@@ -962,8 +962,9 @@ def deps(
         from ossuary.db.models import Package, Score
         with session_scope() as session:
             for name in adj:
+                db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
                 pkg = session.query(Package).filter(
-                    Package.name == name, Package.ecosystem == ecosystem,
+                    Package.name == db_name, Package.ecosystem == ecosystem,
                 ).first()
                 if pkg:
                     latest = (
@@ -1222,8 +1223,9 @@ def _generate_tree_svg(adj, root, ecosystem, output, title, max_width):
         from ossuary.db.models import Package, Score
         with session_scope() as session:
             for name in layer_map:
+                db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
                 pkg = session.query(Package).filter(
-                    Package.name == name, Package.ecosystem == ecosystem,
+                    Package.name == db_name, Package.ecosystem == ecosystem,
                 ).first()
                 if pkg:
                     latest = (
@@ -1437,8 +1439,9 @@ def _generate_tower_from_tree(adj, root, ecosystem, output, title, max_width):
         from ossuary.db.models import Package, Score
         with session_scope() as session:
             for name in layer_map:
+                db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
                 pkg = session.query(Package).filter(
-                    Package.name == name, Package.ecosystem == ecosystem,
+                    Package.name == db_name, Package.ecosystem == ecosystem,
                 ).first()
                 if pkg:
                     latest = (
