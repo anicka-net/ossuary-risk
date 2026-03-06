@@ -1,0 +1,230 @@
+"""Ossuary - OSS Supply Chain Risk Scoring Dashboard."""
+
+import os
+
+from dotenv import load_dotenv
+load_dotenv()
+
+import streamlit as st
+
+from ossuary.db.session import init_db
+from ossuary.dashboard.utils import (
+    apply_style, get_all_tracked_packages, get_ecosystem_summary,
+    risk_color, COLORS, VERSION,
+)
+
+st.set_page_config(
+    page_title="Ossuary",
+    page_icon=None,
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+apply_style()
+
+
+@st.cache_resource
+def _init_db():
+    init_db()
+    return True
+
+
+_init_db()
+
+# -- Header --
+
+st.markdown(
+    '<h1 style="margin-bottom:0;color:#2c3e50;">Ossuary</h1>'
+    '<p style="color:#7f8c8d;margin-top:0;">OSS Supply Chain Risk Scoring</p>',
+    unsafe_allow_html=True,
+)
+
+if not os.getenv("GITHUB_TOKEN"):
+    st.caption("GITHUB_TOKEN not set — API rate limits will be restrictive.")
+
+st.divider()
+
+# -- Load data --
+
+all_packages = get_all_tracked_packages()
+scored = [p for p in all_packages if p["score"] is not None]
+
+if not scored:
+    st.markdown(
+        "No packages tracked yet. Analyze a package to get started, "
+        "or run `ossuary seed` to populate with a starter set."
+    )
+    st.markdown("")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.page_link("pages/3_Score.py", label="Score a package", icon=None)
+    with col2:
+        st.page_link("pages/4_Methodology.py", label="View methodology", icon=None)
+    with col3:
+        st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems", icon=None)
+    st.divider()
+    st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")
+    st.stop()
+
+# -- Key metrics --
+
+critical = [p for p in scored if p["score"] >= 80]
+high = [p for p in scored if 60 <= p["score"] < 80]
+moderate = [p for p in scored if 40 <= p["score"] < 60]
+safe = [p for p in scored if p["score"] < 40]
+
+takeover_alerts = [p for p in scored if p.get("has_takeover_risk")]
+mature_count = sum(1 for p in scored if p.get("is_mature"))
+
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1.metric("Tracked", len(scored))
+col2.metric("Critical", len(critical))
+col3.metric("High", len(high))
+col4.metric("Moderate", len(moderate))
+col5.metric("Safe", len(safe))
+col6.metric("Takeover alerts", len(takeover_alerts))
+
+st.divider()
+
+# -- Ecosystem summary cards --
+
+st.markdown("#### By ecosystem")
+
+eco_summary = get_ecosystem_summary()
+
+if eco_summary:
+    cols = st.columns(min(len(eco_summary), 4))
+    for i, (eco, data) in enumerate(sorted(eco_summary.items())):
+        with cols[i % len(cols)]:
+            avg = data["avg_score"]
+            color = risk_color(
+                "critical" if avg >= 80 else "high" if avg >= 60
+                else "moderate" if avg >= 40 else "low"
+            )
+            st.markdown(
+                f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
+                f'margin-bottom:8px;border-left:3px solid {color};">'
+                f'<a href="/Ecosystems?eco={eco}" target="_self" style="color:inherit;text-decoration:none;"><strong>{eco}</strong></a><br>'
+                f'<span style="font-family:monospace;font-size:1.4em;">{data["count"]}</span> '
+                f'<span style="color:#7f8c8d;">packages</span><br>'
+                f'<span style="color:#7f8c8d;font-size:0.85em;">'
+                f'avg {avg:.0f} · max {data["max_score"]}'
+                f'{" · " + str(data["critical"]) + " critical" if data["critical"] else ""}'
+                f'{" · " + str(data["high"]) + " high" if data["high"] else ""}'
+                f'</span></div>',
+                unsafe_allow_html=True,
+            )
+
+st.divider()
+
+# -- Highest risk packages --
+
+st.markdown("#### Highest risk")
+
+at_risk = [p for p in scored if p["score"] >= 40]
+at_risk.sort(key=lambda p: p["score"], reverse=True)
+
+if at_risk:
+    for p in at_risk[:15]:
+        score = p["score"]
+        level = p["risk_level"] or ""
+        color = risk_color(level)
+        conc = f'{p["concentration"]:.0f}%' if p["concentration"] is not None else "—"
+        commits = p["commits_year"] if p["commits_year"] is not None else "—"
+
+        # Build tags for maturity/takeover
+        tags = ""
+        if p.get("has_takeover_risk"):
+            tags += (
+                f' <span style="background:{COLORS["bg_critical"]};color:{COLORS["critical"]};'
+                f'padding:1px 6px;border-radius:3px;font-size:0.75em;font-weight:600;">'
+                f'TAKEOVER</span>'
+            )
+        if p.get("is_mature"):
+            tags += (
+                f' <span style="background:{COLORS["bg_low"]};color:{COLORS["low"]};'
+                f'padding:1px 6px;border-radius:3px;font-size:0.75em;">mature</span>'
+            )
+
+        col1, col2, col3, col4 = st.columns([3, 1, 2, 2])
+        with col1:
+            st.markdown(
+                f'<a href="/Package?name={p["name"]}&eco={p["ecosystem"]}" target="_self" '
+                f'style="color:inherit;text-decoration:none;"><strong>{p["name"]}</strong></a>'
+                f' · {p["ecosystem"]}{tags}',
+                unsafe_allow_html=True,
+            )
+        with col2:
+            delta_html = ""
+            if p.get("delta") and p["delta"] != 0:
+                d = p["delta"]
+                d_color = COLORS["critical"] if d > 0 else COLORS["low"]
+                arrow = "+" if d > 0 else ""
+                delta_html = f' <span style="color:{d_color};font-size:0.75em;">{arrow}{d}</span>'
+            st.markdown(
+                f'<span style="color:{color};font-family:monospace;font-weight:600;">'
+                f'{score}</span> <span style="color:#7f8c8d;font-size:0.85em;">{level}</span>'
+                f'{delta_html}',
+                unsafe_allow_html=True,
+            )
+        with col3:
+            st.caption(f"concentration {conc}")
+        with col4:
+            st.caption(f"{commits} commits/yr")
+else:
+    st.caption("No packages at moderate risk or above.")
+
+# -- Biggest movers --
+
+movers = [p for p in scored if p.get("delta") and p["delta"] != 0]
+movers.sort(key=lambda p: abs(p["delta"]), reverse=True)
+
+if movers:
+    st.divider()
+    st.markdown("#### Biggest movers")
+
+    for p in movers[:10]:
+        d = p["delta"]
+        prev = p.get("previous_score", "?")
+        curr = p["score"]
+        d_color = COLORS["critical"] if d > 0 else COLORS["low"]
+        arrow = "+" if d > 0 else ""
+        level = p["risk_level"] or ""
+        color = risk_color(level)
+
+        col1, col2, col3 = st.columns([3, 2, 2])
+        with col1:
+            st.markdown(
+                f'<a href="/Package?name={p["name"]}&eco={p["ecosystem"]}" target="_self" '
+                f'style="color:inherit;text-decoration:none;"><strong>{p["name"]}</strong></a>'
+                f' · {p["ecosystem"]}',
+                unsafe_allow_html=True,
+            )
+        with col2:
+            st.markdown(
+                f'<span style="font-family:monospace;">{prev}</span>'
+                f' <span style="color:#7f8c8d;">&rarr;</span> '
+                f'<span style="color:{color};font-family:monospace;font-weight:600;">{curr}</span>',
+                unsafe_allow_html=True,
+            )
+        with col3:
+            st.markdown(
+                f'<span style="color:{d_color};font-family:monospace;font-weight:600;">'
+                f'({arrow}{d})</span>',
+                unsafe_allow_html=True,
+            )
+
+# -- Navigation --
+
+st.divider()
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.page_link("pages/3_Score.py", label="Score a package")
+with col2:
+    st.page_link("pages/1_Ecosystems.py", label="Browse ecosystems")
+with col3:
+    st.page_link("pages/2_Package.py", label="Package detail")
+with col4:
+    st.page_link("pages/4_Methodology.py", label="Methodology")
+
+st.caption(f"Ossuary v{VERSION} · [source](https://github.com/anicka-net/ossuary-risk)")

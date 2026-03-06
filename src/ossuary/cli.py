@@ -56,6 +56,37 @@ def init():
     console.print("[green]Database initialized successfully[/green]")
 
 
+@app.command()
+def dashboard(
+    port: int = typer.Option(8501, "--port", "-p", help="Port to run dashboard on"),
+):
+    """Launch the Streamlit dashboard."""
+    import subprocess
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard", "app.py")
+    console.print(f"Starting dashboard on port {port}...")
+    subprocess.run([
+        sys.executable, "-m", "streamlit", "run", dashboard_path,
+        "--server.port", str(port),
+        "--server.headless", "true",
+    ])
+
+
+@app.command()
+def api(
+    port: int = typer.Option(8100, "--port", "-p", help="Port to run API on"),
+    host: str = typer.Option("0.0.0.0", "--host", help="Host to bind to"),
+):
+    """Launch the REST API server."""
+    import subprocess
+    console.print(f"Starting API on {host}:{port}...")
+    subprocess.run([
+        sys.executable, "-m", "uvicorn",
+        "ossuary.api.main:app",
+        "--host", host,
+        "--port", str(port),
+    ])
+
+
 SUPPORTED_ECOSYSTEMS = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
 
 

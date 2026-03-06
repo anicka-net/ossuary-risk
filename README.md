@@ -85,7 +85,7 @@ ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
 pip install "ossuary-risk[dashboard]"
 
 # Run dashboard
-streamlit run dashboard.py --server.port 8501
+ossuary dashboard
 ```
 
 Features: risk overview, ecosystem breakdown, package detail with score history, delta detection (biggest movers).
@@ -93,7 +93,7 @@ Features: risk overview, ecosystem breakdown, package detail with score history,
 ## REST API
 
 ```bash
-uvicorn ossuary.api.main:app --port 8100
+ossuary api
 ```
 
 ```bash
