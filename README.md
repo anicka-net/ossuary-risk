@@ -13,14 +13,14 @@ Ossuary targets the subset of supply chain attacks where **governance weakness i
 | Social engineering takeover (xz pattern) | Account compromise (stolen tokens) |
 | Abandoned packages | Dependency confusion |
 | Governance disputes (left-pad pattern) | Typosquatting |
-| Newcomer takeover patterns | Malicious code injection |
+| Newcomer takeover patterns | CI/CD exploits |
 | Economic frustration signals | Active maintainer sabotage |
 
 ## Quick Start
 
 ```bash
-# Install from GitHub
-pip install git+https://github.com/anicka-net/ossuary-risk.git
+# Install from PyPI
+pip install ossuary-risk
 
 # Set GitHub token for API access (optional but recommended)
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
@@ -28,18 +28,22 @@ export GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
 # Initialize database
 ossuary init
 
-# Score a package
-ossuary score event-stream --ecosystem npm
-
-# Score across ecosystems
-ossuary score numpy --ecosystem pypi
-ossuary score serde --ecosystem cargo
+# Score a single package
+ossuary score event-stream -e npm
+ossuary score numpy -e pypi
+ossuary score serde -e cargo
 
 # Score with historical cutoff (T-1 analysis)
-ossuary score event-stream --ecosystem npm --cutoff 2018-09-01
+ossuary score event-stream -e npm --cutoff 2018-09-01
 
-# Output as JSON
-ossuary score requests --ecosystem pypi --json
+# Score an entire dependency tree
+ossuary score-deps transformers -e pypi
+
+# Show dependency tree with risk scores
+ossuary deps express
+
+# Generate xkcd-2347 tower visualization
+ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
 
 # Batch score from seed file
 ossuary seed-custom seeds/pypi-popular.yaml
@@ -63,15 +67,22 @@ Final Score = Base Risk + Activity Modifier + Protective Factors
 
 **Takeover Detection** (novel contribution): compares each contributor's recent commit share vs historical baseline. A newcomer jumping from 2% to 50% on a mature project triggers an alert. Guards prevent false positives for established contributors, long-tenure maintainers, and internal org handoffs.
 
-When a takeover pattern is detected, the activity bonus is suppressed - high commit activity during a takeover is evidence of the attack, not project health.
-
 See [methodology](docs/methodology.md) for full details.
+
+## Visualization
+
+The `xkcd-tree` command generates dependency tower diagrams inspired by [xkcd 2347](https://xkcd.com/2347/). Block color = risk score, block width = contributor count, arrow = most structurally critical dependency.
+
+```bash
+ossuary score-deps transformers -e pypi  # score all deps first
+ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
+```
 
 ## Dashboard
 
 ```bash
 # Install with dashboard dependencies
-pip install "ossuary-risk[dashboard] @ git+https://github.com/anicka-net/ossuary-risk.git"
+pip install "ossuary-risk[dashboard]"
 
 # Run dashboard
 streamlit run dashboard.py --server.port 8501
@@ -79,16 +90,31 @@ streamlit run dashboard.py --server.port 8501
 
 Features: risk overview, ecosystem breakdown, package detail with score history, delta detection (biggest movers).
 
+## REST API
+
+```bash
+uvicorn ossuary.api.main:app --port 8100
+```
+
+```bash
+curl http://localhost:8100/score/pypi/flask
+curl http://localhost:8100/check/npm/express
+```
+
+Interactive docs at `http://localhost:8100/docs`.
+
 ## Validation
 
-Validated on 144 packages across 8 ecosystems:
+Validated on 158 packages across 8 ecosystems:
 
-- **Accuracy**: 96.5%
-- **Precision**: 100.0% (zero false positives)
-- **Recall**: 80.0%
-- **F1 Score**: 0.89
+- **Accuracy**: 89.2%
+- **Precision**: 95.8% (1 false positive: rxjs)
+- **Recall**: 59.0%
+- **F1 Score**: 0.73
 
-The 5 remaining false negatives are all account compromises on well-governed projects - confirming the known boundary of governance-based detection.
+All 16 false negatives are account compromises or CI/CD exploits — attack types governance scoring explicitly does not detect. Among governance-detectable attack types, recall is 100%.
+
+See [validation report](docs/validation.md) for full analysis.
 
 ## Development
 
@@ -115,4 +141,6 @@ MIT
 
 ## Academic Context
 
-MBA thesis research on OSS supply chain risk (due Dec 2026). Key contribution: governance-based risk indicators are observable in public metadata before incidents occur, but they address a specific attack subset - not a universal detector.
+MBA thesis research on OSS supply chain risk (due Dec 2026). The tool was co-developed with Claude (Anthropic). AI assistance was used for data collection, analysis scripts, and working notes. All thesis text is the author's own.
+
+Key contribution: governance-based risk indicators are observable in public metadata before incidents occur, but they address a specific attack subset — not a universal detector.

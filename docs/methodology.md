@@ -6,7 +6,7 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 158 packages across 8 ecosystems, the methodology achieved **100% precision** (zero false positives) and **89.9% accuracy**. All 16 false negatives are documented and expected — they represent attack classes (credential theft, CI/CD exploits) that governance scoring explicitly does not attempt to detect. The methodology correctly identifies governance-based risk (abandonment, concentration, frustration, takeover patterns) while clearly delineating its boundary.
+**Key Finding**: In validation testing against 158 packages across 8 ecosystems, the methodology achieved **95.8% precision** (1 false positive) and **89.2% accuracy**. All 16 false negatives are documented and expected — they represent attack classes (credential theft, CI/CD exploits) that governance scoring explicitly does not attempt to detect. The methodology correctly identifies governance-based risk (abandonment, concentration, frustration, takeover patterns) while clearly delineating its boundary.
 
 **Version**: 5.0 (February 2026)
 **Validation Dataset**: 158 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
@@ -108,7 +108,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 100% precision** with zero false positives across 158 packages (v5.0)
+4. **Achieving 95.8% precision** with 1 false positive across 158 packages (v5.0)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -463,23 +463,23 @@ Total: 158 packages across npm (65), PyPI (46), Cargo (8), RubyGems (11), Packag
 ### 8.3 Results (n=158, v5.0)
 
 ```
-Accuracy:   89.9%
+Accuracy:   89.2%
 Precision:  100.0%
 Recall:     59.0%
 F1 Score:   0.74
 
 Confusion Matrix:
   TP: 23  |  FN: 16
-  FP: 0   |  TN: 119
+  FP: 1   |  TN: 118
 ```
 
 **Key results**:
 
-- **Zero false positives** across 119 safe packages and 8 ecosystems. No healthy package is incorrectly flagged as risky.
+- **1 false positive** (rxjs) across 119 safe packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year, despite 80M weekly npm downloads. This is a borderline case — the governance signals are genuinely concerning, but no incident has occurred. It may warrant reclassification as `governance_risk` in future validation rounds.
 - **All 16 false negatives are expected and documented** — they represent attack types outside the detection scope (account compromise, CI/CD exploits, insider sabotage). See §8.6 for the complete analysis.
 - **59% recall** reflects the intentional scope limitation: governance scoring detects governance-based risk, not credential theft or CI/CD exploits. When restricted to governance-detectable attack types (governance_failure + governance_risk), recall is **93.8%** (15/16).
 
-**Evolution from v4.1**: The previous version (n=143) had 84.6% accuracy and 88.9% precision with 1 false positive (devise). The false positive was eliminated by improving org-continuity detection. Validation expanded from 143 to 158 packages, adding 15 incident cases from a comprehensive supply chain attack sweep covering 2016–2026.
+**Evolution from v4.1**: The previous version (n=143) had 84.6% accuracy and 88.9% precision with 1 false positive (devise). The devise false positive was eliminated by improving org-continuity detection, but rxjs emerged as a new FP due to declining activity metrics. Validation expanded from 143 to 158 packages, adding 15 incident cases from a comprehensive supply chain attack sweep covering 2016–2026.
 
 **Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
@@ -569,7 +569,7 @@ A key contribution of this validation approach is the **explicit categorization 
 1. **Define the detection scope** a priori (governance-based risk only)
 2. **Include out-of-scope incidents** in the validation set
 3. **Document why each is undetectable** from governance signals
-4. **Demonstrate empirically** that the boundary holds (0 false positives, all FNs are out-of-scope)
+4. **Demonstrate empirically** that the boundary holds (1 false positive, all FNs are out-of-scope)
 
 This provides stronger evidence than reporting only on in-scope incidents, as it proves the methodology does not generate false alarms when confronted with well-governed projects that happen to be compromised via other vectors.
 
@@ -683,7 +683,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 158 packages across 8 ecosystems; thresholds produce 100% precision (0 FP) |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 158 packages across 8 ecosystems; thresholds produce 95.8% precision (1 FP: rxjs) |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
@@ -727,7 +727,7 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 Despite these threats, several factors support the validity of findings:
 
-1. **100% Precision**: Zero false positives across 158 packages and 8 ecosystems
+1. **95.8% Precision**: 1 false positive (rxjs) across 158 packages and 8 ecosystems
 2. **100% T-1 Detection**: All governance-detectable incidents scored CRITICAL before they occurred
 3. **Explicit Boundary Validation**: 16 out-of-scope incidents included and documented as expected false negatives
 4. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
@@ -1022,7 +1022,7 @@ These papers directly inform the methodology and should be read in full:
 
 ---
 
-*Document version: 5.1*
+*Document version: 5.0*
 *Last updated: February 2026*
-*Validation dataset: 158 packages across 8 ecosystems (89.9% accuracy, 100% precision, 0 false positives)*
+*Validation dataset: 158 packages across 8 ecosystems (89.2% accuracy, 95.8% precision, 1 false positive (rxjs))*
 *Run validation: `python scripts/validate.py -o validation_results.json`*
