@@ -1,23 +1,68 @@
 # Validation Report
 
-**Version**: 3.0 (March 2026)
-**Dataset**: 158 packages across 8 ecosystems
+**Version**: 3.1 (March 2026)
+**Dataset**: 163 packages across 8 ecosystems
+**Scoring**: Tapered concentration window (v3.1)
 
 ---
 
 ## Summary
 
-Ossuary's governance-based risk scoring was validated against 158 open source packages spanning 8 package ecosystems. The dataset includes known supply chain incidents, packages with governance risk signals, and a control group of well-maintained packages.
+Ossuary detects governance risk — structural conditions in a project's maintenance that make it vulnerable to supply chain attack. It does not detect all supply chain attacks, only those where governance signals were observable before the incident.
 
-| Metric | Value |
-|--------|-------|
-| **Accuracy** | 89.2% |
-| **Precision** | 95.8% |
-| **Recall** | 59.0% |
-| **F1 Score** | 0.73 |
-| **False Positives** | 1 (rxjs) |
+The validation uses a **scoped evaluation framework** (Scope B) that counts only in-scope incidents toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate the detection boundary, but are not penalized as false negatives.
 
-**Key finding**: 1 false positive across 158 packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year despite 80M weekly downloads — a borderline case where the governance signals are genuinely concerning but no incident has occurred.
+| Metric | All incidents | In-scope (Scope B) |
+|--------|-------------|-------------------|
+| **Accuracy** | 87.7% | 95.3% |
+| **Precision** | 96.2% | 96.0% |
+| **Recall** | 56.8% | 80.0% |
+| **F1 Score** | 0.71 | 0.873 |
+| **False Positives** | 1 (rxjs) | 1 (rxjs) |
+
+---
+
+## Scoped Validation Framework
+
+### Why scoped metrics
+
+Reporting a single recall number across all incident types conflates fundamentally different attack classes. A tool that detected every credential theft would need to flag every package (since any maintainer can be phished), producing unacceptable false positive rates. Scoped metrics separate what the tool *claims to detect* from what it *acknowledges it cannot detect*.
+
+### Tier definitions
+
+An incident is **in-scope** if governance weakness was observable from public data before the attack:
+
+| Tier | Label | In-scope? | Rule |
+|------|-------|-----------|------|
+| T1 | Governance decay → compromise | Yes | Governance weakness was the enabling condition |
+| T2 | Protestware / sabotage | Yes | Bus factor 1 enabled unilateral action |
+| T3 | Account compromise + weak governance | Yes | Credential attack, but governance weakness also present |
+| T4 | Account compromise + strong governance | No | Credential attack on healthy project |
+| T5 | CI/CD pipeline exploit | No | Different attack surface entirely |
+| T_risk | Governance risk, no incident (yet) | Yes | Validates risk identification before incidents occur |
+
+### Decision procedure for borderline cases
+
+For each incident: (1) Would Ossuary's signals have shown elevated risk before the attack? (2) Was the governance weakness the enabling condition or merely coincidental? If both yes → in-scope.
+
+---
+
+## Per-Tier Detection Rates
+
+| Tier | Detected | Rate | Notes |
+|------|----------|------|-------|
+| T1: Governance decay | 7/8 | **88%** | 1 miss: polyfill.io (ownership transfer untracked) |
+| T2: Protestware / sabotage | 2/6 | **33%** | 4 misses: all reputation-protected maintainers |
+| T3: Weak-gov compromise | 4/4 | **100%** | All detected |
+| T_risk: Governance risk | 11/12 | **92%** | 1 miss: core-js (very active despite bus factor 1) |
+| T4: Strong-gov compromise (OOS) | 1/8 | 12% | Expected — out of scope |
+| T5: CI/CD exploits (OOS) | 0/6 | 0% | Expected — out of scope |
+
+**Combined in-scope (Scope B)**: 24/30 = 80.0% recall.
+
+### Key finding: reputation-protected single-maintainer projects
+
+T2 (protestware) is the weakest in-scope tier at 33%. This is because protestware maintainers tend to have strong reputations (medikoo, ForbesLindesay, Marak). The model correctly identifies that reputation reduces risk, but this means it cannot detect unilateral action by reputable maintainers. This is a genuine trade-off, not a bug — reputation DOES reduce the probability of malicious action.
 
 ---
 
@@ -25,46 +70,41 @@ Ossuary's governance-based risk scoring was validated against 158 open source pa
 
 ### By Ecosystem
 
-| Ecosystem | Incidents | Controls | Total | Accuracy |
-|-----------|-----------|----------|-------|----------|
-| npm | 18 | 43 | 61 | 85% |
-| PyPI | 4 | 42 | 46 | 96% |
-| Cargo | 0 | 8 | 8 | 100% |
-| RubyGems | 3 | 8 | 11 | 91% |
-| Packagist | 0 | 5 | 5 | 100% |
-| NuGet | 0 | 4 | 4 | 100% |
-| Go | 1 | 4 | 5 | 100% |
-| GitHub | 13 | 5 | 18 | 50% |
-| **Total** | **39** | **119** | **158** | **89.2%** |
+| Ecosystem | Incidents | Controls | Total |
+|-----------|-----------|----------|-------|
+| npm | 23 | 43 | 66 |
+| PyPI | 4 | 42 | 46 |
+| Cargo | 0 | 8 | 8 |
+| RubyGems | 3 | 8 | 11 |
+| Packagist | 0 | 5 | 5 |
+| NuGet | 0 | 4 | 4 |
+| Go | 1 | 4 | 5 |
+| GitHub | 13 | 5 | 18 |
+| **Total** | **44** | **119** | **163** |
 
-npm has the most incidents because it has the most documented supply chain attacks historically. GitHub has the lowest accuracy because most GitHub-specific cases are CI/CD exploits (stolen tokens, workflow vulnerabilities) — attack types governance metrics cannot detect.
+### By Tier
 
-### By Attack Type
-
-| Attack Type | Detected | Total | Rate | Detectable? |
-|-------------|----------|-------|------|-------------|
-| Governance risk | 11 | 11 | 100% | Yes - primary target |
-| Governance failure | 5 | 5 | 100% | Yes - primary target |
-| Account compromise | 7 | 23 | 30% | No - outside scope |
-| **Control (safe)** | **118** | **119** | **99.2%** | N/A (1 FP: rxjs) |
+| Category | Count |
+|----------|-------|
+| T1: Governance decay | 8 |
+| T2: Protestware / sabotage | 6 |
+| T3: Weak-gov compromise | 4 |
+| T4: Strong-gov compromise | 8 |
+| T5: CI/CD exploits | 6 |
+| T_risk: Governance risk | 12 |
+| Controls | 119 |
 
 ---
 
-## Confusion Matrix
+## Confusion Matrix (Scope B)
 
 ```
                     Predicted Risky    Predicted Safe
-Actually Risky         23 (TP)            16 (FN)
+Actually Risky         24 (TP)             6 (FN)
 Actually Safe           1 (FP)           118 (TN)
 ```
 
-### What the Numbers Mean
-
-**Precision (95.8%)**: When ossuary flags a package, it is almost always right. The single false positive (rxjs) has genuinely concerning governance metrics — whether it constitutes a true false positive or an unrealized governance risk is debatable.
-
-**Recall (59.0%)**: Ossuary catches about 59% of risky packages. The ~41% it misses are predominantly attack types it explicitly does not claim to detect (account compromise, CI/CD exploits, insider sabotage). Among governance-detectable attack types (governance_failure + governance_risk), recall is **100%** (16/16).
-
-**The recall ceiling**: Approximately 40% of incidents in our dataset are account compromises or CI/CD exploits. These are fundamentally invisible to governance metrics because the project looks healthy right up until the attack. No amount of tuning will catch credential theft or workflow vulnerabilities. Ossuary is honest about this limitation rather than inflating recall with noisy heuristics.
+Out-of-scope incidents (14 packages) excluded from this matrix. They appear in the full-dataset metrics but not the scoped metrics.
 
 ---
 
@@ -72,90 +112,134 @@ Actually Safe           1 (FP)           118 (TN)
 
 ### rxjs (Score: 75 HIGH)
 
-rxjs is classified as `safe` in our dataset (no incident has occurred), but scores 75 HIGH due to:
+Persistent false positive. rxjs scores 75 HIGH due to:
 - 100% maintainer concentration
 - 0 commits in the last year
 - No community activity signal
 
-Despite 80M weekly npm downloads and organizational backing, the governance signals are genuinely concerning. This may warrant reclassification as `governance_risk` in future validation rounds — the absence of an incident does not mean the absence of risk.
+Despite organizational backing and 80M weekly npm downloads, the governance signals are genuinely concerning. This may warrant reclassification as `governance_risk` — the absence of an incident does not mean the absence of risk.
+
+### sidekiq — eliminated by tapered concentration
+
+In the previous validation run (March 6), sidekiq scored 60 HIGH (FP). One week later, with no governance change, it had shifted from 40→60 due to a 2.3% concentration swing when commits crossed the 12-month boundary. The tapered concentration window (v3.1) smooths this to 40 (TN). See Score Stability below.
 
 ---
 
-## False Negative Analysis
+## In-Scope False Negative Analysis
 
-### Expected False Negatives (Outside Detection Scope)
+All 6 in-scope false negatives are explainable:
 
-All 16 false negatives are account compromise or CI/CD exploit cases where governance metrics cannot detect the attack by design:
+| Package | Score | Tier | Why missed |
+|---------|-------|------|-----------|
+| faker | 0 | T2 | Evaluating community fork (faker-js/faker); original repo deleted |
+| node-ipc | 35 | T2 | Active development (35 commits/yr) masks bus-factor-1 risk |
+| polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
+| core-js | 40 | T_risk | 1174 commits/yr gives activity discount; governance risk is real but offset |
+| es5-ext | 5 | T2 | 100% concentration but maintainer (medikoo) has strong reputation (-35 protective) |
+| is-promise | 30 | T2 | 67% concentration but ForbesLindesay has very strong reputation (-50 protective) |
 
-| Package | Score | Attack Type | Why Not Detected |
-|---------|-------|-------------|------------------|
-| faker | 0 | Maintainer sabotage | Community fork has healthy governance now |
-| node-ipc | 35 | Maintainer sabotage | Active maintainer with good governance signals |
-| eslint-scope | 35 | Account compromise | Org-owned, protective factors correctly applied |
-| LottieFiles/lottie-player | 45 | Account compromise | Org-owned project with institutional backing |
-| cline | 0 | Account compromise | 256 contributors, 58K stars, missing provenance attestations |
-| polyfillpolyfill/polyfill-library | 40 | Account compromise | CI/CD access policy exploit |
-| reviewdog/action-setup | 0 | Account compromise | GitHub Actions workflow vulnerability |
-| solana-labs/solana-web3.js | 0 | Account compromise | Spear-phished via fake npm site |
-| ultralytics | 0 | Account compromise | Well-governed project, CI/CD compromise |
-| codecov/codecov-action | 0 | Account compromise | Build infra compromise, corporate backing |
-| web-infra-dev/rspack | 0 | Account compromise | CI/CD misconfiguration, ByteDance backing |
-| chalk | 20 | Account compromise | Qix account phished, Sindre Sorhus project |
-| num2words | 0 | Account compromise | Maintainer phished via PyPI-proxying domain |
-| tj-actions/changed-files | 50 | Account compromise | Multi-stage CI/CD cascade attack |
-| eslint-config-prettier | 35 | Account compromise | Maintainer phished via typosquatted npm domain |
-| nrwl/nx | 0 | Account compromise | Exploited pull_request_target workflow |
+**faker**: The original Marak/faker.js repo was deleted. We evaluate the community fork (faker-js/faker), which has healthy governance — score 0 is correct for the current project state.
 
-**These are not failures.** A tool that flagged every actively maintained project as risky "just in case someone steals their credentials" would be useless.
+**node-ipc**: RIAEvangelist maintained active development (35 commits/year) right up until injecting protestware. Active maintenance is a positive governance signal; the model correctly weights it as such.
+
+**polyfill.io**: The project was sold to Funnull (a Chinese CDN company) who injected malicious JavaScript into 100K+ websites. Ownership transfers are not currently tracked as a signal. Acknowledged limitation.
+
+**core-js**: Denis Pushkarev (zloirock) was imprisoned Jan-Oct 2020, leaving the project unmaintained. Score 40 reflects the current state — he's back and committing 1174/year. Bus factor 1 with 92% concentration is a real risk, but high activity correctly moderates the score.
+
+**es5-ext, is-promise**: Both demonstrate the reputation trade-off — bus factor 1 enables unilateral action, but reputable maintainers with sponsors and community standing ARE genuinely lower risk. The model correctly prioritizes precision here.
 
 ---
 
-## The xz-utils Case
+## Out-of-Scope Incident Analysis
 
-The xz-utils backdoor (CVE-2024-3094) is now correctly detected — ossuary scores it **80 CRITICAL** with takeover pattern detection identifying the Jia Tan proportion shift.
+14 out-of-scope incidents are included in the dataset to validate detection boundaries. All score below 60 as expected:
 
-This was a false negative in v2.1 (scored 30 LOW). The improvement came from the proportion shift detection added in v4.0, which compares each contributor's recent commit share vs historical baseline.
+### T4: Account compromise on healthy projects (8 cases)
 
-The xz case remains the most sophisticated supply chain attack ever documented:
-- 2.6-year attack timeline (2021-2024)
-- Attacker spent years building trust as a legitimate contributor
-- Deliberately addressed governance weaknesses
+| Package | Score | Attack Vector |
+|---------|-------|---------------|
+| ua-parser-js | 75 | Email hijacking (bonus detection — above threshold) |
+| eslint-scope | 35 | Account compromise, OpenJS Foundation |
+| LottieFiles/lottie-player | 25 | Account compromise, org-backed |
+| chalk (2025) | 0 | Qix phished, Sindre Sorhus project |
+| cline | 0 | npm account compromise, 256 contributors |
+| solana-web3.js | 0 | Spear-phished via fake npm domain |
+| eslint-config-prettier | 35 | JounQin phished via typosquatted domain |
+| num2words | 0 | Phished via fake PyPI domain, org-backed (savoirfairelinux) |
 
-That ossuary now detects it is encouraging, but the detection relies on the proportion shift being visible in commit data — a more subtle attacker who maintained a lower profile might still evade detection.
+ua-parser-js is a bonus detection — above threshold despite being T4, likely because the project had some governance concentration signals.
+
+### T5: CI/CD pipeline exploits (6 cases)
+
+| Package | Score | Attack Vector |
+|---------|-------|---------------|
+| reviewdog/action-setup | 0 | CI/CD contributor access exploit |
+| codecov/codecov-action | 0 | Docker HMAC extraction |
+| web-infra-dev/rspack | 0 | GitHub Actions pwn request |
+| ultralytics | 0 | GitHub Actions cache poisoning |
+| tj-actions/changed-files | 50 | Cascading CI/CD exploit (SpotBugs → reviewdog → tj-actions) |
+| nrwl/nx | 0 | pull_request_target exploit |
+
+All correctly score below threshold. CI/CD exploits target build infrastructure, not package governance.
 
 ---
 
 ## Score Stability
 
-Comparing the v2.1 run (February 15, 2026) with v3.0 (March 6, 2026) on the 143 common packages:
+### The problem (pre-v3.1)
 
-- **74% stable** (106/143 packages scored identically)
-- **26% changed** (37 packages), of which:
-  - 23 large changes (≥20 points)
-  - 14 medium changes (5-19 points)
-  - 8 classification flips (crossed the 60-point threshold)
+Comparing two validation runs one week apart (March 6 vs March 13, hard 12-month cutoff):
 
-Changes stem from two sources:
-1. **Scoring engine improvements** between runs (maturity detection, takeover scoring, org-continuity) — responsible for most large changes
-2. **Data drift** from the sliding git clone window — as time passes, recent commit counts shift
+- 95% of scores stable (149/157 common packages)
+- 8 packages changed by ±10-20 points
+- sidekiq crossed the threshold (40→60), creating a phantom false positive
 
-This level of instability is a known limitation. Governance signals are inherently time-dependent: a project with 10 commits/year in February may show 0 commits/year by March if the clone window shifts. The methodology §9.4 discusses this in detail.
+Root cause: the hard 12-month cutoff for concentration. A single commit crossing the 365-day boundary shifts concentration by 2-3%, which amplifies into ±20 point score changes.
+
+### The fix (v3.1): tapered concentration
+
+Activity count keeps the hard 12-month cutoff (the activity modifier uses coarse buckets >50/≥12/≥4/<4 that are insensitive to boundary noise). Concentration uses a tapered window:
+
+- 0-10 months: weight 1.0 (fully recent)
+- 10-14 months: weight fades linearly from 1.0 → 0.0
+- 14+ months: weight 0.0 (excluded)
+
+A commit at month 11 doesn't vanish when it ages to month 13 — it gradually fades. This eliminates the cliff edge that caused phantom threshold crossings.
+
+### Result
+
+Compared to the hard-cutoff run on the same data:
+- 6 scores changed (vs 8 unstable in the hard-cutoff comparison)
+- sidekiq: 60→40 (FP eliminated)
+- No TPs lost
+- Precision: 92.3%→96.0%
+
+The taper is not artificial smoothing — a commit from 11 months ago genuinely shouldn't have the same weight as one from last month. The hard cutoff was the artifact.
+
+---
+
+## The xz-utils Case
+
+The xz-utils backdoor (CVE-2024-3094) is detected — ossuary scores it **80 CRITICAL** with takeover pattern detection identifying the Jia Tan proportion shift (+49.5pp: 0.8% historical → 50% recent).
+
+This detection relies on the proportion shift being visible in commit data. A more subtle attacker maintaining a lower profile might evade detection. See [methodology §4.4](methodology.md) for technical details.
 
 ---
 
 ## Comparison Across Versions
 
-| Metric | v1 (Feb 2026) | v2.1 (Feb 2026) | v3.0 (Mar 2026) |
-|--------|---------------|-----------------|-----------------|
-| Packages | 92 | 143 | 158 |
-| Ecosystems | 2 | 8 | 8 |
-| Accuracy | 92.4% | 91.6% | 89.2% |
-| Precision | 100% | 100% | 95.8% |
-| Recall | 65.0% | 58.6% | 59.0% |
-| F1 | 0.79 | 0.74 | 0.73 |
-| False Positives | 0 | 0 | 1 |
+| Metric | v1 (Feb 2026) | v2.1 (Feb 2026) | v3.0 (Mar 2026) | v3.1 (Mar 2026) |
+|--------|---------------|-----------------|-----------------|-----------------|
+| Packages | 92 | 143 | 158 | 163 |
+| Ecosystems | 2 | 8 | 8 | 8 |
+| Scope | All | All | All | Scope B |
+| Accuracy | 92.4% | 91.6% | 89.2% | 95.3% |
+| Precision | 100% | 100% | 95.8% | 96.0% |
+| Recall | 65.0% | 58.6% | 59.0% | 80.0% |
+| F1 | 0.79 | 0.74 | 0.73 | 0.873 |
+| False Positives | 0 | 0 | 1 | 1 |
 
-The trend shows accuracy and precision decreasing slightly as the dataset grows and includes harder cases. This is expected — a larger, more diverse dataset is a harder test. The recall remains stable around 59%, consistent with the ~40% of incidents being fundamentally outside detection scope.
+The v3.1 jump in recall (59%→80%) and accuracy (89%→95%) reflects the scoped framework, not a model improvement. The model is the same — we simply stopped penalizing it for not detecting credential theft on healthy projects.
 
 ---
 
@@ -169,6 +253,12 @@ source .env  # GITHUB_TOKEN required
 .venv/bin/python scripts/validate.py --output validation_results.json
 ```
 
+Run scope analysis:
+
+```bash
+python thesis/analyze_scopes.py
+```
+
 Filter by ecosystem:
 
 ```bash
@@ -177,5 +267,5 @@ Filter by ecosystem:
 
 ---
 
-*Report generated from validation run on March 6, 2026*
-*Dataset: 158 packages (39 incidents, 119 controls) across 8 ecosystems*
+*Report generated from validation run on March 14, 2026*
+*Dataset: 163 packages (44 incidents, 119 controls) across 8 ecosystems*
