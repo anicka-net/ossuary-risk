@@ -1690,6 +1690,23 @@ VALIDATION_CASES = [
               "Bus factor 1, 766 direct dependents, 3.4M GitHub repos. Demonstrates governance fragility.",
         repo_url="https://github.com/then/is-promise",
     ),
+
+    # go-bindata — deleted GitHub account resurrected by unknown actor (2018)
+    # Classic username recycling / repo-jacking on Go ecosystem.
+    # Original author jteeuwen deleted account; attacker re-registered username
+    # and pushed malicious code. Bus factor 1, 100% concentration, 0 activity.
+    ValidationCase(
+        name="jteeuwen/go-bindata",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="governance_failure",
+        incident_date="2018-02-01",
+        cutoff_date="2018-01-15",
+        notes="Username recycling: original author deleted GitHub account, attacker "
+              "re-registered 'jteeuwen' and pushed malicious code. Classic abandoned "
+              "project takeover via namespace hijacking.",
+        repo_url="https://github.com/jteeuwen/go-bindata",
+    ),
 ]
 
 

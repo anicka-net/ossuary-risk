@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 163 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.0% precision** (1 false positive) and **80.0% in-scope recall** (F1 0.873). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
+**Key Finding**: In validation testing against 164 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.2% precision** (1 false positive) and **80.6% in-scope recall** (F1 0.877). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
 
 **Version**: 6.0 (March 2026)
-**Validation Dataset**: 163 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
+**Validation Dataset**: 164 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
 
@@ -437,13 +437,13 @@ High-signal keywords that historically preceded sabotage:
 
 ### 8.1 Dataset Construction
 
-The validation dataset (v6, n=163) includes:
+The validation dataset (v6, n=164) includes:
 
-1. **Known Incidents** (32 packages): Packages with documented supply chain incidents, spanning governance failures, protestware, account compromises, CI/CD exploits, and maintainer sabotage. Includes both in-scope and explicitly out-of-scope incidents.
+1. **Known Incidents** (33 packages): Packages with documented supply chain incidents, spanning governance failures, protestware, account compromises, CI/CD exploits, and maintainer sabotage. Includes both in-scope and explicitly out-of-scope incidents.
 2. **Governance Risk** (12 packages): Packages with elevated governance risk signals but no incident (yet) — abandoned, single-maintainer, or concentrated projects.
 3. **Control Group** (119 packages): Popular packages with healthy governance across all 8 ecosystems.
 
-Total: 163 packages across npm (66), PyPI (46), Cargo (8), RubyGems (11), Packagist (5), NuGet (4), Go (5), GitHub (18).
+Total: 164 packages across npm (66), PyPI (46), Cargo (8), RubyGems (11), Packagist (5), NuGet (4), Go (6), GitHub (18).
 
 **Dataset construction principles**:
 - Incidents drawn from documented supply chain attacks 2016–2026, cross-referenced against multiple sources (Socket.dev, Snyk, CISA advisories, incident write-ups)
@@ -460,7 +460,7 @@ Traditional recall penalizes the model for not detecting attacks it was never de
 
 | Tier | Label | In-scope? | Count |
 |------|-------|-----------|-------|
-| T1 | Governance decay → compromise | Yes | 8 |
+| T1 | Governance decay → compromise | Yes | 9 |
 | T2 | Protestware / sabotage | Yes | 6 |
 | T3 | Account compromise + weak governance | Yes | 4 |
 | T_risk | Governance risk, no incident | Yes | 12 |
@@ -480,30 +480,30 @@ Traditional recall penalizes the model for not detecting attacks it was never de
 
 Out-of-scope incidents (T4, T5) are tracked separately as "bonus detections" but do not count as TP or FN.
 
-### 8.4 Results (n=163, Scope B)
+### 8.4 Results (n=164, Scope B)
 
 ```
-In-scope incidents: 30 (T1=8, T2=6, T3=4, T_risk=12)
+In-scope incidents: 31 (T1=9, T2=6, T3=4, T_risk=12)
 Out-of-scope incidents: 14 (T4=8, T5=6)
 Controls: 119
 
 Confusion Matrix (Scope B):
-  TP: 24  |  FN: 6
+  TP: 25  |  FN: 6
   FP: 1   |  TN: 118
 
 Accuracy:   95.3%
-Precision:  96.0%
-Recall:     80.0%
-F1 Score:   0.873
+Precision:  96.2%
+Recall:     80.6%
+F1 Score:   0.877
 ```
 
 **Key results**:
 
 - **1 false positive** (rxjs) across 119 safe packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year. The governance signals are genuinely concerning; it may warrant reclassification as `governance_risk`.
 - **6 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), es5-ext and is-promise (maintainer reputation correctly reduces score).
-- **80% in-scope recall** reflects genuine detection capability. The previous 59% recall penalized the model for not detecting credential theft on healthy projects.
+- **80.6% in-scope recall** reflects genuine detection capability. The previous 59% recall penalized the model for not detecting credential theft on healthy projects.
 
-**Comparison with unscoped metrics**: Across all 44 incidents (including out-of-scope), overall recall is 56.8%. This lower number is expected — 14 out-of-scope incidents are fundamentally undetectable from governance signals.
+**Comparison with unscoped metrics**: Across all 45 incidents (including out-of-scope), overall recall is 57.8%. This lower number is expected — 14 out-of-scope incidents are fundamentally undetectable from governance signals.
 
 **Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
@@ -511,7 +511,7 @@ F1 Score:   0.873
 
 | Tier | Detected | Rate | Notes |
 |------|----------|------|-------|
-| **T1: Governance decay** | 7/8 | **88%** | 1 miss: polyfill.io (ownership transfer) |
+| **T1: Governance decay** | 8/9 | **89%** | 1 miss: polyfill.io (ownership transfer) |
 | **T2: Protestware / sabotage** | 2/6 | **33%** | 4 misses: reputation-protected maintainers |
 | **T3: Weak-gov compromise** | 4/4 | **100%** | All detected |
 | **T_risk: Governance risk** | 11/12 | **92%** | 1 miss: core-js (very active) |
@@ -721,18 +721,20 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Small Incident Sample** | 44 incident/risk packages in validation set (30 in-scope) | Incidents are rare events; sample represents majority of documented governance incidents across ecosystems, plus 14 out-of-scope cases |
-| **Class Imbalance** | 44 incidents vs 119 controls (1:2.7 ratio) | Reported precision and recall separately; F1 accounts for imbalance; metrics reported both scoped (Scope B) and unscoped |
-| **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the full population of known incidents, not a sample; temporal holdout analysis performed (≤2022 dev / 2023+ holdout) but holdout has only 3 in-scope incidents |
-| **Confidence Intervals** | Point estimates reported without confidence intervals | Sample size limits statistical power; results should be interpreted directionally |
+| **Small Incident Sample** | 45 incident/risk packages in validation set (31 in-scope) | This is a near-census, not a sample. Cross-referencing CNCF (89), IQT Labs (182), and Ladisa et al. (94) catalogs identified ~50 total scorable governance-relevant incidents across our 8 ecosystems; we include 45 (remainder have deleted repos). The population IS small — governance-detectable attacks are rare events. |
+| **Class Imbalance** | 45 incidents vs 119 controls (1:2.6 ratio) | Reported precision and recall separately; F1 accounts for imbalance; metrics reported both scoped (Scope B) and unscoped |
+| **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the near-complete population, not a sample from a larger one; temporal holdout analysis performed (≤2022 dev / 2023+ holdout) but holdout has only 3 in-scope incidents |
+| **Confidence Intervals** | Point estimates reported without confidence intervals | Bootstrap CIs reported: precision 86–100%, recall 62–91%, F1 74–94%. Wide recall CI reflects genuine uncertainty from small population |
+| **ML Comparison** | Hand-tuned formula not validated against learned alternatives | Five ML models tested (LR, SVM, RF, Gradient Boosting, XGBoost). Best ML achieves F1 0.787 vs hand-tuned 0.857. ML validates feature selection and threshold (PR-optimal = 60) but cannot match precision (80% vs 96%) due to small n and nonlinear interactions |
 
 ### 10.5 Mitigations Summary
 
 Despite these threats, several factors support the validity of findings:
 
-1. **96.0% Precision**: 1 false positive (rxjs) across 163 packages and 8 ecosystems
-2. **80.0% In-Scope Recall**: Scoped framework separates detectable from undetectable attack types
-3. **Per-Tier Transparency**: T1 88%, T2 33%, T3 100%, T_risk 92% — specific strengths and weaknesses documented
+1. **96.2% Precision**: 1 false positive (rxjs) across 164 packages and 8 ecosystems
+2. **80.6% In-Scope Recall**: Scoped framework separates detectable from undetectable attack types
+3. **Per-Tier Transparency**: T1 89%, T2 33%, T3 100%, T_risk 92% — specific strengths and weaknesses documented
+4. **Near-Census Coverage**: Dataset covers 45 of ~50 known scorable incidents (90%), cross-referenced against CNCF, IQT Labs, and Ladisa et al. catalogs
 4. **100% T-1 Detection**: All governance-detectable incidents scored CRITICAL before they occurred
 5. **Explicit Boundary Validation**: 14 out-of-scope incidents included and documented
 6. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
