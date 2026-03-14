@@ -274,7 +274,6 @@ class GitCollector(BaseCollector):
             return GitMetrics()
 
         cutoff = cutoff_date or datetime.now()
-        one_year_ago = cutoff - timedelta(days=365)
 
         # Sort commits by date (needed for first/last and historical analysis)
         sorted_commits = sorted(commits, key=lambda c: c.authored_date)
@@ -294,12 +293,40 @@ class GitCollector(BaseCollector):
         else:
             lifetime_concentration = 100.0
 
-        # --- Recent stats (last 12 months) ---
+        # --- Recent stats (last 12 months, tapered concentration) ---
+        # Activity count uses a hard 12-month cutoff (the activity modifier
+        # uses coarse buckets >50/≥12/≥4/<4, so boundary noise doesn't matter).
+        # Concentration uses a tapered window to smooth the ±2-3% swings that
+        # occur when individual commits cross the 365-day boundary, which
+        # previously caused scores to jump ±20 points between weekly runs
+        # (e.g. sidekiq 40→60 from a 68.9%→71.2% concentration shift).
+        one_year_ago = cutoff - timedelta(days=365)
+        taper_full = cutoff - timedelta(days=300)   # 10 months: full weight
+        taper_start = cutoff - timedelta(days=425)  # ~14 months: zero weight
+
+        # Hard-window commits (for activity count)
         recent_commits = [c for c in commits if c.authored_date >= one_year_ago and c.authored_date <= cutoff]
 
+        # Tapered-window commits (for concentration)
+        taper_commits = [c for c in commits if c.authored_date >= taper_start and c.authored_date <= cutoff]
+
+        # Weighted concentration calculation
+        weighted_counts: dict[str, float] = defaultdict(float)
+        total_weight = 0.0
+        for commit in taper_commits:
+            if commit.authored_date >= taper_full:
+                weight = 1.0
+            else:
+                days_into_taper = (taper_full - commit.authored_date).total_seconds()
+                taper_range = (taper_full - taper_start).total_seconds()
+                weight = max(0.0, 1.0 - days_into_taper / taper_range)
+            identity = _normalize_email(commit.author_email)
+            weighted_counts[identity] += weight
+            total_weight += weight
+
+        # Unweighted counts (for activity, contributor enumeration, names)
         author_counts: dict[str, int] = defaultdict(int)
         author_names: dict[str, str] = {}
-
         for commit in recent_commits:
             identity = _normalize_email(commit.author_email)
             author_counts[identity] += 1
@@ -309,12 +336,15 @@ class GitCollector(BaseCollector):
         unique_contributors = len(author_counts)
 
         if author_counts:
+            # Use weighted counts for concentration, unweighted for top contributor
             top_email = max(author_counts, key=author_counts.get)
-            top_commits = author_counts[top_email]
-            concentration = (top_commits / total_recent * 100) if total_recent > 0 else 0
+            if total_weight > 0:
+                top_weighted = weighted_counts.get(top_email, 0)
+                concentration = (top_weighted / total_weight * 100)
+            else:
+                concentration = (author_counts[top_email] / total_recent * 100) if total_recent > 0 else 0
         else:
             top_email = ""
-            top_commits = 0
             concentration = 100  # No commits = maximum concentration (abandoned)
 
         # --- Maturity detection ---
@@ -335,7 +365,7 @@ class GitCollector(BaseCollector):
         takeover_suspect_name = ""
 
         if recent_commits and is_mature and total_recent >= 5:
-            historical_commits = [c for c in commits if c.authored_date < one_year_ago]
+            historical_commits = [c for c in commits if c.authored_date < taper_start]
             hist_total = len(historical_commits)
 
             # Historical share per contributor (using normalized identities)
@@ -431,7 +461,7 @@ class GitCollector(BaseCollector):
             maintainer_concentration=concentration,
             top_contributor_email=top_email,
             top_contributor_name=author_names.get(top_email, ""),
-            top_contributor_commits=top_commits,
+            top_contributor_commits=author_counts.get(top_email, 0),
             last_commit_date=last_commit_date,
             first_commit_date=first_commit_date,
             commits=recent_commits,

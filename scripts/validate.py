@@ -1539,8 +1539,10 @@ VALIDATION_CASES = [
         repo_url="https://github.com/enricomarino/is",
     ),
 
-    # num2words (PyPI) — limited contributors, maintainer phished via fake PyPI domain
+    # num2words (PyPI) — org-backed, healthy governance, pure credential phishing
     # Malicious versions 0.5.15-0.5.16 with Windows DLL (Scavenger Loader)
+    # OUT OF SCOPE: 15% concentration, 20 commits/yr, org-backed (savoirfairelinux),
+    # -25 protective factors → score 0. Governance was healthy; attack was pure credential theft.
     ValidationCase(
         name="num2words",
         ecosystem="pypi",
@@ -1548,9 +1550,8 @@ VALIDATION_CASES = [
         attack_type="account_compromise",
         incident_date="2025-07-28",
         cutoff_date="2025-07-01",
-        notes="Maintainer phished via PyPI-proxying domain with SSL. Malicious versions contained "
-              "Windows DLL payload. Limited contributors, low maintenance activity — some governance "
-              "signals present but primarily a credential theft attack.",
+        notes="EXPECTED FN: Org-backed (savoirfairelinux), 15% concentration, 20 commits/yr. "
+              "Governance was healthy — pure credential phishing, outside detection scope.",
         repo_url="https://github.com/savoirfairelinux/num2words",
     ),
 
@@ -1599,6 +1600,95 @@ VALIDATION_CASES = [
               "8 malicious versions stole SSH keys, tokens, crypto wallets. Also attempted to "
               "co-opt local AI CLI tools for recon. Very healthy governance (many contributors, active org).",
         repo_url="https://github.com/nrwl/nx",
+    ),
+
+    # =========================================================================
+    # NEW INCIDENTS — Added 2026-03-13 for expanded validation
+    # =========================================================================
+
+    # --- GOVERNANCE RISK (no malicious release) ---
+
+    # core-js — single maintainer, 92% concentration, no org backing.
+    # Maintainer imprisoned Jan-Oct 2020 (no malicious release occurred).
+    # Scored at current state: 40 MODERATE. The high activity (1174 commits/yr)
+    # correctly reduces the score — Denis is actively maintaining. But bus factor 1
+    # with 26M weekly downloads is still a governance risk.
+    ValidationCase(
+        name="core-js",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        notes="Governance risk: sole maintainer (zloirock), 92% concentration. "
+              "Was imprisoned Jan-Oct 2020 (7-month release gap). No malicious release occurred. "
+              "Currently active (1174 commits/yr) so moderate score is defensible, but "
+              "bus factor 1 with 26M weekly downloads remains a risk.",
+        repo_url="https://github.com/zloirock/core-js",
+    ),
+
+    # --- PROTESTWARE / SINGLE-MAINTAINER SABOTAGE ---
+
+    # es5-ext — anti-war postinstall message to Russian-locale users (March 2022)
+    # Non-destructive protestware, but demonstrates bus-factor-1 unilateral action.
+    ValidationCase(
+        name="es5-ext",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="maintainer_sabotage",
+        incident_date="2022-03-07",
+        cutoff_date="2022-03-01",
+        notes="Protestware: maintainer (medikoo) added postinstall script showing anti-war "
+              "message to Russian-locale users. Non-destructive but unilateral. "
+              "Bus factor 1, 13M weekly downloads.",
+        repo_url="https://github.com/medikoo/es5-ext",
+    ),
+
+    # event-source-polyfill — anti-war runtime message to Russian users (March 2022)
+    # Non-destructive protestware injected at runtime in browser.
+    ValidationCase(
+        name="event-source-polyfill",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="maintainer_sabotage",
+        incident_date="2022-03-17",
+        cutoff_date="2022-03-01",
+        notes="Protestware: maintainer (Yaffle) added runtime anti-war message for Russian users. "
+              "Non-destructive. Bus factor 1, 600K weekly downloads, 135K GitHub repos.",
+        repo_url="https://github.com/Yaffle/EventSource",
+    ),
+
+    # --- GOVERNANCE FAILURE ---
+
+    # purescript npm installer — maintainer sabotage after governance dispute (July 2019)
+    # Maintainer shinnn backdoored his own dependency packages after being removed from the project.
+    ValidationCase(
+        name="purescript",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_failure",
+        incident_date="2019-07-05",
+        cutoff_date="2019-07-01",
+        notes="Maintainer shinnn sabotaged dependency packages (load-from-cwd-or-npm, rate-map) "
+              "after governance dispute with PureScript core team. Bus factor 1 on those deps. "
+              "Discovered July 9, resolved mid-July 2019.",
+        repo_url="https://github.com/purescript/npm-installer",
+    ),
+
+    # --- GOVERNANCE FRAGILITY (non-malicious) ---
+
+    # is-promise — accidental breakage by single maintainer (April 2020)
+    # Broken ESM migration broke create-react-app, firebase-tools, Angular CLI.
+    # Not malicious but demonstrates bus-factor-1 fragility.
+    ValidationCase(
+        name="is-promise",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="maintainer_sabotage",
+        incident_date="2020-04-25",
+        cutoff_date="2020-04-01",
+        notes="Non-malicious: sole maintainer published broken ESM migration (missing ./ in exports). "
+              "Broke create-react-app, firebase-tools, Angular CLI. Fixed in 3 hours. "
+              "Bus factor 1, 766 direct dependents, 3.4M GitHub repos. Demonstrates governance fragility.",
+        repo_url="https://github.com/then/is-promise",
     ),
 ]
 

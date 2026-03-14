@@ -65,6 +65,9 @@ data/
 # Validation results
 validation_results*.json
 
+# Thesis (private, not in repo)
+thesis/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,31 +1,31 @@
 {
-  "timestamp": "2026-03-06T10:38:46.458189",
-  "total": 158,
-  "accuracy": 0.8924050632911392,
-  "precision": 0.9583333333333334,
-  "recall": 0.5897435897435898,
-  "f1_score": 0.7301587301587301,
+  "timestamp": "2026-03-14T14:45:49.287633",
+  "total": 163,
+  "accuracy": 0.8773006134969326,
+  "precision": 0.9615384615384616,
+  "recall": 0.5681818181818182,
+  "f1_score": 0.7142857142857143,
   "confusion_matrix": {
-    "TP": 23,
+    "TP": 25,
     "TN": 118,
     "FP": 1,
-    "FN": 16
+    "FN": 19
   },
   "by_attack_type": {
     "governance_failure": {
-      "total": 5,
-      "correct": 4
+      "total": 6,
+      "correct": 5
     },
     "maintainer_sabotage": {
-      "total": 3,
-      "correct": 1
+      "total": 6,
+      "correct": 2
     },
     "account_compromise": {
       "total": 20,
       "correct": 7
     },
     "governance_risk": {
-      "total": 11,
+      "total": 12,
       "correct": 11
     },
     "control": {
@@ -35,8 +35,8 @@
   },
   "by_ecosystem": {
     "npm": {
-      "total": 65,
-      "correct": 58
+      "total": 70,
+      "correct": 60
     },
     "rubygems": {
       "total": 11,
@@ -87,7 +87,7 @@
       "maintainer": "dominictarr",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 75.0,
+      "concentration": 74.45987048296149,
       "commits_last_year": 4,
       "protective_factors_total": 10,
       "error": null
@@ -135,7 +135,7 @@
       "maintainer": "renovate[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 29.36802973977695,
+      "concentration": 27.18343442463422,
       "commits_last_year": 269,
       "protective_factors_total": -35,
       "error": null
@@ -159,7 +159,7 @@
       "maintainer": "RIAEvangelist",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 77.35849056603774,
+      "concentration": 78.61310528900113,
       "commits_last_year": 53,
       "protective_factors_total": -15,
       "error": null
@@ -183,7 +183,7 @@
       "maintainer": "faisalman",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 80.28169014084507,
+      "concentration": 80.61589580917243,
       "commits_last_year": 142,
       "protective_factors_total": -5,
       "error": null
@@ -233,7 +233,7 @@
       "reputation_tier": "TIER_2",
       "concentration": 100,
       "commits_last_year": 0,
-      "protective_factors_total": -10,
+      "protective_factors_total": 0,
       "error": null
     },
     {
@@ -303,7 +303,7 @@
       "maintainer": "glebm",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 95.65217391304348,
+      "concentration": 95.4367704848422,
       "commits_last_year": 23,
       "protective_factors_total": -15,
       "error": null
@@ -351,7 +351,7 @@
       "maintainer": "Larhzu",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 55.94149908592322,
+      "concentration": 56.34127063911032,
       "commits_last_year": 547,
       "protective_factors_total": 20,
       "error": null
@@ -367,15 +367,15 @@
         "notes": "EXPECTED FN: Account compromise on org-owned project (LottieFiles). Org protective factors.",
         "repo_url": "https://github.com/LottieFiles/lottie-player"
       },
-      "score": 45,
-      "risk_level": "MODERATE",
+      "score": 25,
+      "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
       "maintainer": "karamalie",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 50.0,
+      "concentration": 43.61633841891337,
       "commits_last_year": 4,
       "protective_factors_total": -15,
       "error": null
@@ -447,8 +447,8 @@
       "maintainer": "renovate[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 50.0,
-      "commits_last_year": 10,
+      "concentration": 54.74327095435703,
+      "commits_last_year": 11,
       "protective_factors_total": -20,
       "error": null
     },
@@ -511,16 +511,16 @@
         "notes": "Governance risk: Old utility, minimal maintenance.",
         "repo_url": null
       },
-      "score": 70,
-      "risk_level": "HIGH",
+      "score": 90,
+      "risk_level": "CRITICAL",
       "predicted_outcome": "risky",
       "correct": true,
       "classification": "TP",
       "maintainer": "justmoon",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 100.0,
-      "commits_last_year": 4,
+      "concentration": 100,
+      "commits_last_year": 0,
       "protective_factors_total": -30,
       "error": null
     },
@@ -543,7 +543,7 @@
       "maintainer": "ljharb",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 98.73417721518987,
+      "concentration": 98.736821594405,
       "commits_last_year": 158,
       "protective_factors_total": -45,
       "error": null
@@ -615,8 +615,8 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 35.294117647058826,
-      "commits_last_year": 102,
+      "concentration": 34.53985406427969,
+      "commits_last_year": 99,
       "protective_factors_total": -65,
       "error": null
     },
@@ -639,7 +639,7 @@
       "maintainer": "github-actions[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 15.463917525773196,
+      "concentration": 14.832252923800626,
       "commits_last_year": 194,
       "protective_factors_total": -65,
       "error": null
@@ -663,7 +663,7 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 64.93506493506493,
+      "concentration": 65.04621886492524,
       "commits_last_year": 77,
       "protective_factors_total": -30,
       "error": null
@@ -687,7 +687,7 @@
       "maintainer": "TooTallNate",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 50.0,
+      "concentration": 58.30955687166186,
       "commits_last_year": 6,
       "protective_factors_total": -30,
       "error": null
@@ -735,7 +735,7 @@
       "maintainer": "ljharb",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 100.0,
+      "concentration": 94.23643107730646,
       "commits_last_year": 1,
       "protective_factors_total": -60,
       "error": null
@@ -759,7 +759,7 @@
       "maintainer": "kennethreitz",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 43.47826086956522,
+      "concentration": 42.987327374553956,
       "commits_last_year": 69,
       "protective_factors_total": -60,
       "error": null
@@ -783,8 +783,8 @@
       "maintainer": "shazow",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 36.36363636363637,
-      "commits_last_year": 110,
+      "concentration": 35.56065741554295,
+      "commits_last_year": 109,
       "protective_factors_total": -60,
       "error": null
     },
@@ -807,9 +807,9 @@
       "maintainer": "timgraham",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 14.884233737596473,
-      "commits_last_year": 907,
-      "protective_factors_total": -45,
+      "concentration": 15.263123236576478,
+      "commits_last_year": 903,
+      "protective_factors_total": -55,
       "error": null
     },
     {
@@ -831,8 +831,8 @@
       "maintainer": "davidism",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 88.6178861788618,
-      "commits_last_year": 123,
+      "concentration": 89.02189645118924,
+      "commits_last_year": 126,
       "protective_factors_total": -45,
       "error": null
     },
@@ -855,8 +855,8 @@
       "maintainer": "nicoddemus",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 41.82692307692308,
-      "commits_last_year": 624,
+      "concentration": 40.76208455760467,
+      "commits_last_year": 628,
       "protective_factors_total": -70,
       "error": null
     },
@@ -879,8 +879,8 @@
       "maintainer": "charris",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 26.060606060606062,
-      "commits_last_year": 2640,
+      "concentration": 26.052881888824775,
+      "commits_last_year": 2601,
       "protective_factors_total": -45,
       "error": null
     },
@@ -903,7 +903,7 @@
       "maintainer": "rowlando13",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 29.551451187335093,
+      "concentration": 29.442085180233175,
       "commits_last_year": 379,
       "protective_factors_total": -65,
       "error": null
@@ -927,8 +927,8 @@
       "maintainer": "viicos",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 45.37671232876712,
-      "commits_last_year": 584,
+      "concentration": 43.36820322939484,
+      "commits_last_year": 581,
       "protective_factors_total": -35,
       "error": null
     },
@@ -951,8 +951,8 @@
       "maintainer": "sebmarkbage",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 28.945454545454545,
-      "commits_last_year": 1375,
+      "concentration": 28.657907065147608,
+      "commits_last_year": 1338,
       "protective_factors_total": -65,
       "error": null
     },
@@ -975,8 +975,8 @@
       "maintainer": "alexander-akait",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 37.5615763546798,
-      "commits_last_year": 812,
+      "concentration": 36.15539294979174,
+      "commits_last_year": 801,
       "protective_factors_total": -50,
       "error": null
     },
@@ -999,8 +999,8 @@
       "maintainer": "jakebailey",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 20.51282051282051,
-      "commits_last_year": 273,
+      "concentration": 20.682893033761733,
+      "commits_last_year": 272,
       "protective_factors_total": -80,
       "error": null
     },
@@ -1047,7 +1047,7 @@
       "maintainer": "bcoe",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 21.73913043478261,
+      "concentration": 19.75464237284146,
       "commits_last_year": 23,
       "protective_factors_total": -70,
       "error": null
@@ -1071,7 +1071,7 @@
       "maintainer": "isaacs",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 97.91666666666666,
+      "concentration": 97.69016305550934,
       "commits_last_year": 48,
       "protective_factors_total": -60,
       "error": null
@@ -1095,7 +1095,7 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 43.47826086956522,
+      "concentration": 40.58254722515499,
       "commits_last_year": 23,
       "protective_factors_total": -45,
       "error": null
@@ -1111,15 +1111,15 @@
         "notes": "Very popular, multiple maintainers",
         "repo_url": null
       },
-      "score": 25,
-      "risk_level": "LOW",
+      "score": 5,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "ctavan",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 90.0,
+      "concentration": 89.72542099774611,
       "commits_last_year": 20,
       "protective_factors_total": -60,
       "error": null
@@ -1191,8 +1191,8 @@
       "maintainer": "motdotla",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 90.625,
-      "commits_last_year": 192,
+      "concentration": 90.93310052963861,
+      "commits_last_year": 189,
       "protective_factors_total": -35,
       "error": null
     },
@@ -1215,9 +1215,9 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 47.61904761904761,
-      "commits_last_year": 315,
-      "protective_factors_total": -20,
+      "concentration": 47.27293629067586,
+      "commits_last_year": 323,
+      "protective_factors_total": -10,
       "error": null
     },
     {
@@ -1239,7 +1239,7 @@
       "maintainer": "sindresorhus",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 88.23529411764706,
+      "concentration": 87.53754644530606,
       "commits_last_year": 17,
       "protective_factors_total": -60,
       "error": null
@@ -1263,7 +1263,7 @@
       "maintainer": "sindresorhus",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 42.857142857142854,
+      "concentration": 43.72999602616359,
       "commits_last_year": 21,
       "protective_factors_total": -40,
       "error": null
@@ -1287,7 +1287,7 @@
       "maintainer": "sindresorhus",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 98.05825242718447,
+      "concentration": 98.21348852320361,
       "commits_last_year": 103,
       "protective_factors_total": -50,
       "error": null
@@ -1311,8 +1311,8 @@
       "maintainer": "aws-sdk-python-automation",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 87.89346246973365,
-      "commits_last_year": 826,
+      "concentration": 87.59823764069577,
+      "commits_last_year": 831,
       "protective_factors_total": -55,
       "error": null
     },
@@ -1335,8 +1335,8 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 65.85365853658537,
-      "commits_last_year": 41,
+      "concentration": 66.12515169557645,
+      "commits_last_year": 40,
       "protective_factors_total": -45,
       "error": null
     },
@@ -1359,8 +1359,8 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 41.222366710013006,
-      "commits_last_year": 1538,
+      "concentration": 40.556077601218874,
+      "commits_last_year": 1548,
       "protective_factors_total": -55,
       "error": null
     },
@@ -1383,8 +1383,8 @@
       "maintainer": "radarhere",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 56.09756097560976,
-      "commits_last_year": 1025,
+      "concentration": 55.15586487000312,
+      "commits_last_year": 1037,
       "protective_factors_total": -70,
       "error": null
     },
@@ -1407,8 +1407,8 @@
       "maintainer": "zzzeek",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 68.33333333333333,
-      "commits_last_year": 600,
+      "concentration": 68.70970230955422,
+      "commits_last_year": 589,
       "protective_factors_total": -55,
       "error": null
     },
@@ -1431,7 +1431,7 @@
       "maintainer": "mitsuhiko",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 90.9090909090909,
+      "concentration": 91.8305076575714,
       "commits_last_year": 22,
       "protective_factors_total": -75,
       "error": null
@@ -1455,9 +1455,9 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 47.9568234387047,
-      "commits_last_year": 1297,
-      "protective_factors_total": -35,
+      "concentration": 47.93446513580392,
+      "commits_last_year": 1300,
+      "protective_factors_total": -55,
       "error": null
     },
     {
@@ -1479,7 +1479,7 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 11.76470588235294,
+      "concentration": 12.085556235238057,
       "commits_last_year": 17,
       "protective_factors_total": -40,
       "error": null
@@ -1503,8 +1503,8 @@
       "maintainer": "github-actions[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 35.21568627450981,
-      "commits_last_year": 1275,
+      "concentration": 34.91127853047028,
+      "commits_last_year": 1269,
       "protective_factors_total": -65,
       "error": null
     },
@@ -1527,8 +1527,8 @@
       "maintainer": "willmcgugan",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 85.27131782945736,
-      "commits_last_year": 258,
+      "concentration": 85.03912530390141,
+      "commits_last_year": 257,
       "protective_factors_total": -45,
       "error": null
     },
@@ -1551,8 +1551,8 @@
       "maintainer": "cobaltt7",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 20.670391061452513,
-      "commits_last_year": 179,
+      "concentration": 20.260434734374375,
+      "commits_last_year": 195,
       "protective_factors_total": -25,
       "error": null
     },
@@ -1575,8 +1575,8 @@
       "maintainer": "JukkaL",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 19.331243469174503,
-      "commits_last_year": 957,
+      "concentration": 19.75408700070738,
+      "commits_last_year": 956,
       "protective_factors_total": -45,
       "error": null
     },
@@ -1599,7 +1599,7 @@
       "maintainer": "radoering",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 52.56410256410257,
+      "concentration": 50.6596672880134,
       "commits_last_year": 156,
       "protective_factors_total": -15,
       "error": null
@@ -1623,9 +1623,9 @@
       "maintainer": "github-actions[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 41.70305676855895,
-      "commits_last_year": 458,
-      "protective_factors_total": -35,
+      "concentration": 41.7573619638909,
+      "commits_last_year": 470,
+      "protective_factors_total": -45,
       "error": null
     },
     {
@@ -1647,8 +1647,8 @@
       "maintainer": "renovate[bot]",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 31.202046035805626,
-      "commits_last_year": 391,
+      "concentration": 30.707607313428625,
+      "commits_last_year": 404,
       "protective_factors_total": -45,
       "error": null
     },
@@ -1671,8 +1671,8 @@
       "maintainer": "ijjk",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 9.488646852501384,
-      "commits_last_year": 5417,
+      "concentration": 9.72257985541659,
+      "commits_last_year": 5448,
       "protective_factors_total": -55,
       "error": null
     },
@@ -1695,9 +1695,9 @@
       "maintainer": "nzakas",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 14.19457735247209,
-      "commits_last_year": 627,
-      "protective_factors_total": -95,
+      "concentration": 14.716929813262341,
+      "commits_last_year": 622,
+      "protective_factors_total": -75,
       "error": null
     },
     {
@@ -1719,8 +1719,8 @@
       "maintainer": "fisker",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 51.62866449511401,
-      "commits_last_year": 1228,
+      "concentration": 51.75082242852766,
+      "commits_last_year": 1203,
       "protective_factors_total": -70,
       "error": null
     },
@@ -1743,8 +1743,8 @@
       "maintainer": "SimenB",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 26.382978723404253,
-      "commits_last_year": 235,
+      "concentration": 28.198712135704206,
+      "commits_last_year": 240,
       "protective_factors_total": -55,
       "error": null
     },
@@ -1767,8 +1767,8 @@
       "maintainer": "mark-wiemer",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 19.902912621359224,
-      "commits_last_year": 206,
+      "concentration": 19.577344174213344,
+      "commits_last_year": 207,
       "protective_factors_total": -55,
       "error": null
     },
@@ -1791,8 +1791,8 @@
       "maintainer": "evanw",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 89.0909090909091,
-      "commits_last_year": 165,
+      "concentration": 89.79028261862115,
+      "commits_last_year": 155,
       "protective_factors_total": -30,
       "error": null
     },
@@ -1815,8 +1815,8 @@
       "maintainer": "renovate[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 40.79754601226993,
-      "commits_last_year": 326,
+      "concentration": 41.38737422066187,
+      "commits_last_year": 325,
       "protective_factors_total": -45,
       "error": null
     },
@@ -1839,8 +1839,8 @@
       "maintainer": "yyx990803",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 33.9957416607523,
-      "commits_last_year": 1409,
+      "concentration": 34.11753829109887,
+      "commits_last_year": 1426,
       "protective_factors_total": -95,
       "error": null
     },
@@ -1863,8 +1863,8 @@
       "maintainer": "rauchg",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 84.12698412698413,
-      "commits_last_year": 63,
+      "concentration": 83.75826003262726,
+      "commits_last_year": 67,
       "protective_factors_total": -20,
       "error": null
     },
@@ -1887,8 +1887,8 @@
       "maintainer": "vkarpov15",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 70.95527332965213,
-      "commits_last_year": 1811,
+      "concentration": 71.4233963450557,
+      "commits_last_year": 1876,
       "protective_factors_total": -50,
       "error": null
     },
@@ -1911,7 +1911,7 @@
       "maintainer": "dougwilson",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 43.75,
+      "concentration": 43.75777128687648,
       "commits_last_year": 80,
       "protective_factors_total": -25,
       "error": null
@@ -1935,7 +1935,7 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 44.0,
+      "concentration": 44.05597050960143,
       "commits_last_year": 25,
       "protective_factors_total": -25,
       "error": null
@@ -1983,7 +1983,7 @@
       "maintainer": "ncb000gt",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 55.55555555555556,
+      "concentration": 67.60320030899994,
       "commits_last_year": 9,
       "protective_factors_total": 0,
       "error": null
@@ -2007,8 +2007,8 @@
       "maintainer": "ai",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 61.76470588235294,
-      "commits_last_year": 34,
+      "concentration": 64.96033889232585,
+      "commits_last_year": 27,
       "protective_factors_total": -60,
       "error": null
     },
@@ -2023,8 +2023,8 @@
         "notes": "Modern alternative to moment, active development",
         "repo_url": null
       },
-      "score": 10,
-      "risk_level": "VERY_LOW",
+      "score": 20,
+      "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
@@ -2033,7 +2033,7 @@
       "reputation_tier": "TIER_2",
       "concentration": 100.0,
       "commits_last_year": 56,
-      "protective_factors_total": -60,
+      "protective_factors_total": -50,
       "error": null
     },
     {
@@ -2055,7 +2055,7 @@
       "maintainer": "colinhacks",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 64.4927536231884,
+      "concentration": 64.66501162950753,
       "commits_last_year": 690,
       "protective_factors_total": -55,
       "error": null
@@ -2079,9 +2079,9 @@
       "maintainer": "jbrockmendel",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 12.172573189522343,
-      "commits_last_year": 1298,
-      "protective_factors_total": -45,
+      "concentration": 13.64611243447181,
+      "commits_last_year": 1385,
+      "protective_factors_total": -65,
       "error": null
     },
     {
@@ -2103,8 +2103,8 @@
       "maintainer": "rgommers",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 12.527667109340415,
-      "commits_last_year": 2259,
+      "concentration": 12.609043695135993,
+      "commits_last_year": 2269,
       "protective_factors_total": -65,
       "error": null
     },
@@ -2127,9 +2127,9 @@
       "maintainer": "timhoffm",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 23.491239454899414,
-      "commits_last_year": 1541,
-      "protective_factors_total": -35,
+      "concentration": 22.51106215304432,
+      "commits_last_year": 1595,
+      "protective_factors_total": -55,
       "error": null
     },
     {
@@ -2151,8 +2151,8 @@
       "maintainer": "ogrisel",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 14.344262295081966,
-      "commits_last_year": 1220,
+      "concentration": 14.51135061099439,
+      "commits_last_year": 1232,
       "protective_factors_total": -45,
       "error": null
     },
@@ -2175,8 +2175,8 @@
       "maintainer": "Kludex",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 60.63829787234043,
-      "commits_last_year": 94,
+      "concentration": 60.55483527171349,
+      "commits_last_year": 90,
       "protective_factors_total": -55,
       "error": null
     },
@@ -2199,8 +2199,8 @@
       "maintainer": "benoitc",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 90.9090909090909,
-      "commits_last_year": 264,
+      "concentration": 90.17144506931618,
+      "commits_last_year": 277,
       "protective_factors_total": -25,
       "error": null
     },
@@ -2223,8 +2223,8 @@
       "maintainer": "ask",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 17.67241379310345,
-      "commits_last_year": 232,
+      "concentration": 16.3609956000551,
+      "commits_last_year": 235,
       "protective_factors_total": -55,
       "error": null
     },
@@ -2247,8 +2247,8 @@
       "maintainer": "andymccurdy",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 38.034188034188034,
-      "commits_last_year": 234,
+      "concentration": 37.995806282242484,
+      "commits_last_year": 224,
       "protective_factors_total": -35,
       "error": null
     },
@@ -2271,7 +2271,7 @@
       "maintainer": "dvarrazzo",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 55.55555555555556,
+      "concentration": 56.34550097215143,
       "commits_last_year": 36,
       "protective_factors_total": -50,
       "error": null
@@ -2295,8 +2295,8 @@
       "maintainer": "zzzeek",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 77.30061349693251,
-      "commits_last_year": 163,
+      "concentration": 77.15370870623822,
+      "commits_last_year": 165,
       "protective_factors_total": -35,
       "error": null
     },
@@ -2319,7 +2319,7 @@
       "maintainer": "mitsuhiko",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 90.51094890510949,
+      "concentration": 90.61173294805225,
       "commits_last_year": 137,
       "protective_factors_total": -75,
       "error": null
@@ -2343,8 +2343,8 @@
       "maintainer": "Kludex",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 64.46280991735537,
-      "commits_last_year": 121,
+      "concentration": 64.39937805566572,
+      "commits_last_year": 118,
       "protective_factors_total": -55,
       "error": null
     },
@@ -2367,7 +2367,7 @@
       "maintainer": "hynek",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 77.5,
+      "concentration": 77.4457727886617,
       "commits_last_year": 120,
       "protective_factors_total": -60,
       "error": null
@@ -2391,7 +2391,7 @@
       "maintainer": "casperdcl",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 85.71428571428571,
+      "concentration": 86.08288769571926,
       "commits_last_year": 14,
       "protective_factors_total": -50,
       "error": null
@@ -2415,7 +2415,7 @@
       "maintainer": "sdispater",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 36.17021276595745,
+      "concentration": 34.83250054089597,
       "commits_last_year": 47,
       "protective_factors_total": -25,
       "error": null
@@ -2463,8 +2463,8 @@
       "maintainer": "Rich-Harris",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 32.42147922998987,
-      "commits_last_year": 987,
+      "concentration": 32.117096987412125,
+      "commits_last_year": 1003,
       "protective_factors_total": -45,
       "error": null
     },
@@ -2487,7 +2487,7 @@
       "maintainer": "ryansolid",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 53.65853658536586,
+      "concentration": 51.478830638403835,
       "commits_last_year": 41,
       "protective_factors_total": -15,
       "error": null
@@ -2535,8 +2535,8 @@
       "maintainer": "iiroj",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 76.07655502392345,
-      "commits_last_year": 209,
+      "concentration": 74.29842199551648,
+      "commits_last_year": 214,
       "protective_factors_total": -10,
       "error": null
     },
@@ -2559,8 +2559,8 @@
       "maintainer": "renovate[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 12.871707731520814,
-      "commits_last_year": 4708,
+      "concentration": 12.91377282892094,
+      "commits_last_year": 4713,
       "protective_factors_total": -45,
       "error": null
     },
@@ -2583,8 +2583,8 @@
       "maintainer": "ritchie46",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 16.242317822651447,
-      "commits_last_year": 2278,
+      "concentration": 16.51359436962882,
+      "commits_last_year": 2265,
       "protective_factors_total": -55,
       "error": null
     },
@@ -2607,7 +2607,7 @@
       "maintainer": "Delgan",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 51.724137931034484,
+      "concentration": 52.35311248390373,
       "commits_last_year": 58,
       "protective_factors_total": -10,
       "error": null
@@ -2631,8 +2631,8 @@
       "maintainer": "jd",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 72.3076923076923,
-      "commits_last_year": 65,
+      "concentration": 73.33068447607285,
+      "commits_last_year": 67,
       "protective_factors_total": -35,
       "error": null
     },
@@ -2647,17 +2647,17 @@
         "notes": "Hynek Schlawack (attrs author), professional development",
         "repo_url": null
       },
-      "score": 25,
-      "risk_level": "LOW",
+      "score": 15,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "hynek",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 84.0,
-      "commits_last_year": 150,
-      "protective_factors_total": -25,
+      "concentration": 83.6697943502104,
+      "commits_last_year": 146,
+      "protective_factors_total": -35,
       "error": null
     },
     {
@@ -2703,9 +2703,9 @@
       "maintainer": "dtolnay",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 70.0,
-      "commits_last_year": 180,
-      "protective_factors_total": -55,
+      "concentration": 69.82350838584775,
+      "commits_last_year": 173,
+      "protective_factors_total": -65,
       "error": null
     },
     {
@@ -2727,8 +2727,8 @@
       "maintainer": "carllerche",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 17.11229946524064,
-      "commits_last_year": 374,
+      "concentration": 16.242364199468145,
+      "commits_last_year": 364,
       "protective_factors_total": -35,
       "error": null
     },
@@ -2743,17 +2743,17 @@
         "notes": "CLI argument parser for Rust. Active, multiple contributors.",
         "repo_url": null
       },
-      "score": 25,
-      "risk_level": "LOW",
+      "score": 10,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "epage",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 73.14814814814815,
-      "commits_last_year": 432,
-      "protective_factors_total": -25,
+      "concentration": 74.2875455891971,
+      "commits_last_year": 444,
+      "protective_factors_total": -40,
       "error": null
     },
     {
@@ -2775,9 +2775,9 @@
       "maintainer": "seanmonstar",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 46.62162162162162,
-      "commits_last_year": 148,
-      "protective_factors_total": -35,
+      "concentration": 46.01108431346518,
+      "commits_last_year": 142,
+      "protective_factors_total": -15,
       "error": null
     },
     {
@@ -2799,8 +2799,8 @@
       "maintainer": "dhardy",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 77.14285714285715,
-      "commits_last_year": 210,
+      "concentration": 75.61043227058697,
+      "commits_last_year": 212,
       "protective_factors_total": -40,
       "error": null
     },
@@ -2823,7 +2823,7 @@
       "maintainer": "dtolnay",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 83.60655737704919,
+      "concentration": 85.04072534684293,
       "commits_last_year": 61,
       "protective_factors_total": -55,
       "error": null
@@ -2847,7 +2847,7 @@
       "maintainer": "dtolnay",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 94.28571428571428,
+      "concentration": 94.28590273682104,
       "commits_last_year": 70,
       "protective_factors_total": -40,
       "error": null
@@ -2871,7 +2871,7 @@
       "maintainer": "cuviper",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 86.48648648648648,
+      "concentration": 86.25139485434173,
       "commits_last_year": 74,
       "protective_factors_total": -10,
       "error": null
@@ -2895,8 +2895,8 @@
       "maintainer": "rafaelfranca",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 21.526586620926246,
-      "commits_last_year": 2332,
+      "concentration": 21.55271971876411,
+      "commits_last_year": 2281,
       "protective_factors_total": -35,
       "error": null
     },
@@ -2919,8 +2919,8 @@
       "maintainer": "josevalim",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 80.95238095238095,
-      "commits_last_year": 42,
+      "concentration": 82.97872340425532,
+      "commits_last_year": 47,
       "protective_factors_total": 0,
       "error": null
     },
@@ -2943,8 +2943,8 @@
       "maintainer": "mperham",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 68.89763779527559,
-      "commits_last_year": 254,
+      "concentration": 67.74396776750322,
+      "commits_last_year": 257,
       "protective_factors_total": 10,
       "error": null
     },
@@ -2967,8 +2967,8 @@
       "maintainer": "flavorjones",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 70.625,
-      "commits_last_year": 160,
+      "concentration": 70.73599099106501,
+      "commits_last_year": 153,
       "protective_factors_total": -40,
       "error": null
     },
@@ -2991,8 +2991,8 @@
       "maintainer": "msp-greg",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 30.813953488372093,
-      "commits_last_year": 172,
+      "concentration": 29.85759203546401,
+      "commits_last_year": 176,
       "protective_factors_total": -50,
       "error": null
     },
@@ -3015,8 +3015,8 @@
       "maintainer": "koic",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 48.154981549815496,
-      "commits_last_year": 1084,
+      "concentration": 48.187770900094364,
+      "commits_last_year": 1080,
       "protective_factors_total": -50,
       "error": null
     },
@@ -3039,8 +3039,8 @@
       "maintainer": "myronmarston",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 85.57213930348259,
-      "commits_last_year": 201,
+      "concentration": 86.45624338509012,
+      "commits_last_year": 197,
       "protective_factors_total": -15,
       "error": null
     },
@@ -3063,7 +3063,7 @@
       "maintainer": "hsbt",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 41.17647058823529,
+      "concentration": 40.2748988424749,
       "commits_last_year": 136,
       "protective_factors_total": -40,
       "error": null
@@ -3087,8 +3087,8 @@
       "maintainer": "taylorotwell",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 15.723923196678774,
-      "commits_last_year": 1927,
+      "concentration": 15.733067412896034,
+      "commits_last_year": 1905,
       "protective_factors_total": -60,
       "error": null
     },
@@ -3111,8 +3111,8 @@
       "maintainer": "fabpot",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 45.328590151657,
-      "commits_last_year": 5341,
+      "concentration": 46.36311110440142,
+      "commits_last_year": 5437,
       "protective_factors_total": -50,
       "error": null
     },
@@ -3135,7 +3135,7 @@
       "maintainer": "grahamcampbell",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 66.66666666666666,
+      "concentration": 67.62138749589339,
       "commits_last_year": 9,
       "protective_factors_total": -40,
       "error": null
@@ -3159,8 +3159,8 @@
       "maintainer": "sebastianbergmann",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 90.47231270358306,
-      "commits_last_year": 2456,
+      "concentration": 90.38847369777199,
+      "commits_last_year": 2411,
       "protective_factors_total": -50,
       "error": null
     },
@@ -3183,7 +3183,7 @@
       "maintainer": "Seldaek",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 28.57142857142857,
+      "concentration": 26.613110074296575,
       "commits_last_year": 49,
       "protective_factors_total": -45,
       "error": null
@@ -3207,8 +3207,8 @@
       "maintainer": "JamesNK",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 71.42857142857143,
-      "commits_last_year": 21,
+      "concentration": 70.31061172864057,
+      "commits_last_year": 19,
       "protective_factors_total": -10,
       "error": null
     },
@@ -3231,7 +3231,7 @@
       "maintainer": "nblumhardt",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 29.411764705882355,
+      "concentration": 27.25781668887464,
       "commits_last_year": 17,
       "protective_factors_total": -25,
       "error": null
@@ -3255,8 +3255,8 @@
       "maintainer": "jbogard",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 93.96551724137932,
-      "commits_last_year": 116,
+      "concentration": 92.36731807810095,
+      "commits_last_year": 128,
       "protective_factors_total": -15,
       "error": null
     },
@@ -3279,8 +3279,8 @@
       "maintainer": "bradwilson",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 94.07665505226481,
-      "commits_last_year": 287,
+      "concentration": 93.96354340021806,
+      "commits_last_year": 285,
       "protective_factors_total": -15,
       "error": null
     },
@@ -3303,8 +3303,8 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 27.22222222222222,
-      "commits_last_year": 180,
+      "concentration": 26.990400669087844,
+      "commits_last_year": 183,
       "protective_factors_total": -55,
       "error": null
     },
@@ -3327,7 +3327,7 @@
       "maintainer": "ernesto-jimenez",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 34.69387755102041,
+      "concentration": 33.38672022579433,
       "commits_last_year": 147,
       "protective_factors_total": -30,
       "error": null
@@ -3372,12 +3372,12 @@
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "spf13",
+      "maintainer": "ericdachen",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 16.0,
-      "commits_last_year": 25,
-      "protective_factors_total": -45,
+      "reputation_tier": "",
+      "concentration": 11.683150113849928,
+      "commits_last_year": 22,
+      "protective_factors_total": -20,
       "error": null
     },
     {
@@ -3399,8 +3399,8 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 29.347826086956523,
-      "commits_last_year": 184,
+      "concentration": 28.777708898968328,
+      "commits_last_year": 179,
       "protective_factors_total": -35,
       "error": null
     },
@@ -3423,8 +3423,8 @@
       "maintainer": "k8s-ci-robot",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 38.5563868107509,
-      "commits_last_year": 7218,
+      "concentration": 37.9529060486265,
+      "commits_last_year": 7350,
       "protective_factors_total": -35,
       "error": null
     },
@@ -3447,8 +3447,8 @@
       "maintainer": "torkelo",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 3.06088864509051,
-      "commits_last_year": 9115,
+      "concentration": 2.9653301178161553,
+      "commits_last_year": 9198,
       "protective_factors_total": -55,
       "error": null
     },
@@ -3471,8 +3471,8 @@
       "maintainer": "jbardin",
       "reputation_score": 0,
       "reputation_tier": "TIER_2",
-      "concentration": 27.460629921259844,
-      "commits_last_year": 1016,
+      "concentration": 27.241535030532628,
+      "commits_last_year": 1074,
       "protective_factors_total": -55,
       "error": null
     },
@@ -3519,7 +3519,7 @@
       "maintainer": "saoudrizwan",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 17.093508040500296,
+      "concentration": 16.56242226405822,
       "commits_last_year": 3358,
       "protective_factors_total": -20,
       "error": null
@@ -3567,7 +3567,7 @@
       "maintainer": "renovate[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 30.76923076923077,
+      "concentration": 32.49350818903156,
       "commits_last_year": 26,
       "protective_factors_total": -25,
       "error": null
@@ -3591,7 +3591,7 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 34.86590038314176,
+      "concentration": 33.82849854906203,
       "commits_last_year": 1044,
       "protective_factors_total": -20,
       "error": null
@@ -3615,7 +3615,7 @@
       "maintainer": "glenn-jocher",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 41.36212624584717,
+      "concentration": 41.70202335816342,
       "commits_last_year": 1204,
       "protective_factors_total": -40,
       "error": null
@@ -3636,10 +3636,10 @@
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
-      "maintainer": "dependabot[bot]",
+      "maintainer": "thomasrockhu-codecov",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 34.02061855670103,
+      "concentration": 35.82524346722124,
       "commits_last_year": 194,
       "protective_factors_total": -25,
       "error": null
@@ -3663,7 +3663,7 @@
       "maintainer": "LingyuCoder",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 14.95170096598068,
+      "concentration": 14.624944234178924,
       "commits_last_year": 2381,
       "protective_factors_total": -45,
       "error": null
@@ -3687,7 +3687,7 @@
       "maintainer": "sindresorhus",
       "reputation_score": 0,
       "reputation_tier": "TIER_1",
-      "concentration": 77.77777777777779,
+      "concentration": 78.40058548548512,
       "commits_last_year": 9,
       "protective_factors_total": -60,
       "error": null
@@ -3772,7 +3772,7 @@
         "attack_type": "account_compromise",
         "incident_date": "2025-07-28",
         "cutoff_date": "2025-07-01",
-        "notes": "Maintainer phished via PyPI-proxying domain with SSL. Malicious versions contained Windows DLL payload. Limited contributors, low maintenance activity \u2014 some governance signals present but primarily a credential theft attack.",
+        "notes": "EXPECTED FN: Org-backed (savoirfairelinux), 15% concentration, 20 commits/yr. Governance was healthy \u2014 pure credential phishing, outside detection scope.",
         "repo_url": "https://github.com/savoirfairelinux/num2words"
       },
       "score": 0,
@@ -3783,7 +3783,7 @@
       "maintainer": "xdownedx",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 15.0,
+      "concentration": 15.250984391026995,
       "commits_last_year": 20,
       "protective_factors_total": -25,
       "error": null
@@ -3807,7 +3807,7 @@
       "maintainer": "dependabot[bot]",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 70.54455445544554,
+      "concentration": 70.73584340366656,
       "commits_last_year": 404,
       "protective_factors_total": 0,
       "error": null
@@ -3855,9 +3855,129 @@
       "maintainer": "FrozenPandaz",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 14.161047203490678,
+      "concentration": 13.842542271375555,
       "commits_last_year": 2521,
       "protective_factors_total": -45,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "core-js",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "governance_risk",
+        "incident_date": null,
+        "cutoff_date": null,
+        "notes": "Governance risk: sole maintainer (zloirock), 92% concentration. Was imprisoned Jan-Oct 2020 (7-month release gap). No malicious release occurred. Currently active (1174 commits/yr) so moderate score is defensible, but bus factor 1 with 26M weekly downloads remains a risk.",
+        "repo_url": "https://github.com/zloirock/core-js"
+      },
+      "score": 40,
+      "risk_level": "MODERATE",
+      "predicted_outcome": "safe",
+      "correct": false,
+      "classification": "FN",
+      "maintainer": "zloirock",
+      "reputation_score": 0,
+      "reputation_tier": "TIER_2",
+      "concentration": 92.98503717030528,
+      "commits_last_year": 1174,
+      "protective_factors_total": -30,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "es5-ext",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "maintainer_sabotage",
+        "incident_date": "2022-03-07",
+        "cutoff_date": "2022-03-01",
+        "notes": "Protestware: maintainer (medikoo) added postinstall script showing anti-war message to Russian-locale users. Non-destructive but unilateral. Bus factor 1, 13M weekly downloads.",
+        "repo_url": "https://github.com/medikoo/es5-ext"
+      },
+      "score": 5,
+      "risk_level": "VERY_LOW",
+      "predicted_outcome": "safe",
+      "correct": false,
+      "classification": "FN",
+      "maintainer": "medikoo",
+      "reputation_score": 0,
+      "reputation_tier": "TIER_2",
+      "concentration": 100.0,
+      "commits_last_year": 1,
+      "protective_factors_total": -35,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "event-source-polyfill",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "maintainer_sabotage",
+        "incident_date": "2022-03-17",
+        "cutoff_date": "2022-03-01",
+        "notes": "Protestware: maintainer (Yaffle) added runtime anti-war message for Russian users. Non-destructive. Bus factor 1, 600K weekly downloads, 135K GitHub repos.",
+        "repo_url": "https://github.com/Yaffle/EventSource"
+      },
+      "score": 60,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
+      "maintainer": "Yaffle",
+      "reputation_score": 0,
+      "reputation_tier": "",
+      "concentration": 65.19263834811578,
+      "commits_last_year": 11,
+      "protective_factors_total": 0,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "purescript",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "governance_failure",
+        "incident_date": "2019-07-05",
+        "cutoff_date": "2019-07-01",
+        "notes": "Maintainer shinnn sabotaged dependency packages (load-from-cwd-or-npm, rate-map) after governance dispute with PureScript core team. Bus factor 1 on those deps. Discovered July 9, resolved mid-July 2019.",
+        "repo_url": "https://github.com/purescript/npm-installer"
+      },
+      "score": 70,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
+      "maintainer": "hdgarrood",
+      "reputation_score": 0,
+      "reputation_tier": "",
+      "concentration": 100.0,
+      "commits_last_year": 13,
+      "protective_factors_total": -15,
+      "error": null
+    },
+    {
+      "case": {
+        "name": "is-promise",
+        "ecosystem": "npm",
+        "expected_outcome": "incident",
+        "attack_type": "maintainer_sabotage",
+        "incident_date": "2020-04-25",
+        "cutoff_date": "2020-04-01",
+        "notes": "Non-malicious: sole maintainer published broken ESM migration (missing ./ in exports). Broke create-react-app, firebase-tools, Angular CLI. Fixed in 3 hours. Bus factor 1, 766 direct dependents, 3.4M GitHub repos. Demonstrates governance fragility.",
+        "repo_url": "https://github.com/then/is-promise"
+      },
+      "score": 30,
+      "risk_level": "LOW",
+      "predicted_outcome": "safe",
+      "correct": false,
+      "classification": "FN",
+      "maintainer": "ForbesLindesay",
+      "reputation_score": 0,
+      "reputation_tier": "TIER_2",
+      "concentration": 66.66666666666666,
+      "commits_last_year": 3,
+      "protective_factors_total": -50,
       "error": null
     }
   ]
