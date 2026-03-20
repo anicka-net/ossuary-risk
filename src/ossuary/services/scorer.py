@@ -254,7 +254,11 @@ def calculate_score_for_date(
     git_metrics = git_collector.calculate_metrics(filtered_commits, cutoff_date)
 
     github_data = collected_data.github_data
-    is_historical = cutoff_date < datetime.now()
+    # A scoring run is "historical" when the cutoff is meaningfully in the past
+    # (more than 1 day ago), not merely a few seconds behind datetime.now().
+    # Historical scoring zeroes out current-state metadata (reputation, sponsors,
+    # org membership) that cannot be retrieved for past dates.
+    is_historical = (datetime.now() - cutoff_date).days > 1
 
     # Calculate reputation
     reputation_scorer = ReputationScorer()
