@@ -48,12 +48,30 @@ class ScoreCache:
         age = datetime.utcnow() - package.last_analyzed
         return age < self.freshness_threshold
 
-    def get_current_score(self, package: Package) -> Optional[Score]:
-        """Get most recent score for a package (no cutoff filter)."""
+    def get_score_for_cutoff(self, package: Package, cutoff_date: datetime) -> Optional[Score]:
+        """Get cached score for an exact cutoff date."""
         return (
             self.session.query(Score)
-            .filter(Score.package_id == package.id)
+            .filter(Score.package_id == package.id, Score.cutoff_date == cutoff_date)
             .order_by(Score.calculated_at.desc())
+            .first()
+        )
+
+    def get_current_score(self, package: Package) -> Optional[Score]:
+        """Get most recent current score for a package.
+
+        Current scores use a live cutoff timestamp close to the calculation time.
+        Historical month snapshots use older cutoff dates and must not satisfy
+        current-cache lookups.
+        """
+        fresh_cutoff = datetime.utcnow() - self.freshness_threshold
+        return (
+            self.session.query(Score)
+            .filter(
+                Score.package_id == package.id,
+                Score.cutoff_date >= fresh_cutoff,
+            )
+            .order_by(Score.cutoff_date.desc(), Score.calculated_at.desc())
             .first()
         )
 
@@ -112,11 +130,13 @@ class ScoreCache:
         """Update package's last_analyzed timestamp."""
         package.last_analyzed = datetime.utcnow()
 
-    def clear_historical_scores(self, package: Package) -> int:
-        """Delete all historical scores for a package (before recalculation)."""
+    def clear_scores_for_cutoffs(self, package: Package, cutoff_dates: list[datetime]) -> int:
+        """Delete cached scores for a specific set of cutoff dates."""
+        if not cutoff_dates:
+            return 0
         count = (
             self.session.query(Score)
-            .filter(Score.package_id == package.id)
+            .filter(Score.package_id == package.id, Score.cutoff_date.in_(cutoff_dates))
             .delete()
         )
         return count

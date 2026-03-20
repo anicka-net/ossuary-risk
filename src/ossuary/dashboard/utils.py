@@ -2,7 +2,10 @@
 
 import asyncio
 
-import streamlit as st
+try:
+    import streamlit as st
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    st = None
 
 from ossuary import __version__ as VERSION
 from ossuary.db.session import get_session
@@ -102,6 +105,8 @@ CUSTOM_CSS = """
 
 def apply_style():
     """Apply custom CSS to the page."""
+    if st is None:
+        return
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 

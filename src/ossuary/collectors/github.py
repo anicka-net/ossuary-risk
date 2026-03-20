@@ -1,5 +1,6 @@
 """GitHub API collector - maintainer info, issues, sponsors status."""
 
+import asyncio
 import logging
 import os
 import re
@@ -145,7 +146,7 @@ class GitHubCollector(BaseCollector):
     async def _request(self, method: str, url: str, _rotated: bool = False, **kwargs) -> Optional[dict]:
         """Make a rate-limit-aware request."""
         delay = self.REQUEST_DELAY if self.token else self.REQUEST_DELAY_UNAUTHENTICATED
-        time.sleep(delay)
+        await asyncio.sleep(delay)
 
         try:
             response = await self.client.request(method, url, **kwargs)
@@ -159,7 +160,7 @@ class GitHubCollector(BaseCollector):
                     logger.warning("Rate limited. Rotated token, retrying immediately.")
                     return await self._request(method, url, _rotated=True, **kwargs)
                 logger.warning(f"Rate limited. Waiting {wait_time:.0f} seconds...")
-                time.sleep(wait_time)
+                await asyncio.sleep(wait_time)
                 return await self._request(method, url, **kwargs)
 
             if response.status_code == 404:
@@ -184,7 +185,7 @@ class GitHubCollector(BaseCollector):
         if variables:
             payload["variables"] = variables
 
-        time.sleep(self.REQUEST_DELAY)
+        await asyncio.sleep(self.REQUEST_DELAY)
 
         try:
             response = await self.client.post(self.GRAPHQL_URL, json=payload)

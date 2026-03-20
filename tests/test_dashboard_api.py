@@ -1,11 +1,15 @@
 """Tests for ossuary dashboard and api CLI commands."""
 
+import asyncio
 import sys
-from unittest.mock import patch, call
+from unittest.mock import patch
 
 from typer.testing import CliRunner
 
 from ossuary.cli import app
+from ossuary.api.main import _get_score
+from ossuary.services.scorer import ScoringResult
+from ossuary.scoring.factors import RiskBreakdown, RiskLevel
 
 
 class TestDashboardCommand:
@@ -129,3 +133,45 @@ class TestDashboardImports:
         assert "85" in html
         assert "critical" in html
         assert "<span" in html
+
+
+class TestApiCacheAge:
+    """Tests for API cache-age behavior."""
+
+    @patch("ossuary.api.main.score_package")
+    def test_get_score_passes_max_age_as_freshness(self, mock_score_package):
+        """API max_age should be forwarded as an actual freshness window."""
+        mock_score_package.return_value = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="flask",
+                ecosystem="pypi",
+                final_score=10,
+                risk_level=RiskLevel.VERY_LOW,
+            ),
+        )
+
+        asyncio.run(_get_score("flask", "pypi", None, 3))
+
+        kwargs = mock_score_package.await_args.kwargs
+        assert kwargs["use_cache"] is True
+        assert kwargs["freshness_days"] == 3
+
+    @patch("ossuary.api.main.score_package")
+    def test_get_score_zero_max_age_forces_rescore(self, mock_score_package):
+        """max_age=0 should disable cache reuse."""
+        mock_score_package.return_value = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="flask",
+                ecosystem="pypi",
+                final_score=10,
+                risk_level=RiskLevel.VERY_LOW,
+            ),
+        )
+
+        asyncio.run(_get_score("flask", "pypi", None, 0))
+
+        kwargs = mock_score_package.await_args.kwargs
+        assert kwargs["use_cache"] is False
+        assert kwargs["freshness_days"] is None

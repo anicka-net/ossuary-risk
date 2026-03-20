@@ -1,10 +1,15 @@
 """Tests for the scoring engine."""
 
+from datetime import datetime
+
 import pytest
 
+from ossuary.collectors.github import GitHubData, IssueData
+from ossuary.collectors.git import CommitData
 from ossuary.scoring.engine import PackageMetrics, RiskScorer
 from ossuary.scoring.factors import RiskLevel
 from ossuary.scoring.reputation import ReputationBreakdown, ReputationTier
+from ossuary.services.scorer import CollectedData, calculate_score_for_date
 
 
 class TestRiskScorer:
@@ -174,3 +179,48 @@ class TestRiskScorer:
 
         assert high_breakdown.final_score == 100
         assert low_breakdown.final_score == 0
+
+
+class TestHistoricalScoring:
+    """Regression tests for historical scoring behavior."""
+
+    def test_calculate_score_for_date_ignores_future_issue_sentiment(self):
+        """Historical scores must not include issue content created after cutoff."""
+        commits = [
+            CommitData(
+                sha="1",
+                author_name="maintainer",
+                author_email="maintainer@example.com",
+                authored_date=datetime(2020, 1, 1),
+                committer_name="maintainer",
+                committer_email="maintainer@example.com",
+                committed_date=datetime(2020, 1, 1),
+                message="initial commit",
+            )
+        ]
+        future_issue = IssueData(
+            number=1,
+            title="Burnout",
+            body="I am burned out and tired of this free work",
+            state="open",
+            is_pull_request=False,
+            author_login="maintainer",
+            created_at="2025-01-01T00:00:00Z",
+            updated_at="2025-01-01T00:00:00Z",
+            closed_at=None,
+            comments=[],
+        )
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits,
+            github_data=GitHubData(issues=[future_issue]),
+            weekly_downloads=0,
+            maintainer_account_created=None,
+        )
+
+        breakdown = calculate_score_for_date(
+            "pkg", "github", data, datetime(2021, 1, 1)
+        )
+
+        assert breakdown.protective_factors.frustration_score == 0
+        assert breakdown.protective_factors.sentiment_score == 0

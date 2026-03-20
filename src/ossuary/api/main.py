@@ -156,6 +156,7 @@ async def _get_score(
 
     result = await score_package(
         package, ecosystem, repo_url=repo_url, use_cache=use_cache,
+        freshness_days=max_age if max_age > 0 else None,
     )
 
     if not result.success or not result.breakdown:

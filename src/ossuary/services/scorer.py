@@ -7,7 +7,7 @@ from typing import Optional
 from dateutil.relativedelta import relativedelta
 
 from ossuary.collectors.git import CommitData, GitCollector, GitMetrics
-from ossuary.collectors.github import GitHubCollector, GitHubData
+from ossuary.collectors.github import GitHubCollector, GitHubData, IssueData
 from ossuary.collectors.npm import NpmCollector
 from ossuary.collectors.pypi import PyPICollector
 from ossuary.collectors.registries import REGISTRY_COLLECTORS
@@ -197,6 +197,47 @@ async def collect_package_data(
     ), warnings
 
 
+def _filter_issues_for_cutoff(issues: list[IssueData], cutoff_date: datetime) -> list[dict]:
+    """Drop issue content that post-dates the requested cutoff.
+
+    GitHub issue metadata is fetched from the current API snapshot, so historical
+    scoring must exclude issues and comments created after the cutoff to avoid
+    leaking future frustration/sentiment signals into T-1 analyses.
+    """
+    cutoff_naive = cutoff_date.replace(tzinfo=None)
+    filtered = []
+
+    def parse_timestamp(value: Optional[str]) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            return None
+
+    for issue in issues:
+        issue_created = parse_timestamp(issue.created_at)
+        if issue_created and issue_created > cutoff_naive:
+            continue
+
+        comments = []
+        for comment in issue.comments:
+            if not isinstance(comment, dict):
+                continue
+            comment_created = parse_timestamp(comment.get("created_at"))
+            if comment_created and comment_created > cutoff_naive:
+                continue
+            comments.append(comment)
+
+        filtered.append({
+            "title": issue.title,
+            "body": issue.body,
+            "comments": comments,
+        })
+
+    return filtered
+
+
 def calculate_score_for_date(
     package_name: str,
     ecosystem: str,
@@ -213,15 +254,16 @@ def calculate_score_for_date(
     git_metrics = git_collector.calculate_metrics(filtered_commits, cutoff_date)
 
     github_data = collected_data.github_data
+    is_historical = cutoff_date < datetime.now()
 
     # Calculate reputation
     reputation_scorer = ReputationScorer()
     reputation = reputation_scorer.calculate(
         username=github_data.maintainer_username,
         account_created=collected_data.maintainer_account_created,
-        repos=github_data.maintainer_repos,
-        sponsor_count=github_data.maintainer_sponsor_count,
-        orgs=github_data.maintainer_orgs,
+        repos=[] if is_historical else github_data.maintainer_repos,
+        sponsor_count=0 if is_historical else github_data.maintainer_sponsor_count,
+        orgs=[] if is_historical else github_data.maintainer_orgs,
         packages_maintained=[package_name],
         ecosystem=ecosystem,
     )
@@ -230,7 +272,7 @@ def calculate_score_for_date(
     sentiment_analyzer = SentimentAnalyzer()
     commit_sentiment = sentiment_analyzer.analyze_commits([c.message for c in git_metrics.commits])
     issue_sentiment = sentiment_analyzer.analyze_issues(
-        [{"title": i.title, "body": i.body, "comments": i.comments} for i in github_data.issues]
+        _filter_issues_for_cutoff(github_data.issues, cutoff_date)
     )
 
     total_frustration = commit_sentiment.frustration_count + issue_sentiment.frustration_count
@@ -249,15 +291,15 @@ def calculate_score_for_date(
         maintainer_username=github_data.maintainer_username,
         maintainer_public_repos=github_data.maintainer_public_repos,
         maintainer_total_stars=github_data.maintainer_total_stars,
-        has_github_sponsors=github_data.has_github_sponsors,
+        has_github_sponsors=False if is_historical else github_data.has_github_sponsors,
         maintainer_account_created=collected_data.maintainer_account_created,
-        maintainer_repos=github_data.maintainer_repos,
-        maintainer_sponsor_count=github_data.maintainer_sponsor_count,
-        maintainer_orgs=github_data.maintainer_orgs,
+        maintainer_repos=[] if is_historical else github_data.maintainer_repos,
+        maintainer_sponsor_count=0 if is_historical else github_data.maintainer_sponsor_count,
+        maintainer_orgs=[] if is_historical else github_data.maintainer_orgs,
         packages_maintained=[package_name],
         reputation=reputation,
-        is_org_owned=github_data.is_org_owned,
-        org_admin_count=github_data.org_admin_count,
+        is_org_owned=False if is_historical else github_data.is_org_owned,
+        org_admin_count=0 if is_historical else github_data.org_admin_count,
         # Maturity detection
         total_commits=git_metrics.total_commits,
         first_commit_date=git_metrics.first_commit_date,
@@ -342,6 +384,7 @@ async def score_package(
     cutoff_date: Optional[datetime] = None,
     use_cache: bool = True,
     force: bool = False,
+    freshness_days: Optional[int] = None,
 ) -> ScoringResult:
     """
     Score a single package.
@@ -362,15 +405,20 @@ async def score_package(
     # Check cache (skip when force=True to ensure re-scoring)
     if use_cache and not force:
         with session_scope() as session:
-            cache = ScoreCache(session)
+            cache = ScoreCache(session, freshness_days=freshness_days or ScoreCache(session).freshness_threshold.days)
             package = cache.get_or_create_package(package_name, ecosystem, repo_url)
 
-            if cache.is_fresh(package):
+            if cutoff_date is not None:
+                cached_score = cache.get_score_for_cutoff(package, cutoff)
+            elif cache.is_fresh(package):
                 cached_score = cache.get_current_score(package)
-                if cached_score and cached_score.breakdown:
-                    breakdown = _rebuild_breakdown(cached_score, package_name, ecosystem)
-                    if breakdown:
-                        return ScoringResult(success=True, breakdown=breakdown)
+            else:
+                cached_score = None
+
+            if cached_score and cached_score.breakdown:
+                breakdown = _rebuild_breakdown(cached_score, package_name, ecosystem)
+                if breakdown:
+                    return ScoringResult(success=True, breakdown=breakdown)
 
     # Collect data
     collected_data, warnings = await collect_package_data(package_name, ecosystem, repo_url)
@@ -386,7 +434,7 @@ async def score_package(
     # Store in cache
     if use_cache:
         with session_scope() as session:
-            cache = ScoreCache(session)
+            cache = ScoreCache(session, freshness_days=freshness_days or ScoreCache(session).freshness_threshold.days)
             package = cache.get_or_create_package(
                 package_name, ecosystem, collected_data.repo_url
             )
@@ -438,22 +486,19 @@ async def get_historical_scores(
         with session_scope() as session:
             cache = ScoreCache(session)
             package = cache.get_or_create_package(package_name, ecosystem, repo_url)
-
-            if cache.is_fresh(package):
-                cached_scores = cache.get_historical_scores(package, months)
-                if len(cached_scores) >= months:
-                    # Return cached historical data
-                    return [
-                        HistoricalScore(
-                            date=s.cutoff_date,
-                            score=s.final_score,
-                            risk_level=s.risk_level,
-                            concentration=s.maintainer_concentration,
-                            commits_year=s.commits_last_year,
-                            contributors=s.unique_contributors,
-                        )
-                        for s in sorted(cached_scores, key=lambda x: x.cutoff_date)
-                    ], []
+            cached_scores = cache.get_historical_scores(package, months)
+            if len(cached_scores) >= months:
+                return [
+                    HistoricalScore(
+                        date=s.cutoff_date,
+                        score=s.final_score,
+                        risk_level=s.risk_level,
+                        concentration=s.maintainer_concentration,
+                        commits_year=s.commits_last_year,
+                        contributors=s.unique_contributors,
+                    )
+                    for s in sorted(cached_scores, key=lambda x: x.cutoff_date)
+                ], []
 
     # Collect all data once
     collected_data, collect_warnings = await collect_package_data(package_name, ecosystem, repo_url)
@@ -509,25 +554,26 @@ async def get_historical_scores(
             package = cache.get_or_create_package(
                 package_name, ecosystem, collected_data.repo_url
             )
-            # Clear old historical data
-            cache.clear_historical_scores(package)
+            cache.clear_scores_for_cutoffs(package, [hs.date for hs in historical_scores])
 
             # Store new scores
-            for hs in historical_scores:
+            for hs, cutoff in zip(historical_scores, cutoff_dates):
+                breakdown = calculate_score_for_date(
+                    package_name, ecosystem, collected_data, cutoff
+                )
                 cache.store_score(
                     package=package,
                     cutoff_date=hs.date,
-                    final_score=hs.score,
-                    risk_level=hs.risk_level,
-                    base_risk=0,  # Not stored in HistoricalScore
-                    activity_modifier=0,
-                    protective_factors_total=0,
-                    breakdown={},
+                    final_score=breakdown.final_score,
+                    risk_level=breakdown.risk_level.value,
+                    base_risk=breakdown.base_risk,
+                    activity_modifier=breakdown.activity_modifier,
+                    protective_factors_total=breakdown.protective_factors.total,
+                    breakdown=breakdown.to_dict(),
                     maintainer_concentration=hs.concentration,
                     commits_last_year=hs.commits_year,
                     unique_contributors=hs.contributors,
                     weekly_downloads=collected_data.weekly_downloads,
                 )
-            cache.mark_analyzed(package)
 
     return historical_scores, warnings
