@@ -108,7 +108,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 95.8% precision** with 1 false positive across 158 packages (v5.0)
+4. **Achieving 96.2% precision** with 1 false positive across 164 packages (v6.1)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -503,7 +503,7 @@ F1 Score:   0.877
 - **6 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), es5-ext and is-promise (maintainer reputation correctly reduces score).
 - **80.6% in-scope recall** reflects genuine detection capability. The previous 59% recall penalized the model for not detecting credential theft on healthy projects.
 
-**Comparison with unscoped metrics**: Across all 45 incidents (including out-of-scope), overall recall is 57.8%. This lower number is expected — 14 out-of-scope incidents are fundamentally undetectable from governance signals.
+**Comparison with unscoped metrics**: Across all 45 incidents (including out-of-scope), overall recall is 60.0%. This lower number is expected — 14 out-of-scope incidents are fundamentally undetectable from governance signals.
 
 **Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
@@ -527,19 +527,19 @@ T1 (governance decay, 88%) and T3 (weak-governance compromise, 100%) are the pri
 | Package | Score | Tier | Why Missed |
 |---------|-------|------|-----------|
 | faker | 0 | T2 | Evaluating community fork (faker-js/faker); original repo deleted |
-| node-ipc | 35 | T2 | Active development (35 commits/yr) masks bus-factor-1 risk |
+| node-ipc | 50 | T2 | Active development masks bus-factor-1 risk |
 | polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
-| core-js | 40 | T_risk | 1174 commits/yr gives activity discount despite 92% concentration |
-| es5-ext | 5 | T2 | 100% concentration but maintainer (medikoo) has strong reputation (-35 protective) |
-| is-promise | 30 | T2 | 67% concentration but ForbesLindesay has very strong reputation (-50 protective) |
+| devise | 50 | T_risk | Borderline; score drifted from 65 due to minor concentration shift |
+| core-js | 50 | T_risk | High activity gives discount despite 92% concentration |
+| es5-ext | 30 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
 
-4 of 6 FNs are T2 (protestware/sabotage by reputable maintainers). This is the hardest category because the model correctly weights reputation as a risk-reducing factor, but reputation doesn't prevent unilateral action.
+The FN set reflects the historical scoring fix (commit 03049a5): T-1 scores now correctly strip current-state reputation data that cannot be verified at the cutoff date. This moved is-promise from FN (30) to TP (70) and eslint-scope from FN (35) to TP (60), while devise drifted from TP (65) to FN (50) due to minor concentration shift.
 
 ### 8.7 Out-of-Scope Incident Analysis
 
 14 out-of-scope incidents are included to validate detection boundaries:
 
-**T4: Account compromise on healthy projects (8 cases)** — ua-parser-js (75, bonus detection), eslint-scope (35), LottieFiles (25), chalk (0), cline (0), solana-web3.js (0), eslint-config-prettier (35), num2words (0).
+**T4: Account compromise on healthy projects (8 cases)** — ua-parser-js (90, bonus detection), eslint-scope (60, bonus detection), LottieFiles (40), chalk (0), cline (0), solana-web3.js (0), eslint-config-prettier (50), num2words (0).
 
 **T5: CI/CD pipeline exploits (6 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0).
 
@@ -686,7 +686,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 163 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (96.0% precision, 80% in-scope recall) |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 164 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (96.2% precision, 80.6% in-scope recall) |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
@@ -1029,7 +1029,7 @@ These papers directly inform the methodology and should be read in full:
 
 ---
 
-*Document version: 5.0*
-*Last updated: February 2026*
-*Validation dataset: 158 packages across 8 ecosystems (89.2% accuracy, 95.8% precision, 1 false positive (rxjs))*
+*Document version: 6.1*
+*Last updated: March 2026*
+*Validation dataset: 164 packages across 8 ecosystems (Scope B: 96.2% precision, 80.6% recall, F1 0.877)*
 *Run validation: `python scripts/validate.py -o validation_results.json`*

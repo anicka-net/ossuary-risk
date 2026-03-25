@@ -14,10 +14,10 @@ The validation uses a **scoped evaluation framework** (Scope B) that counts only
 
 | Metric | All incidents | In-scope (Scope B) |
 |--------|-------------|-------------------|
-| **Accuracy** | 87.8% | 95.3% |
-| **Precision** | 96.3% | 96.2% |
-| **Recall** | 57.8% | 80.6% |
-| **F1 Score** | 0.72 | 0.877 |
+| **Accuracy** | 88.4% | 95.3% |
+| **Precision** | 96.4% | 96.2% |
+| **Recall** | 60.0% | 80.6% |
+| **F1 Score** | 0.74 | 0.877 |
 | **False Positives** | 1 (rxjs) | 1 (rxjs) |
 
 ---
@@ -132,21 +132,23 @@ All 6 in-scope false negatives are explainable:
 | Package | Score | Tier | Why missed |
 |---------|-------|------|-----------|
 | faker | 0 | T2 | Evaluating community fork (faker-js/faker); original repo deleted |
-| node-ipc | 35 | T2 | Active development (35 commits/yr) masks bus-factor-1 risk |
+| node-ipc | 50 | T2 | Active development masks bus-factor-1 risk |
 | polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
-| core-js | 40 | T_risk | 1174 commits/yr gives activity discount; governance risk is real but offset |
-| es5-ext | 5 | T2 | 100% concentration but maintainer (medikoo) has strong reputation (-35 protective) |
-| is-promise | 30 | T2 | 67% concentration but ForbesLindesay has very strong reputation (-50 protective) |
+| devise | 50 | T_risk | Borderline; score drifted from 65 due to minor concentration shift |
+| core-js | 50 | T_risk | High activity gives discount despite 92% concentration |
+| es5-ext | 30 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
 
 **faker**: The original Marak/faker.js repo was deleted. We evaluate the community fork (faker-js/faker), which has healthy governance — score 0 is correct for the current project state.
 
-**node-ipc**: RIAEvangelist maintained active development (35 commits/year) right up until injecting protestware. Active maintenance is a positive governance signal; the model correctly weights it as such.
+**node-ipc**: RIAEvangelist maintained active development right up until injecting protestware. Active maintenance is a positive governance signal; the model correctly weights it as such.
 
 **polyfill.io**: The project was sold to Funnull (a Chinese CDN company) who injected malicious JavaScript into 100K+ websites. Ownership transfers are not currently tracked as a signal. Acknowledged limitation.
 
-**core-js**: Denis Pushkarev (zloirock) was imprisoned Jan-Oct 2020, leaving the project unmaintained. Score 40 reflects the current state — he's back and committing 1174/year. Bus factor 1 with 92% concentration is a real risk, but high activity correctly moderates the score.
+**devise**: José Valim (Elixir creator) maintains devise with 83% concentration. Score drifted from 65→50 between runs due to minor concentration shift. Borderline case — the single-maintainer risk is real but Valim's standing in the community is a mitigating factor not fully captured.
 
-**es5-ext, is-promise**: Both demonstrate the reputation trade-off — bus factor 1 enables unilateral action, but reputable maintainers with sponsors and community standing ARE genuinely lower risk. The model correctly prioritizes precision here.
+**core-js**: Denis Pushkarev (zloirock) was imprisoned Jan-Oct 2020, leaving the project unmaintained. Score 50 reflects the current state — he's back and actively committing. Bus factor 1 with 92% concentration is a real risk, but high activity correctly moderates the score.
+
+**es5-ext**: 100% concentration but maintainer medikoo has strong reputation. Demonstrates the trade-off: bus factor 1 enables unilateral action, but reputable maintainers ARE genuinely lower risk.
 
 ---
 
@@ -230,16 +232,16 @@ This detection relies on the proportion shift being visible in commit data. A mo
 
 | Metric | v1 (Feb 2026) | v2.1 (Feb 2026) | v3.0 (Mar 2026) | v3.1 (Mar 2026) |
 |--------|---------------|-----------------|-----------------|-----------------|
-| Packages | 92 | 143 | 158 | 163 |
+| Packages | 92 | 143 | 158 | 164 |
 | Ecosystems | 2 | 8 | 8 | 8 |
 | Scope | All | All | All | Scope B |
 | Accuracy | 92.4% | 91.6% | 89.2% | 95.3% |
-| Precision | 100% | 100% | 95.8% | 96.0% |
-| Recall | 65.0% | 58.6% | 59.0% | 80.0% |
-| F1 | 0.79 | 0.74 | 0.73 | 0.873 |
+| Precision | 100% | 100% | 95.8% | 96.2% |
+| Recall | 65.0% | 58.6% | 59.0% | 80.6% |
+| F1 | 0.79 | 0.74 | 0.73 | 0.877 |
 | False Positives | 0 | 0 | 1 | 1 |
 
-The v3.1 jump in recall (59%→80%) and accuracy (89%→95%) reflects the scoped framework, not a model improvement. The model is the same — we simply stopped penalizing it for not detecting credential theft on healthy projects.
+The v3.1 jump in recall (59%→81%) and accuracy (89%→95%) reflects the scoped framework and historical scoring fix, not a model improvement. The model is the same — we stopped penalizing it for not detecting credential theft on healthy projects, and T-1 scores now correctly strip current-state reputation data.
 
 ---
 
@@ -322,5 +324,5 @@ population.
 
 ---
 
-*Report generated from validation run on March 14, 2026*
+*Report generated from validation run on March 20, 2026*
 *Dataset: 164 packages (45 incidents, 119 controls) across 8 ecosystems*
