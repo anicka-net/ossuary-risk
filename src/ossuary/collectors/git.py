@@ -115,6 +115,10 @@ class GitMetrics:
     is_mature: bool = False
     repo_age_years: float = 0.0
 
+    # Bus factor (CHAOSS metric): minimum contributors for 50% of commits
+    bus_factor: int = 0
+    bus_factor_contributors: list[str] = None  # names of those contributors
+
     # Takeover detection (proportion shift)
     takeover_shift: float = 0.0       # max % shift of any contributor (historical→recent)
     takeover_suspect: str = ""        # email of the contributor with highest shift
@@ -347,6 +351,27 @@ class GitCollector(BaseCollector):
             top_email = ""
             concentration = 100  # No commits = maximum concentration (abandoned)
 
+        # --- Bus factor (CHAOSS: minimum contributors for 50% of commits) ---
+        # Uses unweighted recent counts (same data as activity).
+        # Excludes bots (dependabot, renovate, etc.) from the count.
+        bus_factor = 0
+        bus_factor_names = []
+        if author_counts:
+            human_counts = {
+                e: c for e, c in author_counts.items()
+                if "[bot]" not in e and "[bot]" not in author_names.get(e, "")
+            }
+            human_total = sum(human_counts.values())
+            if human_total > 0:
+                sorted_contributors = sorted(human_counts.items(), key=lambda x: -x[1])
+                cumulative = 0
+                for email, count in sorted_contributors:
+                    cumulative += count
+                    bus_factor += 1
+                    bus_factor_names.append(author_names.get(email, email))
+                    if cumulative / human_total >= 0.5:
+                        break
+
         # --- Maturity detection ---
         repo_age_years = (cutoff - first_commit_date).days / 365.25
         days_since_last_commit = (cutoff - last_commit_date).days
@@ -469,6 +494,8 @@ class GitCollector(BaseCollector):
             lifetime_concentration=lifetime_concentration,
             is_mature=is_mature,
             repo_age_years=repo_age_years,
+            bus_factor=bus_factor,
+            bus_factor_contributors=bus_factor_names,
             takeover_shift=takeover_shift,
             takeover_suspect=takeover_suspect,
             takeover_suspect_name=takeover_suspect_name,

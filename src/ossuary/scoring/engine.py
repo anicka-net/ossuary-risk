@@ -52,6 +52,7 @@ class PackageMetrics:
     lifetime_concentration: float = 0.0
     is_mature: bool = False
     repo_age_years: float = 0.0
+    bus_factor: int = 0  # CHAOSS: minimum contributors for 50% of commits
     takeover_shift: float = 0.0
     takeover_suspect: str = ""
     takeover_suspect_name: str = ""
@@ -92,26 +93,59 @@ class RiskScorer:
     MASSIVE_STARS_THRESHOLD = 50_000
     HIGH_STARS_THRESHOLD = 10_000
 
-    def calculate_base_risk(self, concentration: float) -> int:
+    def calculate_base_risk(self, concentration: float, bus_factor: int = 0) -> int:
         """
-        Calculate base risk from maintainer concentration.
+        Calculate base risk from maintainer concentration and bus factor.
+
+        Uses the worse (higher risk) of two signals:
+        - Top-1 concentration: how dominant is the single top contributor?
+        - Bus factor: how many people needed for 50% of commits?
+
+        A project like trivy (18% top-1, but bus factor 3) has low
+        concentration risk but real bus factor risk — 3 people leaving
+        would lose half the project's development capacity.
 
         Args:
             concentration: Percentage of commits from top contributor (0-100)
+            bus_factor: Minimum contributors for 50% of commits (0 = unknown)
 
         Returns:
             Base risk score (20-100)
         """
+        # Risk from top-1 concentration
         if concentration < 30:
-            return 20
+            conc_risk = 20
         elif concentration < 50:
-            return 40
+            conc_risk = 40
         elif concentration < 70:
-            return 60
+            conc_risk = 60
         elif concentration < 90:
-            return 80
+            conc_risk = 80
         else:
-            return 100
+            conc_risk = 100
+
+        # Risk from bus factor (CHAOSS metric)
+        # The bus factor catches cases concentration misses: e.g. trivy has
+        # 18% top-1 (looks distributed) but bus factor 3 (just 3 people for
+        # 50% of commits). However, bf=1 shouldn't override concentration —
+        # if one person does 65% of commits, concentration already captures
+        # that at base 60. We only use bus factor to RAISE the floor when
+        # concentration is misleadingly low.
+        # bus_factor=0 means no recent human commits — don't apply
+        if bus_factor <= 0:
+            bf_risk = 0
+        elif bus_factor == 1:
+            bf_risk = 60   # Single person dominates, but conc already captures this
+        elif bus_factor == 2:
+            bf_risk = 40   # Two people control the project
+        elif bus_factor <= 5:
+            bf_risk = 40   # Small group, moderate risk
+        else:
+            bf_risk = 20   # Well-distributed
+
+        # Use the worse signal — a project can look distributed by top-1
+        # concentration but still have a dangerously low bus factor
+        return max(conc_risk, bf_risk)
 
     def calculate_activity_modifier(self, commits_last_year: int) -> int:
         """
@@ -377,6 +411,7 @@ class RiskScorer:
 
         # Copy metrics
         breakdown.maintainer_concentration = metrics.maintainer_concentration
+        breakdown.bus_factor = metrics.bus_factor
         breakdown.commits_last_year = metrics.commits_last_year
         breakdown.unique_contributors = metrics.unique_contributors
         breakdown.weekly_downloads = metrics.weekly_downloads
@@ -391,18 +426,18 @@ class RiskScorer:
             if metrics.commits_last_year == 0:
                 # Zero activity = abandoned, even if historically mature.
                 # Don't reward a project nobody's home for.
-                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
+                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, metrics.bus_factor)
                 breakdown.activity_modifier = self.calculate_activity_modifier(0)
             elif metrics.commits_last_year < 4:
-                breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration)
+                breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration, metrics.bus_factor)
                 raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
                 breakdown.activity_modifier = min(0, raw_activity)
             else:
-                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
+                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, metrics.bus_factor)
                 raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
                 breakdown.activity_modifier = min(0, raw_activity)
         else:
-            breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration)
+            breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, metrics.bus_factor)
             breakdown.activity_modifier = self.calculate_activity_modifier(metrics.commits_last_year)
 
         breakdown.protective_factors = self.calculate_protective_factors(metrics, ecosystem)

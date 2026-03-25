@@ -137,6 +137,7 @@ class RiskBreakdown:
 
     # Core metrics
     maintainer_concentration: float = 0.0
+    bus_factor: int = 0  # CHAOSS: minimum contributors for 50% of commits
     commits_last_year: int = 0
     unique_contributors: int = 0
     weekly_downloads: int = 0

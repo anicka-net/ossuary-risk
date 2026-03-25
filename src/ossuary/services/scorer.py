@@ -328,6 +328,7 @@ def calculate_score_for_date(
         lifetime_concentration=git_metrics.lifetime_concentration,
         is_mature=git_metrics.is_mature,
         repo_age_years=git_metrics.repo_age_years,
+        bus_factor=git_metrics.bus_factor,
         takeover_shift=git_metrics.takeover_shift,
         takeover_suspect=git_metrics.takeover_suspect,
         takeover_suspect_name=git_metrics.takeover_suspect_name,
