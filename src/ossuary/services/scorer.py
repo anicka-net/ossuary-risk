@@ -256,20 +256,37 @@ def calculate_score_for_date(
     github_data = collected_data.github_data
     # A scoring run is "historical" when the cutoff is meaningfully in the past
     # (more than 1 day ago), not merely a few seconds behind datetime.now().
-    # Historical scoring zeroes out current-state metadata (reputation, sponsors,
-    # org membership) that cannot be retrieved for past dates.
     is_historical = (datetime.now() - cutoff_date).days > 1
+
+    # For historical scoring, reconstruct what's verifiable at the cutoff date:
+    # - Repos: filter to those created before cutoff (created_at available via API)
+    # - Stars: sum from repos that existed at cutoff (conservative upper bound)
+    # - Tenure: compute age at cutoff, not now (via as_of_date param)
+    # - Sponsors: cannot reconstruct, set to 0
+    # - Orgs: stable over time for recognized foundations, pass through as-is
+    # - Org ownership: stable property, pass through as-is
+    if is_historical:
+        cutoff_iso = cutoff_date.isoformat()
+        historical_repos = [
+            r for r in github_data.maintainer_repos
+            if r.get("created_at", "9999") <= cutoff_iso
+        ]
+        historical_sponsor_count = 0  # Cannot reconstruct
+    else:
+        historical_repos = github_data.maintainer_repos
+        historical_sponsor_count = github_data.maintainer_sponsor_count
 
     # Calculate reputation
     reputation_scorer = ReputationScorer()
     reputation = reputation_scorer.calculate(
         username=github_data.maintainer_username,
         account_created=collected_data.maintainer_account_created,
-        repos=[] if is_historical else github_data.maintainer_repos,
-        sponsor_count=0 if is_historical else github_data.maintainer_sponsor_count,
-        orgs=[] if is_historical else github_data.maintainer_orgs,
+        repos=historical_repos,
+        sponsor_count=historical_sponsor_count,
+        orgs=github_data.maintainer_orgs,  # Org membership is stable over time
         packages_maintained=[package_name],
         ecosystem=ecosystem,
+        as_of_date=cutoff_date if is_historical else None,
     )
 
     # Run sentiment analysis on commits up to cutoff
@@ -297,13 +314,13 @@ def calculate_score_for_date(
         maintainer_total_stars=github_data.maintainer_total_stars,
         has_github_sponsors=False if is_historical else github_data.has_github_sponsors,
         maintainer_account_created=collected_data.maintainer_account_created,
-        maintainer_repos=[] if is_historical else github_data.maintainer_repos,
-        maintainer_sponsor_count=0 if is_historical else github_data.maintainer_sponsor_count,
-        maintainer_orgs=[] if is_historical else github_data.maintainer_orgs,
+        maintainer_repos=historical_repos,
+        maintainer_sponsor_count=historical_sponsor_count,
+        maintainer_orgs=github_data.maintainer_orgs,  # Stable over time
         packages_maintained=[package_name],
         reputation=reputation,
-        is_org_owned=False if is_historical else github_data.is_org_owned,
-        org_admin_count=0 if is_historical else github_data.org_admin_count,
+        is_org_owned=github_data.is_org_owned,  # Stable property
+        org_admin_count=github_data.org_admin_count if not is_historical else max(1, github_data.org_admin_count),
         # Maturity detection
         total_commits=git_metrics.total_commits,
         first_commit_date=git_metrics.first_commit_date,
