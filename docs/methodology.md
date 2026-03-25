@@ -98,6 +98,8 @@ This incident validates Ossuary's approach: the attacker specifically targeted a
 | **Snyk/Dependabot** | Known vulnerabilities | Reactive to CVEs, not predictive |
 | **Socket.dev** | Behavioral analysis | Detects malicious code, not governance risk |
 | **deps.dev** | Dependency metadata | Informational, no risk scoring |
+| **LFX Insights** | Project criticality ranking | Identifies important projects but not governance risk; complementary as prioritization input |
+| **OSSInsight** | GitHub analytics at scale | Raw activity dashboards (stars, commits, PRs) but no risk scoring or governance assessment |
 
 **The Gap**: No existing tool combines maintainer concentration, activity patterns, and frustration signals into a predictive governance risk score validated against historical incidents.
 
