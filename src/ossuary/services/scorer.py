@@ -297,7 +297,16 @@ def calculate_score_for_date(
     )
 
     total_frustration = commit_sentiment.frustration_count + issue_sentiment.frustration_count
-    avg_sentiment = (commit_sentiment.average_compound + issue_sentiment.average_compound) / 2
+    total_sentiment_texts = (
+        commit_sentiment.total_analyzed + issue_sentiment.total_analyzed
+    )
+    if total_sentiment_texts > 0:
+        avg_sentiment = (
+            (commit_sentiment.average_compound * commit_sentiment.total_analyzed)
+            + (issue_sentiment.average_compound * issue_sentiment.total_analyzed)
+        ) / total_sentiment_texts
+    else:
+        avg_sentiment = 0.0
 
     # Build metrics
     metrics = PackageMetrics(
@@ -319,6 +328,7 @@ def calculate_score_for_date(
         maintainer_orgs=github_data.maintainer_orgs,  # Stable over time
         packages_maintained=[package_name],
         reputation=reputation,
+        cii_badge_level=github_data.cii_badge_level,
         is_org_owned=github_data.is_org_owned,  # Stable property
         org_admin_count=github_data.org_admin_count if not is_historical else max(1, github_data.org_admin_count),
         # Maturity detection
@@ -353,6 +363,7 @@ def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optio
         d = cached_score.breakdown
         pkg = d.get("package", {})
         metrics = d.get("metrics", {})
+        chaoss = d.get("chaoss_signals", {})
         score_data = d.get("score", {})
         components = score_data.get("components", {})
         pf = components.get("protective_factors", {})
@@ -384,6 +395,9 @@ def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optio
             ecosystem=ecosystem,
             repo_url=pkg.get("repo_url"),
             maintainer_concentration=metrics.get("maintainer_concentration", cached_score.maintainer_concentration),
+            bus_factor=chaoss.get("bus_factor", 0),
+            elephant_factor=chaoss.get("elephant_factor", 0),
+            inactive_contributor_ratio=chaoss.get("inactive_contributor_ratio", 0.0),
             commits_last_year=metrics.get("commits_last_year", cached_score.commits_last_year),
             unique_contributors=metrics.get("unique_contributors", cached_score.unique_contributors),
             weekly_downloads=metrics.get("weekly_downloads", cached_score.weekly_downloads),

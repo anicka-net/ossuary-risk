@@ -1,6 +1,7 @@
 """GitHub API collector - maintainer info, issues, sponsors status."""
 
 import asyncio
+import base64
 import logging
 import os
 import re
@@ -347,6 +348,33 @@ class GitHubCollector(BaseCollector):
         """Get repository information."""
         return await self._get(f"/repos/{owner}/{repo}")
 
+    async def get_cii_badge_level(self, owner: str, repo: str) -> str:
+        """Detect CII/Best Practices badge presence from the repository README.
+
+        The badge markup in README files is a stable signal that the project
+        participates in the program. The public badge variants do not reliably
+        encode bronze/silver/gold in the URL, so we conservatively map presence
+        to ``passing`` which is sufficient for the current scoring model.
+        """
+        readme = await self._get(f"/repos/{owner}/{repo}/readme")
+        if not readme:
+            return "none"
+
+        content = readme.get("content", "")
+        encoding = readme.get("encoding", "")
+        if not content or encoding != "base64":
+            return "none"
+
+        try:
+            decoded = base64.b64decode(content, validate=False).decode("utf-8", errors="ignore")
+        except (ValueError, TypeError):
+            return "none"
+
+        if "bestpractices.coreinfrastructure.org/projects/" in decoded:
+            return "passing"
+
+        return "none"
+
     async def get_org_admins(self, owner: str, repo: str) -> dict:
         """Check if repo is org-owned and estimate admin count."""
         repo_data = await self.get_repo_info(owner, repo)
@@ -536,6 +564,9 @@ class GitHubCollector(BaseCollector):
         org_info = await self.get_org_admins(owner, repo)
         data.is_org_owned = org_info["is_org"]
         data.org_admin_count = org_info["admin_count"]
+
+        logger.info(f"Checking CII badge for {owner}/{repo}...")
+        data.cii_badge_level = await self.get_cii_badge_level(owner, repo)
 
         # Get issues
         logger.info(f"Fetching issues for {owner}/{repo}...")

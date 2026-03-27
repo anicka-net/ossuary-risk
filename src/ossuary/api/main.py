@@ -1,5 +1,6 @@
 """FastAPI application for ossuary."""
 
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
@@ -9,18 +10,20 @@ from pydantic import BaseModel
 from ossuary import __version__
 from ossuary.db.session import init_db
 from ossuary.scoring.factors import RiskLevel
-from ossuary.services.scorer import score_package, ScoringResult
+from ossuary.services.scorer import ScoringResult, score_package
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    yield
 
 app = FastAPI(
     title="Ossuary",
     description="OSS Supply Chain Risk Scoring API - Where abandoned packages come to rest",
     version=__version__,
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-async def startup():
-    init_db()
 
 
 # -- Response models --
@@ -123,7 +126,7 @@ async def get_score(
         risk_level=b.risk_level.value,
         semaphore=b.risk_level.semaphore,
         explanation=b.explanation,
-        breakdown=b.to_dict().get("score", {}).get("components", {}),
+        breakdown=b.to_dict(),
         recommendations=b.recommendations,
         warnings=result.warnings,
     )

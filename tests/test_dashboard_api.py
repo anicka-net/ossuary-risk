@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
+from ossuary.api.main import _get_score, get_score
 from ossuary.cli import app
-from ossuary.api.main import _get_score
-from ossuary.services.scorer import ScoringResult
 from ossuary.scoring.factors import RiskBreakdown, RiskLevel
+from ossuary.services.scorer import ScoringResult
 
 
 class TestDashboardCommand:
@@ -175,3 +175,36 @@ class TestApiCacheAge:
         kwargs = mock_score_package.await_args.kwargs
         assert kwargs["use_cache"] is False
         assert kwargs["freshness_days"] is None
+
+
+class TestApiResponses:
+    """Tests for external API response shapes."""
+
+    @patch("ossuary.api.main.score_package")
+    def test_score_endpoint_returns_full_breakdown(self, mock_score_package):
+        """The score endpoint should expose the complete serialized breakdown."""
+        mock_score_package.return_value = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="flask",
+                ecosystem="pypi",
+                repo_url="https://github.com/pallets/flask",
+                maintainer_concentration=41,
+                bus_factor=2,
+                elephant_factor=1,
+                inactive_contributor_ratio=0.25,
+                commits_last_year=12,
+                unique_contributors=3,
+                weekly_downloads=1234,
+                final_score=10,
+                risk_level=RiskLevel.VERY_LOW,
+                explanation="ok",
+            ),
+        )
+
+        response = asyncio.run(get_score("pypi", "flask", None, 7))
+        body = response.model_dump()
+        assert body["breakdown"]["package"]["name"] == "flask"
+        assert body["breakdown"]["metrics"]["weekly_downloads"] == 1234
+        assert body["breakdown"]["chaoss_signals"]["bus_factor"] == 2
+        assert body["breakdown"]["score"]["final"] == 10

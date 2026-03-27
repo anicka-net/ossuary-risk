@@ -9,7 +9,7 @@ from ossuary.collectors.git import CommitData
 from ossuary.scoring.engine import PackageMetrics, RiskScorer
 from ossuary.scoring.factors import RiskLevel
 from ossuary.scoring.reputation import ReputationBreakdown, ReputationTier
-from ossuary.services.scorer import CollectedData, calculate_score_for_date
+from ossuary.services.scorer import CollectedData, _rebuild_breakdown, calculate_score_for_date
 
 
 class TestRiskScorer:
@@ -224,3 +224,106 @@ class TestHistoricalScoring:
 
         assert breakdown.protective_factors.frustration_score == 0
         assert breakdown.protective_factors.sentiment_score == 0
+
+    def test_calculate_score_for_date_weights_sentiment_by_sample_count(self):
+        """Commit sentiment should not be diluted just because there are no issues."""
+        commits = [
+            CommitData(
+                sha=str(i),
+                author_name="maintainer",
+                author_email="maintainer@example.com",
+                authored_date=datetime(2024, 1, i + 1),
+                committer_name="maintainer",
+                committer_email="maintainer@example.com",
+                committed_date=datetime(2024, 1, i + 1),
+                message="terrible awful broken release",
+            )
+            for i in range(4)
+        ]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits,
+            github_data=GitHubData(issues=[]),
+            weekly_downloads=0,
+            maintainer_account_created=None,
+        )
+
+        breakdown = calculate_score_for_date(
+            "pkg", "github", data, datetime(2024, 12, 31)
+        )
+
+        assert breakdown.protective_factors.sentiment_score == 10
+
+    def test_calculate_score_for_date_passes_through_cii_badge(self):
+        """CII badge data from the collector should affect scoring."""
+        commits = [
+            CommitData(
+                sha="1",
+                author_name="maintainer",
+                author_email="maintainer@example.com",
+                authored_date=datetime(2024, 1, 1),
+                committer_name="maintainer",
+                committer_email="maintainer@example.com",
+                committed_date=datetime(2024, 1, 1),
+                message="normal maintenance",
+            )
+        ]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits,
+            github_data=GitHubData(cii_badge_level="passing"),
+            weekly_downloads=0,
+            maintainer_account_created=None,
+        )
+
+        breakdown = calculate_score_for_date(
+            "pkg", "github", data, datetime(2024, 12, 31)
+        )
+
+        assert breakdown.protective_factors.cii_score == -10
+
+
+class TestCachedBreakdownRebuild:
+    """Regression tests for cache reconstruction."""
+
+    def test_rebuild_breakdown_preserves_chaoss_signals(self):
+        cached_score = type(
+            "CachedScore",
+            (),
+            {
+                "breakdown": {
+                    "package": {"repo_url": "https://github.com/example/pkg"},
+                    "metrics": {
+                        "maintainer_concentration": 50,
+                        "commits_last_year": 12,
+                        "unique_contributors": 4,
+                        "weekly_downloads": 100,
+                    },
+                    "chaoss_signals": {
+                        "bus_factor": 2,
+                        "elephant_factor": 1,
+                        "inactive_contributor_ratio": 0.5,
+                    },
+                    "score": {"components": {"protective_factors": {}}},
+                    "explanation": "cached",
+                    "recommendations": [],
+                    "data_sources": {},
+                    "warnings": [],
+                },
+                "risk_level": "LOW",
+                "base_risk": 40,
+                "activity_modifier": -15,
+                "final_score": 25,
+                "maintainer_concentration": 50,
+                "commits_last_year": 12,
+                "unique_contributors": 4,
+                "weekly_downloads": 100,
+            },
+        )()
+
+        breakdown = _rebuild_breakdown(cached_score, "pkg", "github")
+
+        assert breakdown is not None
+        assert breakdown.bus_factor == 2
+        assert breakdown.elephant_factor == 1
+        assert breakdown.inactive_contributor_ratio == 0.5
