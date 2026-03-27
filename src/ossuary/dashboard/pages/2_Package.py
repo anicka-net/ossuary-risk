@@ -237,6 +237,22 @@ if b.protective_factors.maturity_evidence:
     )
     st.caption(f'  {b.protective_factors.maturity_evidence}')
 
+# CHAOSS governance signals
+if hasattr(b, "bus_factor") and (b.bus_factor > 0 or getattr(b, "elephant_factor", 0) > 0):
+    with st.expander("Governance Signals (CHAOSS-aligned)"):
+        gs_cols = st.columns(3)
+        if b.bus_factor > 0:
+            bf_color = "🔴" if b.bus_factor <= 2 else "🟡" if b.bus_factor <= 5 else "🟢"
+            gs_cols[0].metric("Bus Factor", f"{bf_color} {b.bus_factor}", help="Minimum contributors for 50% of commits")
+        ef = getattr(b, "elephant_factor", 0)
+        if ef > 0:
+            ef_color = "🔴" if ef <= 1 else "🟡" if ef <= 2 else "🟢"
+            gs_cols[1].metric("Elephant Factor", f"{ef_color} {ef}", help="Minimum organizations for 50% of commits")
+        ir = getattr(b, "inactive_contributor_ratio", 0)
+        if ir > 0.1:
+            ir_color = "🔴" if ir > 0.7 else "🟡" if ir > 0.4 else "🟢"
+            gs_cols[2].metric("Contributor Attrition", f"{ir_color} {ir:.0%}", help="Fraction of lifetime contributors inactive in last year")
+
 st.divider()
 
 # -- Comparison --

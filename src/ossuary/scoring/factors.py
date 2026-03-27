@@ -137,7 +137,10 @@ class RiskBreakdown:
 
     # Core metrics
     maintainer_concentration: float = 0.0
-    bus_factor: int = 0  # CHAOSS: minimum contributors for 50% of commits
+    # CHAOSS-aligned governance signals
+    bus_factor: int = 0               # minimum contributors for 50% of commits
+    elephant_factor: int = 0          # minimum organizations for 50% of commits
+    inactive_contributor_ratio: float = 0.0  # fraction of lifetime contributors absent recently
     commits_last_year: int = 0
     unique_contributors: int = 0
     weekly_downloads: int = 0
@@ -172,6 +175,11 @@ class RiskBreakdown:
                 "commits_last_year": self.commits_last_year,
                 "unique_contributors": self.unique_contributors,
                 "weekly_downloads": self.weekly_downloads,
+            },
+            "chaoss_signals": {
+                "bus_factor": self.bus_factor,
+                "elephant_factor": self.elephant_factor,
+                "inactive_contributor_ratio": round(self.inactive_contributor_ratio, 2),
             },
             "score": {
                 "final": self.final_score,

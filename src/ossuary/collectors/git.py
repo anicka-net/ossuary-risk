@@ -115,9 +115,12 @@ class GitMetrics:
     is_mature: bool = False
     repo_age_years: float = 0.0
 
-    # Bus factor (CHAOSS metric): minimum contributors for 50% of commits
-    bus_factor: int = 0
-    bus_factor_contributors: list[str] = None  # names of those contributors
+    # CHAOSS-aligned governance signals (informational, not used in score)
+    bus_factor: int = 0              # minimum contributors for 50% of commits
+    bus_factor_contributors: list[str] = None
+    elephant_factor: int = 0         # minimum ORGANIZATIONS for 50% of commits
+    elephant_factor_orgs: list[str] = None
+    inactive_contributor_ratio: float = 0.0  # fraction of lifetime contributors absent in last year
 
     # Takeover detection (proportion shift)
     takeover_shift: float = 0.0       # max % shift of any contributor (historical→recent)
@@ -372,6 +375,44 @@ class GitCollector(BaseCollector):
                     if cumulative / human_total >= 0.5:
                         break
 
+        # --- Elephant factor (CHAOSS: minimum ORGANIZATIONS for 50% of commits) ---
+        # Uses email domain as org proxy. Generic domains (gmail, etc.) are grouped
+        # as "independent" and counted as one pseudo-org.
+        elephant_factor = 0
+        elephant_factor_orgs = []
+        if author_counts:
+            org_counts: dict[str, int] = defaultdict(int)
+            for email, count in author_counts.items():
+                if "@" in email:
+                    domain = email.split("@")[1]
+                    if domain in _GENERIC_EMAIL_DOMAINS:
+                        org_counts["(independent)"] += count
+                    else:
+                        org_counts[_domain_org_key(domain)] += count
+                else:
+                    org_counts["(independent)"] += count
+
+            if org_counts:
+                sorted_orgs = sorted(org_counts.items(), key=lambda x: -x[1])
+                org_total = sum(org_counts.values())
+                cumulative = 0
+                for org, count in sorted_orgs:
+                    cumulative += count
+                    elephant_factor += 1
+                    elephant_factor_orgs.append(org)
+                    if cumulative / org_total >= 0.5:
+                        break
+
+        # --- Inactive contributor ratio ---
+        # Fraction of lifetime contributors who did NOT commit in the last year.
+        # High ratio suggests contributor attrition.
+        if lifetime_contributors > 1:
+            recent_identities = set(author_counts.keys())
+            inactive_ratio = 1.0 - (len(recent_identities) / lifetime_contributors)
+            inactive_ratio = max(0.0, min(1.0, inactive_ratio))
+        else:
+            inactive_ratio = 0.0
+
         # --- Maturity detection ---
         repo_age_years = (cutoff - first_commit_date).days / 365.25
         days_since_last_commit = (cutoff - last_commit_date).days
@@ -496,6 +537,9 @@ class GitCollector(BaseCollector):
             repo_age_years=repo_age_years,
             bus_factor=bus_factor,
             bus_factor_contributors=bus_factor_names,
+            elephant_factor=elephant_factor,
+            elephant_factor_orgs=elephant_factor_orgs,
+            inactive_contributor_ratio=inactive_ratio,
             takeover_shift=takeover_shift,
             takeover_suspect=takeover_suspect,
             takeover_suspect_name=takeover_suspect_name,

@@ -249,6 +249,42 @@ def _display_results(breakdown):
     if pf_table.row_count > 0:
         console.print(pf_table)
 
+    # CHAOSS governance signals (informational)
+    if breakdown.bus_factor > 0 or breakdown.elephant_factor > 0:
+        gs_table = Table(title="Governance Signals (CHAOSS)")
+        gs_table.add_column("Signal", style="cyan")
+        gs_table.add_column("Value", style="magenta")
+        gs_table.add_column("Interpretation")
+
+        if breakdown.bus_factor > 0:
+            bf_desc = {1: "single person", 2: "two people", 3: "small group"}.get(
+                breakdown.bus_factor, f"{breakdown.bus_factor} people"
+            )
+            bf_color = "red" if breakdown.bus_factor <= 2 else "yellow" if breakdown.bus_factor <= 5 else "green"
+            gs_table.add_row(
+                "Bus Factor",
+                f"[{bf_color}]{breakdown.bus_factor}[/{bf_color}]",
+                f"{bf_desc} account for 50%+ of commits",
+            )
+        if breakdown.elephant_factor > 0:
+            ef_desc = {1: "single org", 2: "two orgs"}.get(
+                breakdown.elephant_factor, f"{breakdown.elephant_factor} orgs"
+            )
+            ef_color = "red" if breakdown.elephant_factor <= 1 else "yellow" if breakdown.elephant_factor <= 2 else "green"
+            gs_table.add_row(
+                "Elephant Factor",
+                f"[{ef_color}]{breakdown.elephant_factor}[/{ef_color}]",
+                f"{ef_desc} account for 50%+ of commits",
+            )
+        if breakdown.inactive_contributor_ratio > 0.3:
+            gs_table.add_row(
+                "Contributor Attrition",
+                f"{breakdown.inactive_contributor_ratio:.0%}",
+                "of lifetime contributors inactive in last year",
+            )
+        if gs_table.row_count > 0:
+            console.print(gs_table)
+
     # Explanation
     console.print(f"\n[bold]Explanation:[/bold] {breakdown.explanation}")
 

@@ -52,7 +52,9 @@ class PackageMetrics:
     lifetime_concentration: float = 0.0
     is_mature: bool = False
     repo_age_years: float = 0.0
-    bus_factor: int = 0  # CHAOSS: minimum contributors for 50% of commits
+    bus_factor: int = 0
+    elephant_factor: int = 0
+    inactive_contributor_ratio: float = 0.0
     takeover_shift: float = 0.0
     takeover_suspect: str = ""
     takeover_suspect_name: str = ""
@@ -412,6 +414,8 @@ class RiskScorer:
         # Copy metrics
         breakdown.maintainer_concentration = metrics.maintainer_concentration
         breakdown.bus_factor = metrics.bus_factor
+        breakdown.elephant_factor = metrics.elephant_factor
+        breakdown.inactive_contributor_ratio = metrics.inactive_contributor_ratio
         breakdown.commits_last_year = metrics.commits_last_year
         breakdown.unique_contributors = metrics.unique_contributors
         breakdown.weekly_downloads = metrics.weekly_downloads

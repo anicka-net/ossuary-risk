@@ -329,6 +329,8 @@ def calculate_score_for_date(
         is_mature=git_metrics.is_mature,
         repo_age_years=git_metrics.repo_age_years,
         bus_factor=git_metrics.bus_factor,
+        elephant_factor=git_metrics.elephant_factor,
+        inactive_contributor_ratio=git_metrics.inactive_contributor_ratio,
         takeover_shift=git_metrics.takeover_shift,
         takeover_suspect=git_metrics.takeover_suspect,
         takeover_suspect_name=git_metrics.takeover_suspect_name,
