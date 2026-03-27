@@ -947,7 +947,7 @@ Example workflow:
 
 #### Academic Foundation
 
-Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor](https://chaoss.community/kb/metric-bus-factor/), providing academic grounding for the approach. The key innovation is combining this with:
+Ossuary's concentration metric aligns with CHAOSS's [Contributor Absence Factor](https://chaoss.community/kb/metric-contributor-absence-factor/), providing academic grounding for the approach. The key innovation is combining this with:
 - Sentiment analysis for frustration detection
 - Reputation scoring for maintainer assessment
 - Weighted scoring formula calibrated against known incidents
@@ -1040,12 +1040,16 @@ These papers directly inform the methodology and should be read in full:
 8. Sonatype. "State of the Software Supply Chain." Annual Report. https://www.sonatype.com/state-of-the-software-supply-chain
 9. Synopsys. (2022). "Open Source Security and Risk Analysis Report."
 10. OpenSSF Scorecard - https://securityscorecards.dev/
-11. CHAOSS Project - https://chaoss.community/
-12. CHAOSS Contributor Absence Factor - https://chaoss.community/kb/metric-bus-factor/
-13. CISA Alert AA25-266A. "Widespread Supply Chain Compromise Impacting npm Ecosystem." September 23, 2025. https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem
-14. CERT/CC VU#534320. "npm ecosystem design weaknesses enabling supply chain compromise." https://kb.cert.org/vuls/id/534320
-15. Check Point Research. "The Great NPM Heist: September 2025." https://blog.checkpoint.com/crypto/the-great-npm-heist-september-2025/
-16. Unit 42 / Palo Alto Networks. "Shai-Hulud: npm Supply Chain Worm." https://unit42.paloaltonetworks.com/npm-supply-chain-attack/
+11. **Goggins, S., Germonprez, M., & Lumbard, K. (2021). "Making Open Source Project Health Transparent."** IEEE Computer, 54(8), 104–111. https://doi.org/10.1109/MC.2021.3084015 — Key paper on the CHAOSS project and its approach to community health metrics.
+12. **Avelino, G., Passos, L., Hora, A., & Valente, M. T. (2016). "A Novel Approach for Estimating Truck Factors."** 24th IEEE International Conference on Program Comprehension (ICPC), 1–10. https://arxiv.org/abs/1604.06766 — Defines the algorithm Ossuary's bus factor metric is based on: minimum contributors whose departure causes >50% of files to become orphaned.
+13. CHAOSS Contributor Absence Factor metric definition - https://chaoss.community/kb/metric-contributor-absence-factor/
+14. CISA Alert AA25-266A. "Widespread Supply Chain Compromise Impacting npm Ecosystem." September 23, 2025. https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem
+15. CERT/CC VU#534320. "npm ecosystem design weaknesses enabling supply chain compromise." https://kb.cert.org/vuls/id/534320
+16. Check Point Research. "The Great NPM Heist: September 2025." https://blog.checkpoint.com/crypto/the-great-npm-heist-september-2025/
+17. Unit 42 / Palo Alto Networks. "Shai-Hulud: npm Supply Chain Worm." https://unit42.paloaltonetworks.com/npm-supply-chain-attack/
+18. **Cosentino, V., Canovas Izquierdo, J. L., & Cabot, J. (2015). "Assessing the Bus Factor of Git Repositories."** 22nd IEEE SANER, 499–503. https://doi.org/10.1109/SANER.2015.7081864 — Earlier bus factor computation work.
+19. LFX Insights / Linux Foundation Open Source Index - https://insights.linuxfoundation.org/open-source-index
+20. OSSInsight (PingCAP) - https://ossinsight.io/
 
 ---
 
