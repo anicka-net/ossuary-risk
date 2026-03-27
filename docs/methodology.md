@@ -6,7 +6,7 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 164 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.2% precision** (1 false positive) and **80.6% in-scope recall** (F1 0.877). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
+**Key Finding**: In validation testing against 164 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.0% precision** (1 false positive) and **77.4% in-scope recall** (F1 0.857). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
 
 **Version**: 6.0 (March 2026)
 **Validation Dataset**: 164 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
@@ -110,7 +110,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 96.2% precision** with 1 false positive across 164 packages (v6.1)
+4. **Achieving 96.0% precision** with 1 false positive across 164 packages (v6.2)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -256,21 +256,36 @@ For mature projects, the real risk isn't abandonment — it's unexpected takeove
 
 The lifetime concentration fallback only applies when the project has fewer than 4 commits per year — the "abandoned" activity tier where concentration from 1-3 commits is unreliable. When a mature project has 4+ recent commits, the recent concentration is used as normal, preserving the governance signal.
 
-### 4.1 Base Risk (Maintainer Concentration)
+### 4.1 Base Risk (Concentration + Bus Factor)
 
-The primary risk signal is **bus factor** - how many people control the codebase.
+Base risk uses two complementary signals — top-1 **concentration** and CHAOSS **bus factor** (minimum contributors for 50% of commits). The worse signal sets the floor.
 
-| Concentration | Base Score | Interpretation |
-|---------------|------------|----------------|
+**Concentration** (top-1 contributor share):
+
+| Concentration | Risk | Interpretation |
+|---------------|------|----------------|
 | <30% | 20 | Distributed - healthy |
 | 30-49% | 40 | Moderate concentration |
 | 50-69% | 60 | Elevated concentration |
 | 70-89% | 80 | High concentration |
 | ≥90% | 100 | Critical - single maintainer |
 
-**Calculation**: Concentration = (commits by top contributor / total commits) × 100
+**Bus factor** (CHAOSS-aligned):
 
-For **non-mature** projects, only commits from the last 12 months are used. For **mature** projects, all commits across the project's lifetime are used, reflecting the true long-term contributor diversity.
+| Bus Factor | Risk Floor | Interpretation |
+|-----------|-----------|----------------|
+| 1 | 60 | Single person for 50%+ (concentration already captures) |
+| 2 | 40 | Two people control the project |
+| 3–5 | 40 | Small group, moderate risk |
+| 6+ | 20 | Well-distributed |
+
+**Base Risk = max(concentration_risk, bus_factor_risk)**
+
+This catches cases concentration misses. Example: trivy has 18% top-1 concentration (looks distributed) but bus factor 3 — only 3 people account for 50% of commits. Concentration gives base 20; bus factor raises it to 40.
+
+**Calculation**: Concentration = (commits by top contributor / total commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. Bus factor computed from unweighted recent commits, excluding bots (`[bot]` in email/name).
+
+For **non-mature** projects, only recent commits are used. For **mature** projects with <4 commits/year, lifetime concentration is used as fallback.
 
 ### 4.2 Activity Modifier
 
@@ -490,22 +505,23 @@ Out-of-scope incidents: 14 (T4=8, T5=6)
 Controls: 119
 
 Confusion Matrix (Scope B):
-  TP: 25  |  FN: 6
+  TP: 24  |  FN: 7
   FP: 1   |  TN: 118
 
-Accuracy:   95.3%
-Precision:  96.2%
-Recall:     80.6%
-F1 Score:   0.877
+Accuracy:   94.7%
+Precision:  96.0%
+Recall:     77.4%
+F1 Score:   0.857
 ```
 
 **Key results**:
 
 - **1 false positive** (rxjs) across 119 safe packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year. The governance signals are genuinely concerning; it may warrant reclassification as `governance_risk`.
 - **6 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), es5-ext and is-promise (maintainer reputation correctly reduces score).
-- **80.6% in-scope recall** reflects genuine detection capability. The previous 59% recall penalized the model for not detecting credential theft on healthy projects.
+- **7 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), devise (borderline drift), core-js (high activity offsets risk), es5-ext (maintainer reputation), is-promise (reputation correctly reconstructed at cutoff).
+- **77.4% in-scope recall** reflects genuine detection capability with honest historical scoring. The previous 80.6% was slightly inflated by incorrectly stripping reputation that existed at cutoff dates.
 
-**Comparison with unscoped metrics**: Across all 45 incidents (including out-of-scope), overall recall is 60.0%. This lower number is expected — 14 out-of-scope incidents are fundamentally undetectable from governance signals.
+**Comparison with unscoped metrics**: Across all 45 incidents (including out-of-scope), overall recall is 55.6%. This lower number is expected — 14 out-of-scope incidents are fundamentally undetectable from governance signals.
 
 **Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
@@ -516,7 +532,7 @@ F1 Score:   0.877
 | **T1: Governance decay** | 8/9 | **89%** | 1 miss: polyfill.io (ownership transfer) |
 | **T2: Protestware / sabotage** | 2/6 | **33%** | 4 misses: reputation-protected maintainers |
 | **T3: Weak-gov compromise** | 4/4 | **100%** | All detected |
-| **T_risk: Governance risk** | 11/12 | **92%** | 1 miss: core-js (very active) |
+| **T_risk: Governance risk** | 10/12 | **83%** | 2 misses: core-js (very active), devise (borderline) |
 | T4: Strong-gov compromise (OOS) | 1/8 | 12% | Expected — out of scope |
 | T5: CI/CD exploits (OOS) | 0/6 | 0% | Expected — out of scope |
 
@@ -524,24 +540,25 @@ T1 (governance decay, 88%) and T3 (weak-governance compromise, 100%) are the pri
 
 ### 8.6 In-Scope False Negative Analysis
 
-6 in-scope false negatives, all explainable:
+7 in-scope false negatives, all explainable:
 
 | Package | Score | Tier | Why Missed |
 |---------|-------|------|-----------|
 | faker | 0 | T2 | Evaluating community fork (faker-js/faker); original repo deleted |
 | node-ipc | 50 | T2 | Active development masks bus-factor-1 risk |
 | polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
-| devise | 50 | T_risk | Borderline; score drifted from 65 due to minor concentration shift |
-| core-js | 50 | T_risk | High activity gives discount despite 92% concentration |
-| es5-ext | 30 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
+| devise | 50 | T_risk | Borderline; concentration drift from minor changes |
+| core-js | 40 | T_risk | High activity gives discount despite 92% concentration |
+| es5-ext | 40 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
+| is-promise | 45 | T2 | Reputation correctly reconstructed at 2020 cutoff |
 
-The FN set reflects the historical scoring fix (commit 03049a5): T-1 scores now correctly strip current-state reputation data that cannot be verified at the cutoff date. This moved is-promise from FN (30) to TP (70) and eslint-scope from FN (35) to TP (60), while devise drifted from TP (65) to FN (50) due to minor concentration shift.
+Historical reputation reconstruction (v3.2) verifies portfolio and tenure at the cutoff date using repo `created_at` timestamps. This gives honest T-1 scores: is-promise (45) reflects ForbesLindesay's real 2020 reputation rather than stripping it to zero. The cost is 1 fewer TP compared to the stripped version, but the score is more accurate.
 
 ### 8.7 Out-of-Scope Incident Analysis
 
 14 out-of-scope incidents are included to validate detection boundaries:
 
-**T4: Account compromise on healthy projects (8 cases)** — ua-parser-js (90, bonus detection), eslint-scope (60, bonus detection), LottieFiles (40), chalk (0), cline (0), solana-web3.js (0), eslint-config-prettier (50), num2words (0).
+**T4: Account compromise on healthy projects (8 cases)** — ua-parser-js (90, bonus detection), eslint-scope (35), LottieFiles (45), chalk (35), cline (0), solana-web3.js (0), eslint-config-prettier (55), num2words (0).
 
 **T5: CI/CD pipeline exploits (6 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0).
 
@@ -688,7 +705,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 164 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (96.2% precision, 80.6% in-scope recall) |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 164 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (96.0% precision, 77.4% in-scope recall) |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
@@ -733,10 +750,11 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 Despite these threats, several factors support the validity of findings:
 
-1. **96.2% Precision**: 1 false positive (rxjs) across 164 packages and 8 ecosystems
-2. **80.6% In-Scope Recall**: Scoped framework separates detectable from undetectable attack types
-3. **Per-Tier Transparency**: T1 89%, T2 33%, T3 100%, T_risk 92% — specific strengths and weaknesses documented
+1. **96.0% Precision**: 1 false positive (rxjs) across 164 packages and 8 ecosystems
+2. **77.4% In-Scope Recall**: Scoped framework with honest historical reputation reconstruction
+3. **Per-Tier Transparency**: T1 89%, T2 33%, T3 100%, T_risk 83% — specific strengths and weaknesses documented
 4. **Near-Census Coverage**: Dataset covers 45 of ~50 known scorable incidents (90%), cross-referenced against CNCF, IQT Labs, and Ladisa et al. catalogs
+5. **CHAOSS Bus Factor**: Contributor diversity metric catches patterns missed by top-1 concentration (e.g. trivy: 18% top-1 but bus factor 3)
 4. **100% T-1 Detection**: All governance-detectable incidents scored CRITICAL before they occurred
 5. **Explicit Boundary Validation**: 14 out-of-scope incidents included and documented
 6. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
@@ -1031,7 +1049,7 @@ These papers directly inform the methodology and should be read in full:
 
 ---
 
-*Document version: 6.1*
+*Document version: 6.2*
 *Last updated: March 2026*
-*Validation dataset: 164 packages across 8 ecosystems (Scope B: 96.2% precision, 80.6% recall, F1 0.877)*
+*Validation dataset: 164 packages across 8 ecosystems (Scope B: 96.0% precision, 77.4% recall, F1 0.857)*
 *Run validation: `python scripts/validate.py -o validation_results.json`*

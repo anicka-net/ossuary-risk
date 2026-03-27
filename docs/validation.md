@@ -14,10 +14,10 @@ The validation uses a **scoped evaluation framework** (Scope B) that counts only
 
 | Metric | All incidents | In-scope (Scope B) |
 |--------|-------------|-------------------|
-| **Accuracy** | 88.4% | 95.3% |
-| **Precision** | 96.4% | 96.2% |
-| **Recall** | 60.0% | 80.6% |
-| **F1 Score** | 0.74 | 0.877 |
+| **Accuracy** | 87.2% | 94.7% |
+| **Precision** | 96.2% | 96.0% |
+| **Recall** | 55.6% | 77.4% |
+| **F1 Score** | 0.70 | 0.857 |
 | **False Positives** | 1 (rxjs) | 1 (rxjs) |
 
 ---
@@ -51,14 +51,14 @@ For each incident: (1) Would Ossuary's signals have shown elevated risk before t
 
 | Tier | Detected | Rate | Notes |
 |------|----------|------|-------|
-| T1: Governance decay | 8/9 | **89%** | 1 miss: polyfill.io (ownership transfer untracked) |
+| T1: Governance decay | 8/9 | **89%** | 1 miss: polyfill.io (ownership transfer) |
 | T2: Protestware / sabotage | 2/6 | **33%** | 4 misses: all reputation-protected maintainers |
 | T3: Weak-gov compromise | 4/4 | **100%** | All detected |
-| T_risk: Governance risk | 11/12 | **92%** | 1 miss: core-js (very active despite bus factor 1) |
+| T_risk: Governance risk | 10/12 | **83%** | 2 misses: core-js (very active), devise (borderline drift) |
 | T4: Strong-gov compromise (OOS) | 1/8 | 12% | Expected — out of scope |
 | T5: CI/CD exploits (OOS) | 0/6 | 0% | Expected — out of scope |
 
-**Combined in-scope (Scope B)**: 25/31 = 80.6% recall.
+**Combined in-scope (Scope B)**: 24/31 = 77.4% recall.
 
 ### Key finding: reputation-protected single-maintainer projects
 
@@ -100,7 +100,7 @@ T2 (protestware) is the weakest in-scope tier at 33%. This is because protestwar
 
 ```
                     Predicted Risky    Predicted Safe
-Actually Risky         25 (TP)             6 (FN)
+Actually Risky         24 (TP)             7 (FN)
 Actually Safe           1 (FP)           118 (TN)
 ```
 
@@ -127,16 +127,17 @@ In the previous validation run (March 6), sidekiq scored 60 HIGH (FP). One week 
 
 ## In-Scope False Negative Analysis
 
-All 6 in-scope false negatives are explainable:
+All 7 in-scope false negatives are explainable:
 
 | Package | Score | Tier | Why missed |
 |---------|-------|------|-----------|
 | faker | 0 | T2 | Evaluating community fork (faker-js/faker); original repo deleted |
 | node-ipc | 50 | T2 | Active development masks bus-factor-1 risk |
 | polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
-| devise | 50 | T_risk | Borderline; score drifted from 65 due to minor concentration shift |
-| core-js | 50 | T_risk | High activity gives discount despite 92% concentration |
-| es5-ext | 30 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
+| devise | 50 | T_risk | Borderline; concentration drift from minor changes |
+| core-js | 40 | T_risk | High activity gives discount despite 92% concentration |
+| es5-ext | 40 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
+| is-promise | 45 | T2 | Reputation correctly reconstructed at 2020 cutoff |
 
 **faker**: The original Marak/faker.js repo was deleted. We evaluate the community fork (faker-js/faker), which has healthy governance — score 0 is correct for the current project state.
 
@@ -144,11 +145,13 @@ All 6 in-scope false negatives are explainable:
 
 **polyfill.io**: The project was sold to Funnull (a Chinese CDN company) who injected malicious JavaScript into 100K+ websites. Ownership transfers are not currently tracked as a signal. Acknowledged limitation.
 
-**devise**: José Valim (Elixir creator) maintains devise with 83% concentration. Score drifted from 65→50 between runs due to minor concentration shift. Borderline case — the single-maintainer risk is real but Valim's standing in the community is a mitigating factor not fully captured.
+**devise**: José Valim (Elixir creator) maintains devise with 83% concentration. Borderline case — the single-maintainer risk is real but Valim's standing in the community is a mitigating factor.
 
-**core-js**: Denis Pushkarev (zloirock) was imprisoned Jan-Oct 2020, leaving the project unmaintained. Score 50 reflects the current state — he's back and actively committing. Bus factor 1 with 92% concentration is a real risk, but high activity correctly moderates the score.
+**core-js**: Denis Pushkarev (zloirock) was imprisoned Jan-Oct 2020, leaving the project unmaintained. Score 40 reflects the current state — he's back and actively committing. Bus factor 1 with 92% concentration is a real risk, but high activity correctly moderates the score.
 
 **es5-ext**: 100% concentration but maintainer medikoo has strong reputation. Demonstrates the trade-off: bus factor 1 enables unilateral action, but reputable maintainers ARE genuinely lower risk.
+
+**is-promise**: ForbesLindesay's portfolio and tenure are correctly reconstructed at the 2020 cutoff date, reducing protective factors. Score 45 (was 70 when historical reputation was incorrectly stripped). The accurate historical scoring gives the honest result — this maintainer was reputable in 2020.
 
 ---
 
@@ -160,16 +163,16 @@ All 6 in-scope false negatives are explainable:
 
 | Package | Score | Attack Vector |
 |---------|-------|---------------|
-| ua-parser-js | 75 | Email hijacking (bonus detection — above threshold) |
+| ua-parser-js | 90 | Email hijacking (bonus detection — above threshold) |
 | eslint-scope | 35 | Account compromise, OpenJS Foundation |
-| LottieFiles/lottie-player | 25 | Account compromise, org-backed |
-| chalk (2025) | 0 | Qix phished, Sindre Sorhus project |
+| LottieFiles/lottie-player | 45 | Account compromise, org-backed |
+| chalk (2025) | 35 | Qix phished, Sindre Sorhus project |
 | cline | 0 | npm account compromise, 256 contributors |
 | solana-web3.js | 0 | Spear-phished via fake npm domain |
-| eslint-config-prettier | 35 | JounQin phished via typosquatted domain |
+| eslint-config-prettier | 55 | JounQin phished via typosquatted domain |
 | num2words | 0 | Phished via fake PyPI domain, org-backed (savoirfairelinux) |
 
-ua-parser-js is a bonus detection — above threshold despite being T4, likely because the project had some governance concentration signals.
+ua-parser-js is a bonus detection — above threshold despite being T4, because the project had governance concentration signals at the 2021 cutoff.
 
 ### T5: CI/CD pipeline exploits (6 cases)
 
@@ -218,6 +221,42 @@ Compared to the hard-cutoff run on the same data:
 
 The taper is not artificial smoothing — a commit from 11 months ago genuinely shouldn't have the same weight as one from last month. The hard cutoff was the artifact.
 
+### Bus factor (v3.2): CHAOSS-aligned contributor diversity
+
+Top-1 concentration can be misleading. A project like trivy (18% top-1) looks
+distributed, but only 3 people account for 50% of commits (bus factor = 3).
+v3.2 adds the CHAOSS bus factor metric alongside concentration, using the
+worse signal as base risk floor:
+
+| Bus factor | Base risk floor | Interpretation |
+|-----------|----------------|----------------|
+| 1 | 60 | Single person dominates (concentration already captures this) |
+| 2 | 40 | Two people control the project |
+| 3–5 | 40 | Small group, moderate risk |
+| 6+ | 20 | Well-distributed |
+
+Bus factor only raises the floor — it never lowers base risk below what
+concentration gives. A/B testing confirmed **zero impact on Scope B
+classifications** (all affected packages are controls, not incidents).
+
+### Historical reputation reconstruction (v3.2)
+
+Historical scoring (T-1 analysis) previously stripped all current-state
+metadata. v3.2 reconstructs what is verifiable at the cutoff date:
+
+| Signal | Reconstruction method |
+|--------|----------------------|
+| Tenure | Compute account age at cutoff (immutable) |
+| Portfolio | Filter repos by `created_at` ≤ cutoff |
+| Stars | Sum from repos that existed at cutoff (conservative) |
+| Org membership | Pass through (stable for recognized foundations) |
+| Sponsors | Cannot reconstruct — set to 0 |
+
+This narrows the gap between current and historical scores. The cost is
+1 lost TP: is-promise (70→45) because ForbesLindesay's portfolio is now
+correctly recognized at the 2020 cutoff. A/B testing confirmed this is the
+**sole source** of the recall change (80.6%→77.4%).
+
 ---
 
 ## The xz-utils Case
@@ -235,13 +274,13 @@ This detection relies on the proportion shift being visible in commit data. A mo
 | Packages | 92 | 143 | 158 | 164 |
 | Ecosystems | 2 | 8 | 8 | 8 |
 | Scope | All | All | All | Scope B |
-| Accuracy | 92.4% | 91.6% | 89.2% | 95.3% |
-| Precision | 100% | 100% | 95.8% | 96.2% |
-| Recall | 65.0% | 58.6% | 59.0% | 80.6% |
-| F1 | 0.79 | 0.74 | 0.73 | 0.877 |
+| Accuracy | 92.4% | 91.6% | 89.2% | 94.7% |
+| Precision | 100% | 100% | 95.8% | 96.0% |
+| Recall | 65.0% | 58.6% | 59.0% | 77.4% |
+| F1 | 0.79 | 0.74 | 0.73 | 0.857 |
 | False Positives | 0 | 0 | 1 | 1 |
 
-The v3.1 jump in recall (59%→81%) and accuracy (89%→95%) reflects the scoped framework and historical scoring fix, not a model improvement. The model is the same — we stopped penalizing it for not detecting credential theft on healthy projects, and T-1 scores now correctly strip current-state reputation data.
+The v3.1 recall improvement (59%→77%) reflects the scoped framework, not a model improvement. The model correctly stopped penalizing for undetectable attack types. The modest recall (77.4% vs earlier 80.6%) is the cost of honest historical scoring — reconstructing verifiable reputation at cutoff dates rather than stripping it entirely.
 
 ---
 
