@@ -145,6 +145,8 @@ MIT
 
 ## Academic Context
 
-MBA thesis research on OSS supply chain risk (due Dec 2026). The tool was co-developed with Claude (Anthropic). AI assistance was used for data collection, analysis scripts, and working notes. All thesis text is the author's own.
+MBA thesis research on OSS supply chain risk (VŠE Prague, due Dec 2026).
+
+**AI assistance declaration**: The tool was co-developed with Claude Opus (Anthropic) and reviewed by OpenAI Codex/GPT. AI assistance was used for implementation, data collection, analysis scripts, and working notes. Code reviews by both models are marked in commit history via `Co-Authored-By` trailers. All thesis text is the author's own.
 
 Key contribution: governance-based risk indicators are observable in public metadata before incidents occur, but they address a specific attack subset — not a universal detector.
