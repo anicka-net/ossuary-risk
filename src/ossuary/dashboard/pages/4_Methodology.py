@@ -16,8 +16,8 @@ st.set_page_config(page_title="Ossuary — Methodology", layout="wide", initial_
 apply_style()
 
 st.markdown(
-    '<h1 style="margin-bottom:0;color:#2c3e50;">Methodology</h1>'
-    '<p style="color:#7f8c8d;margin-top:0;">Scoring formula and validation</p>',
+    '<h1 style="margin-bottom:0;color:#173f4f;">Methodology</h1>'
+    '<p style="color:#6c757d;margin-top:0;">Scoring formula and validation</p>',
     unsafe_allow_html=True,
 )
 st.divider()

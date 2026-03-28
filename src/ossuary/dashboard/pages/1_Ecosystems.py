@@ -23,8 +23,8 @@ def _init_db():
 _init_db()
 
 st.markdown(
-    '<h1 style="margin-bottom:0;color:#2c3e50;">Ecosystems</h1>'
-    '<p style="color:#7f8c8d;margin-top:0;">Browse tracked packages by ecosystem</p>',
+    '<h1 style="margin-bottom:0;color:#173f4f;">Ecosystems</h1>'
+    '<p style="color:#6c757d;margin-top:0;">Browse tracked packages by ecosystem</p>',
     unsafe_allow_html=True,
 )
 st.divider()
@@ -130,7 +130,7 @@ if packages:
         with c2:
             st.markdown(
                 f'<span style="color:{color};font-family:monospace;font-weight:600;">'
-                f'{score_val}</span> <span style="color:#7f8c8d;font-size:0.85em;">{level}</span>',
+                f'{score_val}</span> <span style="color:#6c757d;font-size:0.85em;">{level}</span>',
                 unsafe_allow_html=True,
             )
         with c3:
@@ -149,8 +149,8 @@ if packages:
     fig = go.Figure(go.Histogram(
         x=scores,
         xbins=dict(start=0, end=100, size=10),
-        marker_color="#7f8c8d",
-        marker_line_color="#2c3e50",
+        marker_color="#6c757d",
+        marker_line_color="#173f4f",
         marker_line_width=1,
     ))
 

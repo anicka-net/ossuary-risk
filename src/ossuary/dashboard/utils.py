@@ -23,23 +23,27 @@ def run_async(coro):
         loop.close()
 
 
-# -- Color palette (muted, accessible) --
+# -- Color palette (openSUSE branding) --
+# Based on https://opensuse.github.io/branding-guidelines/
+# and the chameleon theme: github.com/openSUSE/chameleon
 
 COLORS = {
-    "critical": "#c0392b",
-    "high": "#d35400",
-    "moderate": "#b7950b",
-    "low": "#27ae60",
-    "very_low": "#27ae60",
+    "critical": "#a55860",    # openSUSE red
+    "high": "#b96a35",        # openSUSE orange
+    "moderate": "#bb9d43",    # openSUSE yellow
+    "low": "#73ba25",         # openSUSE green
+    "very_low": "#73ba25",    # openSUSE green
     "bg_critical": "#f5dddb",
     "bg_high": "#fae5d3",
     "bg_moderate": "#fef9e7",
-    "bg_low": "#d5f5e3",
-    "bg_very_low": "#d5f5e3",
-    "text": "#2c3e50",
-    "text_muted": "#7f8c8d",
-    "border": "#bdc3c7",
-    "surface": "#f8f9fa",
+    "bg_low": "#e8f5d6",
+    "bg_very_low": "#e8f5d6",
+    "text": "#173f4f",        # openSUSE teal (primary)
+    "text_muted": "#6c757d",  # gray-600
+    "border": "#ced4da",      # gray-400
+    "surface": "#f8f9fa",     # gray-100
+    "accent": "#35b9ab",      # openSUSE turquoise
+    "link": "#21a4df",        # openSUSE blue
 }
 
 
@@ -70,16 +74,29 @@ def risk_badge(level: str, score: int) -> str:
 
 CUSTOM_CSS = """
 <style>
-    /* Clean, muted theme */
+    @import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600&display=swap');
+
+    /* openSUSE-inspired theme */
     .block-container { max-width: 1100px; }
 
-    /* Monospace for data */
+    /* Source Sans Pro for body text */
+    .stApp, .stMarkdown, p, li, td, th {
+        font-family: 'Source Sans Pro', 'Open Sans', sans-serif;
+    }
+
+    /* Monospace for data values */
     [data-testid="stMetricValue"] {
         font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
     }
 
+    /* openSUSE teal headings */
+    h1, h2, h3 { color: #173f4f; }
+
+    /* openSUSE green links */
+    a { color: #21a4df; }
+
     /* Muted dividers */
-    hr { border-color: #ecf0f1 !important; }
+    hr { border-color: #dee2e6 !important; }
 
     /* Tighter tables */
     .stDataFrame { font-size: 0.9em; }
@@ -89,15 +106,23 @@ CUSTOM_CSS = """
     footer { visibility: hidden; }
     header { visibility: hidden; }
 
-    /* Muted sidebar */
+    /* Sidebar with teal tint */
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
+        background-color: #f0f7f9;
+        border-right: 2px solid #173f4f20;
     }
 
-    /* Custom metric styling */
+    /* Metric labels */
     [data-testid="stMetricLabel"] {
-        color: #7f8c8d;
+        color: #6c757d;
         font-size: 0.85em;
+        font-family: 'Source Sans Pro', sans-serif;
+    }
+
+    /* Expander headers in teal */
+    .streamlit-expanderHeader {
+        color: #173f4f;
+        font-weight: 600;
     }
 </style>
 """

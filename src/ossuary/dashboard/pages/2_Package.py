@@ -26,8 +26,8 @@ def _init_db():
 _init_db()
 
 st.markdown(
-    '<h1 style="margin-bottom:0;color:#2c3e50;">Package</h1>'
-    '<p style="color:#7f8c8d;margin-top:0;">Detailed risk analysis</p>',
+    '<h1 style="margin-bottom:0;color:#173f4f;">Package</h1>'
+    '<p style="color:#6c757d;margin-top:0;">Detailed risk analysis</p>',
     unsafe_allow_html=True,
 )
 st.divider()
@@ -148,7 +148,7 @@ st.markdown(
     f'<div style="display:flex;align-items:baseline;gap:16px;">'
     f'<span style="font-size:2.5em;font-family:monospace;font-weight:700;color:{color};">{score}</span>'
     f'<span style="font-size:1.2em;color:{color};">{level}</span>'
-    f'<span style="color:#7f8c8d;font-size:0.95em;">{pkg_name} · {pkg_eco}</span>'
+    f'<span style="color:#6c757d;font-size:0.95em;">{pkg_name} · {pkg_eco}</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -270,7 +270,7 @@ with cols[0]:
         st.markdown(
             f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
             f'border-left:3px solid {COLORS["low"]};">'
-            f'<span style="color:#7f8c8d;font-size:0.8em;">Nearest safe</span><br>'
+            f'<span style="color:#6c757d;font-size:0.8em;">Nearest safe</span><br>'
             f'<strong>{s["name"]}</strong><br>'
             f'<span style="font-family:monospace;color:{risk_color(sl)};">{sc}</span> {sl}'
             f'</div>',
@@ -283,7 +283,7 @@ with cols[1]:
     st.markdown(
         f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
         f'border-left:3px solid {color};background:{COLORS.get("bg_" + level.lower().replace(" ","_"), "#f8f9fa")};">'
-        f'<span style="color:#7f8c8d;font-size:0.8em;">This package</span><br>'
+        f'<span style="color:#6c757d;font-size:0.8em;">This package</span><br>'
         f'<strong>{pkg_name}</strong><br>'
         f'<span style="font-family:monospace;color:{color};">{score}</span> {level}'
         f'</div>',
@@ -298,7 +298,7 @@ with cols[2]:
         st.markdown(
             f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
             f'border-left:3px solid {COLORS["critical"]};">'
-            f'<span style="color:#7f8c8d;font-size:0.8em;">Nearest risky</span><br>'
+            f'<span style="color:#6c757d;font-size:0.8em;">Nearest risky</span><br>'
             f'<strong>{r["name"]}</strong><br>'
             f'<span style="font-family:monospace;color:{risk_color(rl)};">{rc}</span> {rl}'
             f'</div>',

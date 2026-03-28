@@ -14,8 +14,8 @@ from ossuary.dashboard.utils import (
 )
 
 st.set_page_config(
-    page_title="Ossuary",
-    page_icon=None,
+    page_title="Ossuary — OSS Risk",
+    page_icon="🦎",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -34,8 +34,9 @@ _init_db()
 # -- Header --
 
 st.markdown(
-    '<h1 style="margin-bottom:0;color:#2c3e50;">Ossuary</h1>'
-    '<p style="color:#7f8c8d;margin-top:0;">OSS Supply Chain Risk Scoring</p>',
+    '<h1 style="margin-bottom:0;color:#173f4f;">🦎 Ossuary</h1>'
+    '<p style="color:#6c757d;margin-top:0;">OSS Supply Chain Risk Scoring'
+    f' <span style="color:#35b9ab;font-size:0.8em;">v{VERSION}</span></p>',
     unsafe_allow_html=True,
 )
 
@@ -106,8 +107,8 @@ if eco_summary:
                 f'margin-bottom:8px;border-left:3px solid {color};">'
                 f'<a href="/Ecosystems?eco={eco}" target="_self" style="color:inherit;text-decoration:none;"><strong>{eco}</strong></a><br>'
                 f'<span style="font-family:monospace;font-size:1.4em;">{data["count"]}</span> '
-                f'<span style="color:#7f8c8d;">packages</span><br>'
-                f'<span style="color:#7f8c8d;font-size:0.85em;">'
+                f'<span style="color:#6c757d;">packages</span><br>'
+                f'<span style="color:#6c757d;font-size:0.85em;">'
                 f'avg {avg:.0f} · max {data["max_score"]}'
                 f'{" · " + str(data["critical"]) + " critical" if data["critical"] else ""}'
                 f'{" · " + str(data["high"]) + " high" if data["high"] else ""}'
@@ -163,7 +164,7 @@ if at_risk:
                 delta_html = f' <span style="color:{d_color};font-size:0.75em;">{arrow}{d}</span>'
             st.markdown(
                 f'<span style="color:{color};font-family:monospace;font-weight:600;">'
-                f'{score}</span> <span style="color:#7f8c8d;font-size:0.85em;">{level}</span>'
+                f'{score}</span> <span style="color:#6c757d;font-size:0.85em;">{level}</span>'
                 f'{delta_html}',
                 unsafe_allow_html=True,
             )
@@ -203,7 +204,7 @@ if movers:
         with col2:
             st.markdown(
                 f'<span style="font-family:monospace;">{prev}</span>'
-                f' <span style="color:#7f8c8d;">&rarr;</span> '
+                f' <span style="color:#6c757d;">&rarr;</span> '
                 f'<span style="color:{color};font-family:monospace;font-weight:600;">{curr}</span>',
                 unsafe_allow_html=True,
             )

@@ -22,8 +22,8 @@ def _init_db():
 _init_db()
 
 st.markdown(
-    '<h1 style="margin-bottom:0;color:#2c3e50;">Score</h1>'
-    '<p style="color:#7f8c8d;margin-top:0;">Analyze a package</p>',
+    '<h1 style="margin-bottom:0;color:#173f4f;">Score</h1>'
+    '<p style="color:#6c757d;margin-top:0;">Analyze a package</p>',
     unsafe_allow_html=True,
 )
 st.divider()
@@ -96,7 +96,7 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
         f'<div style="display:flex;align-items:baseline;gap:16px;">'
         f'<span style="font-size:2.5em;font-family:monospace;font-weight:700;color:{color};">{score}</span>'
         f'<span style="font-size:1.2em;color:{color};">{level}</span>'
-        f'<span style="color:#7f8c8d;">{pkg} · {eco}</span>'
+        f'<span style="color:#6c757d;">{pkg} · {eco}</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
