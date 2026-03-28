@@ -67,6 +67,7 @@ validation_results*.json
 
 # Thesis (private, not in repo)
 thesis/
+REVIEW_METHODOLOGY.md
 
 # OS
 .DS_Store
