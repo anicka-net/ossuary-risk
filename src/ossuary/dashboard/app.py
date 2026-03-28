@@ -1,11 +1,14 @@
 """Ossuary - OSS Supply Chain Risk Scoring Dashboard."""
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()
 
 import streamlit as st
+
+_STATIC = Path(__file__).parent / "static"
 
 from ossuary.db.session import init_db
 from ossuary.dashboard.utils import (
@@ -15,7 +18,7 @@ from ossuary.dashboard.utils import (
 
 st.set_page_config(
     page_title="Ossuary — OSS Risk",
-    page_icon="🦎",
+    page_icon=str(_STATIC / "favicon.png"),
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -34,7 +37,7 @@ _init_db()
 # -- Header --
 
 st.markdown(
-    '<h1 style="margin-bottom:0;color:#173f4f;">🦎 Ossuary</h1>'
+    '<h1 style="margin-bottom:0;color:#173f4f;">Ossuary</h1>'
     '<p style="color:#6c757d;margin-top:0;">OSS Supply Chain Risk Scoring'
     f' <span style="color:#35b9ab;font-size:0.8em;">v{VERSION}</span></p>',
     unsafe_allow_html=True,
