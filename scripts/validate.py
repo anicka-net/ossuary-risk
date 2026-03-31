@@ -1707,6 +1707,58 @@ VALIDATION_CASES = [
               "project takeover via namespace hijacking.",
         repo_url="https://github.com/jteeuwen/go-bindata",
     ),
+
+    # =========================================================================
+    # NEW INCIDENTS + CONTROLS — Added 2026-03-31
+    # =========================================================================
+
+    # axios (npm) — account compromise via long-lived npm token, March 2026
+    # Malicious versions 1.14.1 and 0.30.4 injected plain-crypto-js RAT.
+    # 100M weekly downloads. Governance was healthy (19% conc, 223 commits/yr,
+    # org-owned, bus factor 6). Pure credential theft.
+    ValidationCase(
+        name="axios",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2026-03-31",
+        cutoff_date="2026-03-30",
+        notes="EXPECTED FN: Account compromise via long-lived npm token. "
+              "Malicious versions 1.14.1/0.30.4 injected plain-crypto-js RAT. "
+              "Healthy governance (19% conc, 223 commits/yr, org-owned, bf=6). "
+              "Detected by Socket in 6 minutes.",
+    ),
+
+    # trivy-action (github) — CI/CD compromise via force-pushed tags, March 2026
+    # Attacker force-updated 75 of 76 version tags in aquasecurity/trivy-action
+    # to inject credential-stealing malware. TeamPCP threat group.
+    ValidationCase(
+        name="aquasecurity/trivy-action",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        incident_date="2026-03-19",
+        cutoff_date="2026-03-18",
+        notes="EXPECTED FN: CI/CD compromise via stolen credential with write access. "
+              "Attacker force-pushed 75/76 version tags to inject TeamPCP stealer. "
+              "Well-governed project (Aqua Security org). Attack vector is credential "
+              "theft + CI/CD tag manipulation, not governance weakness.",
+        repo_url="https://github.com/aquasecurity/trivy-action",
+    ),
+
+    # --- ADDITIONAL CONTROLS ---
+
+    # trivy (github) — security scanner, Aqua Security, well-governed control
+    # Added as control after bus factor analysis (bf=3, elephant factor=1).
+    ValidationCase(
+        name="aquasecurity/trivy",
+        ecosystem="github",
+        expected_outcome="safe",
+        notes="Container security scanner. Aqua Security org, 3 core contributors, "
+              "573 commits/yr. Bus factor 3, elephant factor 1 (org-dominated). "
+              "Well-governed despite org concentration.",
+        repo_url="https://github.com/aquasecurity/trivy",
+    ),
 ]
 
 
