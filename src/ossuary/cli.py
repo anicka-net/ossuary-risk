@@ -402,9 +402,13 @@ async def _scan(
                 "MODERATE": "yellow",
                 "LOW": "green",
                 "VERY_LOW": "green",
+                "INSUFFICIENT_DATA": "white",
             }.get(b.risk_level.value, "white")
+            # INSUFFICIENT_DATA leaves final_score=None by contract, so the
+            # ":3d" format spec would crash. Render a placeholder instead.
+            score_cell = "  —" if b.final_score is None else f"{b.final_score:3d}"
             console.print(
-                f"  [{scored}/{len(entries)}] [{color}]{b.final_score:3d} {b.risk_level.value:8s}[/{color}] {name}"
+                f"  [{scored}/{len(entries)}] [{color}]{score_cell} {b.risk_level.value:18s}[/{color}] {name}"
             )
         else:
             errors += 1
@@ -436,13 +440,19 @@ async def _scan(
                 "MODERATE": "yellow",
                 "LOW": "green",
                 "VERY_LOW": "green",
+                "INSUFFICIENT_DATA": "white",
             }.get(b.risk_level.value, "white")
+            # INSUFFICIENT_DATA rows leave numeric columns as None by
+            # contract; render placeholders instead of crashing the table.
+            score_cell = "—" if b.final_score is None else str(b.final_score)
+            conc_cell = "—" if b.maintainer_concentration is None else f"{b.maintainer_concentration:.0f}%"
+            commits_cell = "—" if b.commits_last_year is None else str(b.commits_last_year)
             table.add_row(
                 name,
-                f"[{color}]{b.final_score}[/{color}]",
+                f"[{color}]{score_cell}[/{color}]",
                 f"[{color}]{b.risk_level.semaphore} {b.risk_level.value}[/{color}]",
-                f"{b.maintainer_concentration:.0f}%",
-                str(b.commits_last_year),
+                conc_cell,
+                commits_cell,
             )
 
         console.print(table)
@@ -454,7 +464,7 @@ async def _scan(
         level_counts[lvl] = level_counts.get(lvl, 0) + 1
 
     parts = []
-    for lvl in ["CRITICAL", "HIGH", "MODERATE", "LOW", "VERY_LOW"]:
+    for lvl in ["CRITICAL", "HIGH", "MODERATE", "LOW", "VERY_LOW", "INSUFFICIENT_DATA"]:
         if lvl in level_counts:
             parts.append(f"{level_counts[lvl]} {lvl}")
 
@@ -476,11 +486,18 @@ async def _scan(
                 "package": name,
                 "score": r.breakdown.final_score,
                 "risk_level": r.breakdown.risk_level.value,
-                "concentration": round(r.breakdown.maintainer_concentration, 1),
+                # INSUFFICIENT_DATA rows leave concentration as None;
+                # round() would crash, so emit None directly.
+                "concentration": (
+                    round(r.breakdown.maintainer_concentration, 1)
+                    if r.breakdown.maintainer_concentration is not None
+                    else None
+                ),
                 "commits_last_year": r.breakdown.commits_last_year,
                 "unique_contributors": r.breakdown.unique_contributors,
                 "explanation": r.breakdown.explanation,
                 "recommendations": r.breakdown.recommendations,
+                "incomplete_reasons": r.breakdown.incomplete_reasons,
             }
             for name, r in scored_results
         ],
@@ -684,11 +701,22 @@ def history(
     """Show score history for a package over time."""
     from ossuary.db.session import session_scope
     from ossuary.db.models import Package, Score
+    from ossuary.services.cache import normalize_package_name
 
     init_db()
 
     with session_scope() as session:
-        query = session.query(Package).filter(Package.name == package)
+        # `Package.name` is stored canonical (PEP 503 for PyPI: lowercase
+        # with `-`/`_`/`.` collapsed to `-`). The user typically types the
+        # original spelling, so normalise per ecosystem before the lookup.
+        # Without an ecosystem filter, fall back to the raw input plus the
+        # PyPI normalisation in case the user is asking about a PyPI name.
+        candidates = {package}
+        if ecosystem:
+            candidates.add(normalize_package_name(package, ecosystem))
+        else:
+            candidates.add(normalize_package_name(package, "pypi"))
+        query = session.query(Package).filter(Package.name.in_(candidates))
         if ecosystem:
             query = query.filter(Package.ecosystem == ecosystem)
         packages = query.all()
@@ -721,12 +749,18 @@ def history(
         total_count = session.query(Score).filter(Score.package_id == pkg.id).count()
 
         if json_output:
+            # Round only when the value exists — INSUFFICIENT_DATA rows leave
+            # the numeric columns NULL by contract.
             records = [
                 {
                     "date": s.calculated_at.isoformat(),
                     "score": s.final_score,
                     "risk_level": s.risk_level,
-                    "concentration": round(s.maintainer_concentration, 1),
+                    "concentration": (
+                        round(s.maintainer_concentration, 1)
+                        if s.maintainer_concentration is not None
+                        else None
+                    ),
                     "commits_year": s.commits_last_year,
                     "contributors": s.unique_contributors,
                 }
@@ -751,7 +785,13 @@ def history(
         table.add_column("Change", justify="right")
 
         for i, s in enumerate(scores):
-            if i < len(scores) - 1:
+            # Delta arithmetic only makes sense when both rows have a number.
+            # INSUFFICIENT_DATA rows leave final_score NULL by contract.
+            if (
+                i < len(scores) - 1
+                and s.final_score is not None
+                and scores[i + 1].final_score is not None
+            ):
                 delta = s.final_score - scores[i + 1].final_score
                 change_str = f"[{'red' if delta > 0 else 'green'}]{delta:+d}[/]" if delta != 0 else "[dim]0[/dim]"
             else:
@@ -760,14 +800,19 @@ def history(
             color = {
                 "CRITICAL": "red", "HIGH": "orange1", "MODERATE": "yellow",
                 "LOW": "green", "VERY_LOW": "green",
+                "INSUFFICIENT_DATA": "white",
             }.get(s.risk_level, "white")
+
+            score_cell = "[dim]—[/dim]" if s.final_score is None else f"[{color}]{s.final_score}[/{color}]"
+            conc_cell = "[dim]—[/dim]" if s.maintainer_concentration is None else f"{s.maintainer_concentration:.0f}%"
+            commits_cell = "[dim]—[/dim]" if s.commits_last_year is None else str(s.commits_last_year)
 
             table.add_row(
                 s.calculated_at.strftime("%Y-%m-%d %H:%M"),
-                f"[{color}]{s.final_score}[/{color}]",
+                score_cell,
                 f"[{color}]{s.risk_level}[/{color}]",
-                f"{s.maintainer_concentration:.0f}%",
-                str(s.commits_last_year),
+                conc_cell,
+                commits_cell,
                 change_str,
             )
 
@@ -840,6 +885,14 @@ def trends(
             )
 
             if not oldest_in_window or oldest_in_window.id == latest.id:
+                stable_count += 1
+                continue
+
+            # Delta arithmetic requires both endpoints to have a number.
+            # INSUFFICIENT_DATA rows leave final_score NULL: a transition
+            # in or out of that state isn't a "trend", so treat it as
+            # stable in this rollup.
+            if latest.final_score is None or oldest_in_window.final_score is None:
                 stable_count += 1
                 continue
 
@@ -933,6 +986,21 @@ def xkcd(
     results = data.get("results", [])
     if not results:
         console.print("[yellow]No packages in report.[/yellow]")
+        raise typer.Exit(0)
+
+    # INSUFFICIENT_DATA rows have score=None and cannot participate in the
+    # color/sort math that drives the diagram. Drop them up front and tell
+    # the user how many were excluded — silently coercing them to 0 or 100
+    # would lie about either safety or risk.
+    excluded = [r for r in results if not isinstance(r.get("score"), int)]
+    results = [r for r in results if isinstance(r.get("score"), int)]
+    if excluded:
+        console.print(
+            f"[yellow]Excluded {len(excluded)} package(s) with INSUFFICIENT_DATA "
+            f"from the diagram.[/yellow]"
+        )
+    if not results:
+        console.print("[yellow]No scored packages in report.[/yellow]")
         raise typer.Exit(0)
 
     # Shuffle to intermingle risk levels (the xkcd comic effect)
@@ -1178,9 +1246,10 @@ def deps(
     try:
         from ossuary.db.session import session_scope
         from ossuary.db.models import Package, Score
+        from ossuary.services.cache import normalize_package_name
         with session_scope() as session:
             for name in adj:
-                db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
+                db_name = normalize_package_name(name, ecosystem)
                 pkg = session.query(Package).filter(
                     Package.name == db_name, Package.ecosystem == ecosystem,
                 ).first()
@@ -1200,6 +1269,7 @@ def deps(
     risk_color = {
         "CRITICAL": "red", "HIGH": "orange1", "MODERATE": "yellow",
         "LOW": "green", "VERY_LOW": "green",
+        "INSUFFICIENT_DATA": "white",
     }
 
     def label(name):
@@ -1207,7 +1277,10 @@ def deps(
         if info:
             rl = info["risk_level"]
             color = risk_color.get(rl, "white")
-            return f"[cyan]{name}[/cyan] [{color}]{info['score']} {rl}[/{color}]"
+            # `score` is None for INSUFFICIENT_DATA rows by contract;
+            # render the level alone rather than "None INSUFFICIENT_DATA".
+            score_str = "—" if info["score"] is None else str(info["score"])
+            return f"[cyan]{name}[/cyan] [{color}]{score_str} {rl}[/{color}]"
         return f"[cyan]{name}[/cyan] [dim]unscored[/dim]"
 
     if json_output:
@@ -1265,7 +1338,7 @@ def deps(
     unscored = len(adj) - len(scores_db)
 
     parts = []
-    for lvl in ["CRITICAL", "HIGH", "MODERATE", "LOW", "VERY_LOW"]:
+    for lvl in ["CRITICAL", "HIGH", "MODERATE", "LOW", "VERY_LOW", "INSUFFICIENT_DATA"]:
         if lvl in level_counts:
             color = risk_color[lvl]
             parts.append(f"[{color}]{level_counts[lvl]} {lvl}[/{color}]")
@@ -1306,12 +1379,13 @@ def score_deps(
     # Check which are already scored
     from ossuary.db.session import session_scope
     from ossuary.db.models import Package, Score
+    from ossuary.services.cache import normalize_package_name
     init_db()
 
     already_scored = set()
     with session_scope() as session:
         for name in adj:
-            db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
+            db_name = normalize_package_name(name, ecosystem)
             pkg = session.query(Package).filter(
                 Package.name == db_name, Package.ecosystem == ecosystem,
             ).first()
@@ -1333,7 +1407,7 @@ def score_deps(
 
     ok, fail = 0, 0
     for i, name in enumerate(to_score, 1):
-        db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
+        db_name = normalize_package_name(name, ecosystem)
         console.print(f"[{i:3}/{len(to_score)}] {name}... ", end="")
         try:
             result = asyncio.run(svc_score(db_name, ecosystem, force=True))
@@ -1429,7 +1503,11 @@ def score_sbom(
     scored: dict[int, dict] = {}
     skipped: list[tuple[str, str, Optional[str]]] = []  # (name, reason, ecosystem-or-none)
     failed: list[tuple[str, str, str]] = []  # (name, ecosystem, error)
-    rows: list[tuple[str, str, str, int, str]] = []
+    # The score column is ``Optional[int]``: -1 marks a hard scoring failure
+    # (no breakdown produced), ``None`` marks INSUFFICIENT_DATA (breakdown
+    # exists but the methodology refused to compute a number from partial
+    # data). Both render as a dash; see the table-print site below.
+    rows: list[tuple[str, str, str, Optional[int], str]] = []
     component_summaries: list[dict] = []  # for support-period derivation
 
     for component in sbom.components:
@@ -1454,6 +1532,12 @@ def score_sbom(
         score_dict = bd.to_dict()
         scored[component.raw_index] = score_dict
         rows.append((component.name, eco, bd.risk_level.value, bd.final_score, ""))
+        # INSUFFICIENT_DATA components have no numeric score; they cannot
+        # contribute to the product-level support-period rollup. Skip them
+        # rather than feeding NULL into the formula — see the same-shape
+        # guard in `support-period-sbom`.
+        if bd.risk_level == RiskLevel.INSUFFICIENT_DATA:
+            continue
         component_summaries.append({
             "name": bd.package_name,
             "ecosystem": bd.ecosystem,
@@ -1487,9 +1571,18 @@ def score_sbom(
             colour = {
                 "CRITICAL": "red", "HIGH": "orange1",
                 "MODERATE": "yellow", "LOW": "green", "VERY_LOW": "green",
+                "INSUFFICIENT_DATA": "white",
             }.get(level, "white")
-            score_str = "—" if score < 0 else str(score)
-            level_str = f"[{colour}]{level}[/{colour}]" if score >= 0 else "[dim]—[/dim]"
+            # INSUFFICIENT_DATA uses score=None; legacy hard-failures use
+            # score=-1. Either way the cell is a dash, but the level still
+            # carries useful info for INSUFFICIENT_DATA, so show it coloured.
+            has_number = isinstance(score, int) and score >= 0
+            score_str = str(score) if has_number else "—"
+            level_str = (
+                f"[{colour}]{level}[/{colour}]"
+                if has_number or level == "INSUFFICIENT_DATA"
+                else "[dim]—[/dim]"
+            )
             table.add_row(name, eco, level_str, score_str, note)
         console.print(table)
 
@@ -1574,7 +1667,9 @@ def score_sbom(
                     "name": name,
                     "ecosystem": eco,
                     "risk_level": level,
-                    "score": score if score >= 0 else None,
+                    # ``score`` is None for INSUFFICIENT_DATA and -1 for
+                    # legacy hard-failures; both surface as null in JSON.
+                    "score": score if isinstance(score, int) and score >= 0 else None,
                     "error": note or None,
                 }
                 for name, eco, level, score, note in rows
@@ -1628,6 +1723,36 @@ def support_period(
         raise typer.Exit(1)
 
     bd = result.breakdown
+    # INSUFFICIENT_DATA: refuse to estimate. The CRA support-period mapping
+    # is a function of the numeric score; we deliberately do not coerce the
+    # missing value to a default because it would silently understate or
+    # overstate the implied horizon. Surface the failing inputs and the
+    # recovery path instead.
+    if bd.risk_level == RiskLevel.INSUFFICIENT_DATA:
+        if output_json:
+            console.print(json.dumps({
+                "error": "INSUFFICIENT_DATA",
+                "package": bd.package_name,
+                "ecosystem": bd.ecosystem,
+                "incomplete_reasons": bd.incomplete_reasons,
+                "cra_minimum_support_months": CRA_MINIMUM_SUPPORT_MONTHS,
+            }, indent=2))
+        else:
+            console.print(
+                f"[bold]{bd.package_name}[/bold] ({bd.ecosystem}) — "
+                f"[white]INSUFFICIENT_DATA[/white]"
+            )
+            console.print(
+                "[red]Cannot derive implied support period: required input data unavailable.[/red]"
+            )
+            for reason in bd.incomplete_reasons:
+                console.print(f"  [dim]- {reason}[/dim]")
+            console.print(
+                "[dim]Retry later, or run 'ossuary rescore-invalid' to retry every "
+                "INSUFFICIENT_DATA package in the cache.[/dim]"
+            )
+        raise typer.Exit(2)
+
     estimate = estimate_for_score(
         package_name=bd.package_name,
         ecosystem=bd.ecosystem,
@@ -1725,6 +1850,14 @@ def support_period_sbom(
             failed.append((component.name, eco, result.error or "scoring failed"))
             continue
         bd = result.breakdown
+        # INSUFFICIENT_DATA components have no numeric score and so cannot
+        # contribute to the support-period derivation. Treat them like a
+        # scoring failure rather than feeding NULL into the formula —
+        # otherwise the rollup silently masks the gap in the input data.
+        if bd.risk_level == RiskLevel.INSUFFICIENT_DATA:
+            reason = "; ".join(bd.incomplete_reasons) or "INSUFFICIENT_DATA"
+            failed.append((component.name, eco, f"INSUFFICIENT_DATA: {reason}"))
+            continue
         component_summaries.append({
             "name": bd.package_name,
             "ecosystem": bd.ecosystem,
@@ -2090,9 +2223,10 @@ def _generate_tree_svg(adj, root, ecosystem, output, title, max_width):
     try:
         from ossuary.db.session import session_scope
         from ossuary.db.models import Package, Score
+        from ossuary.services.cache import normalize_package_name
         with session_scope() as session:
             for name in layer_map:
-                db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
+                db_name = normalize_package_name(name, ecosystem)
                 pkg = session.query(Package).filter(
                     Package.name == db_name, Package.ecosystem == ecosystem,
                 ).first()
@@ -2102,10 +2236,14 @@ def _generate_tree_svg(adj, root, ecosystem, output, title, max_width):
                         .order_by(Score.calculated_at.desc()).first()
                     )
                     if latest:
+                        # INSUFFICIENT_DATA rows leave numeric columns NULL.
+                        # Coerce to safe defaults rather than letting `max(None, 1)`
+                        # raise here — that exception was swallowed by the broad
+                        # except below, silently dropping all DB-backed overlays.
                         scores_db[name] = {
                             "score": latest.final_score,
                             "risk_level": latest.risk_level,
-                            "contributors": max(latest.unique_contributors, 1),
+                            "contributors": max(latest.unique_contributors or 0, 1),
                         }
     except Exception:
         pass
@@ -2194,8 +2332,11 @@ def _generate_tree_svg(adj, root, ecosystem, output, title, max_width):
     # Blocks + labels
     for name, (x, y, w) in positions.items():
         info = scores_db.get(name, {})
-        score = info.get("score", -1)
-        color = score_color(score) if score >= 0 else "#9e9e9e"
+        score = info.get("score")
+        # `score is None` ⇒ INSUFFICIENT_DATA row; render with the same
+        # neutral grey we use for "no DB row at all". Either way the user
+        # sees the block without the comparison crashing.
+        color = score_color(score) if isinstance(score, int) and score >= 0 else "#9e9e9e"
 
         svg.append(
             f'<rect x="{x:.1f}" y="{y:.1f}" width="{w}" height="{block_h}" '
@@ -2211,9 +2352,16 @@ def _generate_tree_svg(adj, root, ecosystem, output, title, max_width):
             f'font-size="{fs}" fill="#fff">{html_module.escape(display)}</text>'
         )
 
-    # Caption — worst foundation package (bottom half of tree)
+    # Caption — worst foundation package (bottom half of tree). Skip
+    # INSUFFICIENT_DATA rows: they have no score to compare on, and
+    # passing None to max() would crash.
     mid_layer = max_layer // 2
-    foundation = [n for n in layer_map if layer_map[n] >= mid_layer and n in scores_db]
+    foundation = [
+        n for n in layer_map
+        if layer_map[n] >= mid_layer
+        and n in scores_db
+        and scores_db[n].get("score") is not None
+    ]
     worst = max(foundation, key=lambda n: scores_db[n]["score"], default=None) if foundation else None
 
     caption_y = total_h - pad_bottom + 20
@@ -2306,9 +2454,10 @@ def _generate_tower_from_tree(adj, root, ecosystem, output, title, max_width):
     try:
         from ossuary.db.session import session_scope
         from ossuary.db.models import Package, Score
+        from ossuary.services.cache import normalize_package_name
         with session_scope() as session:
             for name in layer_map:
-                db_name = name.replace("_", "-").lower() if ecosystem == "pypi" else name
+                db_name = normalize_package_name(name, ecosystem)
                 pkg = session.query(Package).filter(
                     Package.name == db_name, Package.ecosystem == ecosystem,
                 ).first()
@@ -2337,11 +2486,16 @@ def _generate_tower_from_tree(adj, root, ecosystem, output, title, max_width):
                         if m:
                             lifetime_commits = int(m.group(1))
                             lifetime_years = int(m.group(2))
+                        # INSUFFICIENT_DATA rows leave numeric columns NULL.
+                        # See the sibling block in `_generate_xkcd_from_tree`
+                        # for the full incident reasoning — `max(None, 1)`
+                        # used to crash here under the broad except, silently
+                        # dropping every DB-backed overlay in the graph.
                         scores_db[name] = {
                             "score": latest.final_score,
                             "base_risk": bd.get("score", {}).get("components", {}).get("base_risk", latest.final_score),
                             "risk_level": latest.risk_level,
-                            "contributors": max(latest.unique_contributors, 1),
+                            "contributors": max(latest.unique_contributors or 0, 1),
                             "commits": latest.commits_last_year,
                             "concentration": latest.maintainer_concentration,
                             "lifetime_commits": lifetime_commits,
@@ -2489,8 +2643,10 @@ def _generate_tower_from_tree(adj, root, ecosystem, output, title, max_width):
             bx = pad_x + cx - w / 2
 
             info = scores_db.get(name, {})
-            score = info.get("score", -1)
-            color = score_color(score) if score >= 0 else "#9e9e9e"
+            score = info.get("score")
+            # `score is None` ⇒ INSUFFICIENT_DATA row; render in neutral
+            # grey rather than letting the comparison crash here.
+            color = score_color(score) if isinstance(score, int) and score >= 0 else "#9e9e9e"
             n_dep = len(dependents.get(name, set()))
 
             svg.append(
@@ -2551,7 +2707,9 @@ def _generate_tower_from_tree(adj, root, ecosystem, output, title, max_width):
             # Irreplaceability: log2(lifetime_commits) — a 10-line utility
             #   is trivial to fork; a 20-year protocol impl is not.
             # Tree impact: how many packages in this tree break if it fails.
-            if score >= 0 and n_dep > 0 and name != root:
+            # `score is None` ⇒ INSUFFICIENT_DATA: skip the threat ranking
+            # entirely rather than guess at a number.
+            if isinstance(score, int) and score >= 0 and n_dep > 0 and name != root:
                 contribs = info.get("contributors", 1)
                 conc = info.get("concentration", 50)
                 commits = info.get("commits", 0)
@@ -2664,20 +2822,35 @@ def diff(
     common_names = before_pkgs.keys() & after_pkgs.keys()
 
     changed = []
+    # Transitions in or out of INSUFFICIENT_DATA (i.e. one side has a numeric
+    # score, the other is None) are real signals — the diff should surface
+    # them — but they have no meaningful delta. Bucket them separately so
+    # the numeric-changed list can still sort by |delta|.
+    data_state_transitions = []
     for name in sorted(common_names):
         old_score = before_pkgs[name]["score"]
         new_score = after_pkgs[name]["score"]
-        if old_score != new_score:
-            changed.append({
+        if old_score == new_score:
+            continue
+        if old_score is None or new_score is None:
+            data_state_transitions.append({
                 "package": name,
                 "old_score": old_score,
                 "new_score": new_score,
-                "delta": new_score - old_score,
-                "risk_level": after_pkgs[name]["risk_level"],
+                "old_risk_level": before_pkgs[name].get("risk_level"),
+                "risk_level": after_pkgs[name].get("risk_level"),
             })
+            continue
+        changed.append({
+            "package": name,
+            "old_score": old_score,
+            "new_score": new_score,
+            "delta": new_score - old_score,
+            "risk_level": after_pkgs[name]["risk_level"],
+        })
     changed.sort(key=lambda x: -abs(x["delta"]))
 
-    unchanged_count = len(common_names) - len(changed)
+    unchanged_count = len(common_names) - len(changed) - len(data_state_transitions)
 
     if json_output:
         console.print(json.dumps({

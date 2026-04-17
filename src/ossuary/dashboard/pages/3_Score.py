@@ -9,7 +9,7 @@ import streamlit as st
 
 from ossuary.db.session import init_db
 from ossuary.services.scorer import score_package
-from ossuary.dashboard.utils import apply_style, run_async, risk_color, COLORS, VERSION
+from ossuary.dashboard.utils import apply_style, run_async, risk_color, risk_level_str, COLORS, VERSION
 
 st.set_page_config(page_title="Ossuary — Score", layout="wide", initial_sidebar_state="collapsed")
 apply_style()
@@ -84,9 +84,12 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
     # INSUFFICIENT_DATA short-circuit — same contract as the CLI and
     # the package-detail page: the methodology refuses to score on
     # partial inputs, so don't render misleading numeric panels.
-    from ossuary.scoring.factors import RiskLevel
+    #
+    # `risk_level_str` deliberately avoids ``RiskLevel.INSUFFICIENT_DATA`` —
+    # see that helper for the Streamlit module-cache reasoning.
+    risk_value = risk_level_str(b.risk_level)
 
-    if b.risk_level == RiskLevel.INSUFFICIENT_DATA:
+    if risk_value == "INSUFFICIENT_DATA":
         st.divider()
         st.markdown(
             f'<div style="display:flex;align-items:baseline;gap:16px;">'
@@ -113,7 +116,7 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
         st.stop()
 
     score = b.final_score
-    level = b.risk_level.value
+    level = risk_value
     color = risk_color(level)
 
     if result.warnings:

@@ -12,7 +12,7 @@ from ossuary.services.scorer import score_package, get_historical_scores
 from ossuary.dashboard.utils import (
     apply_style, run_async, get_all_tracked_packages,
     get_comparison_packages, get_score_history,
-    risk_color, risk_badge, COLORS, VERSION,
+    risk_color, risk_badge, risk_level_str, COLORS, VERSION,
 )
 
 st.set_page_config(page_title="Ossuary — Package", layout="wide", initial_sidebar_state="collapsed")
@@ -150,9 +150,12 @@ b = result.breakdown
 # INSUFFICIENT_DATA short-circuit: don't render the per-component panels
 # from a breakdown that has no real numbers to show. Surface the failing
 # inputs and the recovery path instead.
-from ossuary.scoring.factors import RiskLevel
+#
+# `risk_level_str` deliberately avoids ``RiskLevel.INSUFFICIENT_DATA`` —
+# see that helper for the Streamlit module-cache reasoning.
+risk_value = risk_level_str(b.risk_level)
 
-if b.risk_level == RiskLevel.INSUFFICIENT_DATA:
+if risk_value == "INSUFFICIENT_DATA":
     st.divider()
     st.markdown(
         f'<div style="display:flex;align-items:baseline;gap:16px;">'
@@ -178,7 +181,7 @@ if b.risk_level == RiskLevel.INSUFFICIENT_DATA:
     st.stop()
 
 score = b.final_score
-level = b.risk_level.value
+level = risk_value
 color = risk_color(level)
 
 st.divider()

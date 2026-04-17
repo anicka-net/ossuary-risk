@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from ossuary.api.main import _get_score, get_score
+from ossuary.api.main import CheckResponse, ScoreResponse, _get_score, check_package, get_score
 from ossuary.cli import app
 from ossuary.scoring.factors import RiskBreakdown, RiskLevel
 from ossuary.services.scorer import ScoringResult
@@ -135,6 +135,66 @@ class TestDashboardImports:
         assert "<span" in html
 
 
+class TestRiskLevelStrHelper:
+    """Defensive helper: dashboard pages must not crash when a stale
+    ``RiskLevel`` import (no INSUFFICIENT_DATA member) is reused across
+    Streamlit reruns, or when the breakdown's ``risk_level`` arrives as
+    a plain string from the cache JSON.
+    """
+
+    def test_returns_value_for_current_enum(self):
+        from ossuary.dashboard.utils import risk_level_str
+        from ossuary.scoring.factors import RiskLevel
+        assert risk_level_str(RiskLevel.INSUFFICIENT_DATA) == "INSUFFICIENT_DATA"
+        assert risk_level_str(RiskLevel.HIGH) == "HIGH"
+
+    def test_returns_string_unchanged(self):
+        """Cache round-trips can deliver risk_level as a plain string."""
+        from ossuary.dashboard.utils import risk_level_str
+        assert risk_level_str("INSUFFICIENT_DATA") == "INSUFFICIENT_DATA"
+        assert risk_level_str("HIGH") == "HIGH"
+
+    def test_does_not_touch_enum_members(self):
+        """A stale ``RiskLevel`` class without INSUFFICIENT_DATA must not
+        crash the comparison. We simulate the stale enum and verify the
+        helper only relies on the per-instance ``.value`` attribute."""
+        from enum import Enum
+        from ossuary.dashboard.utils import risk_level_str
+
+        class StaleRiskLevel(str, Enum):
+            CRITICAL = "CRITICAL"
+            HIGH = "HIGH"
+            MODERATE = "MODERATE"
+            LOW = "LOW"
+            VERY_LOW = "VERY_LOW"
+
+        # The class lacks INSUFFICIENT_DATA, but the helper never looks
+        # the member up by name — it asks the *instance* for its value.
+        assert risk_level_str(StaleRiskLevel.HIGH) == "HIGH"
+        assert not hasattr(StaleRiskLevel, "INSUFFICIENT_DATA")
+
+    def test_short_circuit_pattern_works_with_stale_enum(self):
+        """End-to-end: the page-level pattern
+        `risk_level_str(b.risk_level) == "INSUFFICIENT_DATA"` must work
+        whether ``b.risk_level`` is the current enum, the stale enum,
+        or a plain string."""
+        from enum import Enum
+        from ossuary.dashboard.utils import risk_level_str
+        from ossuary.scoring.factors import RiskLevel
+
+        class StaleRiskLevel(str, Enum):
+            HIGH = "HIGH"
+
+        # Case 1: current enum, value is INSUFFICIENT_DATA → match
+        assert risk_level_str(RiskLevel.INSUFFICIENT_DATA) == "INSUFFICIENT_DATA"
+        # Case 2: stale enum, value is HIGH → no match (no crash either)
+        assert risk_level_str(StaleRiskLevel.HIGH) != "INSUFFICIENT_DATA"
+        # Case 3: cache JSON delivers a plain string
+        assert risk_level_str("INSUFFICIENT_DATA") == "INSUFFICIENT_DATA"
+        # Case 4: cache JSON delivers a non-INSUFFICIENT_DATA string
+        assert risk_level_str("LOW") != "INSUFFICIENT_DATA"
+
+
 class TestApiCacheAge:
     """Tests for API cache-age behavior."""
 
@@ -208,3 +268,87 @@ class TestApiResponses:
         assert body["breakdown"]["metrics"]["weekly_downloads"] == 1234
         assert body["breakdown"]["chaoss_signals"]["bus_factor"] == 2
         assert body["breakdown"]["score"]["final"] == 10
+        assert body["incomplete_reasons"] == []
+
+
+class TestApiInsufficientData:
+    """The API contract must accept INSUFFICIENT_DATA cleanly.
+
+    Background: the data-completeness contract introduced on 2026-04-17
+    can return ``final_score=None``. Both endpoints declared ``score: int``
+    so the response model rejected the value with a Pydantic error,
+    turning a documented scoring state into a 500-style failure.
+    """
+
+    @patch("ossuary.api.main.score_package")
+    def test_score_endpoint_returns_null_score_for_insufficient_data(self, mock_score_package):
+        mock_score_package.return_value = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="pyyaml",
+                ecosystem="pypi",
+                final_score=None,
+                risk_level=RiskLevel.INSUFFICIENT_DATA,
+                incomplete_reasons=["pypi.weekly_downloads: HTTP 429 from pypistats.org"],
+                recommendations=["Run 'ossuary rescore-invalid' to retry."],
+            ),
+        )
+
+        response = asyncio.run(get_score("pypi", "pyyaml", None, 7))
+        body = response.model_dump()
+        assert body["score"] is None
+        assert body["risk_level"] == "INSUFFICIENT_DATA"
+        assert body["semaphore"] == "⚪"
+        assert body["incomplete_reasons"] == [
+            "pypi.weekly_downloads: HTTP 429 from pypistats.org"
+        ]
+        assert body["breakdown"]["score"]["final"] is None
+
+    @patch("ossuary.api.main.score_package")
+    def test_check_endpoint_returns_null_score_for_insufficient_data(self, mock_score_package):
+        mock_score_package.return_value = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="pyyaml",
+                ecosystem="pypi",
+                final_score=None,
+                risk_level=RiskLevel.INSUFFICIENT_DATA,
+                incomplete_reasons=["pypi.weekly_downloads: HTTP 429 from pypistats.org"],
+            ),
+        )
+
+        response = asyncio.run(check_package("pypi", "pyyaml", None, 7))
+        body = response.model_dump()
+        assert body["score"] is None
+        assert body["risk_level"] == "INSUFFICIENT_DATA"
+        assert body["semaphore"] == "⚪"
+        assert body["incomplete_reasons"] == [
+            "pypi.weekly_downloads: HTTP 429 from pypistats.org"
+        ]
+
+    def test_response_models_accept_null_score(self):
+        """Direct schema check — guards against a future regression that
+        re-tightens ``score`` to a non-Optional int."""
+        assert (
+            CheckResponse(
+                package="pyyaml",
+                ecosystem="pypi",
+                score=None,
+                risk_level="INSUFFICIENT_DATA",
+                semaphore="⚪",
+            ).score
+            is None
+        )
+        assert (
+            ScoreResponse(
+                package="pyyaml",
+                ecosystem="pypi",
+                score=None,
+                risk_level="INSUFFICIENT_DATA",
+                semaphore="⚪",
+                explanation="",
+                breakdown={},
+                recommendations=[],
+            ).score
+            is None
+        )

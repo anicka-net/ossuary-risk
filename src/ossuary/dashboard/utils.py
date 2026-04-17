@@ -1,6 +1,7 @@
 """Shared utilities for the Ossuary dashboard."""
 
 import asyncio
+import re as _re
 
 try:
     import streamlit as st
@@ -10,6 +11,23 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 from ossuary import __version__ as VERSION
 from ossuary.db.session import get_session
 from ossuary.db.models import Package, Score
+
+
+# Local copy of the PyPI PEP 503 normaliser. Streamlit reuses its worker
+# process across reruns, so a long-running dashboard can hold a stale
+# ``ossuary.services.cache`` module from before ``normalize_package_name``
+# was added; importing it inside a request would then crash with
+# ``ImportError`` and break the page. Inlining the tiny PEP 503 rule
+# (lowercase + collapse runs of ``-``/``_``/``.`` to ``-``) keeps the
+# dashboard self-contained for read paths. The cache module remains the
+# source of truth for *write* paths (``ScoreCache.get_or_create_package``).
+_PYPI_NORMALIZE_RE = _re.compile(r"[-_.]+")
+
+
+def _normalize_package_name(name: str, ecosystem: str) -> str:
+    if ecosystem == "pypi":
+        return _PYPI_NORMALIZE_RE.sub("-", name.strip().lower())
+    return name
 
 
 # -- Async helper --
@@ -45,6 +63,23 @@ COLORS = {
     "accent": "#35b9ab",      # openSUSE turquoise
     "link": "#21a4df",        # openSUSE blue
 }
+
+
+def risk_level_str(risk_level) -> str:
+    """Return the string form of a risk level, robust to stale imports.
+
+    Streamlit reuses its worker process across reruns, so a long-running
+    dashboard can hold an older ``RiskLevel`` import that doesn't yet have
+    ``INSUFFICIENT_DATA``. Comparing with ``RiskLevel.INSUFFICIENT_DATA``
+    in that situation crashes with ``AttributeError`` even though the
+    breakdown carries the right value.
+
+    The same helper also handles the case where the breakdown has been
+    round-tripped through the cache JSON and ``risk_level`` arrives as a
+    plain string instead of the enum. Always compare on the string form
+    returned here.
+    """
+    return getattr(risk_level, "value", risk_level)
 
 
 def risk_color(level: str) -> str:
@@ -264,11 +299,20 @@ def get_ecosystem_summary() -> dict:
 
 
 def get_score_history(package_name: str, ecosystem: str) -> list[dict]:
-    """Get historical scores for a package from DB."""
+    """Get historical scores for a package from DB.
+
+    PyPI rows are stored under the PEP 503 canonical name (lowercase,
+    runs of ``-``/``_``/``.`` collapsed to ``-``). Normalise the lookup
+    so that a user-entered ``PyYAML`` finds the row stored as ``pyyaml``.
+
+    Uses the dashboard-local copy of the normaliser; see
+    ``_normalize_package_name`` for why.
+    """
+    canonical = _normalize_package_name(package_name, ecosystem)
     with next(get_session()) as session:
         pkg = (
             session.query(Package)
-            .filter(Package.name == package_name, Package.ecosystem == ecosystem)
+            .filter(Package.name == canonical, Package.ecosystem == ecosystem)
             .first()
         )
         if not pkg:

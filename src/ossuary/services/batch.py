@@ -415,10 +415,12 @@ def is_fresh(package_name: str, ecosystem: str, max_age_days: int = 7) -> bool:
     """Check if a package has been scored recently enough to skip."""
     try:
         from ossuary.db.models import Package
+        from ossuary.services.cache import normalize_package_name
+        canonical = normalize_package_name(package_name, ecosystem)
         with session_scope() as session:
             pkg = (
                 session.query(Package)
-                .filter(Package.name == package_name, Package.ecosystem == ecosystem)
+                .filter(Package.name == canonical, Package.ecosystem == ecosystem)
                 .first()
             )
             if pkg is None:

@@ -35,28 +35,43 @@ class HealthResponse(BaseModel):
 
 
 class CheckResponse(BaseModel):
-    """Lightweight response for CI/CD pipelines."""
+    """Lightweight response for CI/CD pipelines.
+
+    ``score`` is ``None`` when ``risk_level == "INSUFFICIENT_DATA"``: the
+    methodology refuses to produce a number from partial input data.
+    Reasons for that state are listed in ``incomplete_reasons``. CI/CD
+    consumers should treat INSUFFICIENT_DATA as a separate gate from any
+    numeric threshold rather than coercing it to 0 or 100.
+    """
 
     package: str
     ecosystem: str
-    score: int
+    score: Optional[int] = None
     risk_level: str
     semaphore: str
+    incomplete_reasons: list[str] = []
 
 
 class ScoreResponse(BaseModel):
-    """Full scoring response with breakdown."""
+    """Full scoring response with breakdown.
+
+    ``score`` is ``None`` for INSUFFICIENT_DATA; see :class:`CheckResponse`.
+    The full breakdown and ``incomplete_reasons`` are still returned so
+    callers can render the failing inputs and decide their own retry
+    policy.
+    """
 
     package: str
     ecosystem: str
     repo_url: Optional[str] = None
-    score: int
+    score: Optional[int] = None
     risk_level: str
     semaphore: str
     explanation: str
     breakdown: dict
     recommendations: list[str]
     warnings: list[str] = []
+    incomplete_reasons: list[str] = []
 
 
 # -- Endpoints --
@@ -94,6 +109,7 @@ async def check_package(
         score=result.breakdown.final_score,
         risk_level=result.breakdown.risk_level.value,
         semaphore=result.breakdown.risk_level.semaphore,
+        incomplete_reasons=result.breakdown.incomplete_reasons,
     )
 
 
@@ -129,6 +145,7 @@ async def get_score(
         breakdown=b.to_dict(),
         recommendations=b.recommendations,
         warnings=result.warnings,
+        incomplete_reasons=b.incomplete_reasons,
     )
 
 
