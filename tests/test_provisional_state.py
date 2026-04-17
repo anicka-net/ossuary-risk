@@ -1,13 +1,15 @@
 """Provisional-score data-completeness contract.
 
-Background: a missing *visibility* signal (registry downloads) silently
-*lowers* the final risk score and is therefore refused as
-``INSUFFICIENT_DATA``. A missing *protective* signal (GitHub Sponsors,
-maintainer profile, orgs, issues, CII badge) silently *raises* the
-score because the corresponding factor defaults to 0. The latter is
-conservative-not-dangerous, so the engine still computes a number but
-flags it ``is_provisional=True`` so the user can rescore once the
-upstream recovers.
+Background: both failure classes skew conservative relative to a
+complete-data run, but they differ in what the missing signal makes the
+engine blind to. A missing *visibility* signal (registry downloads)
+removes the largest protective factor and collapses the distinction
+between popular and obscure packages, so the run is refused as
+``INSUFFICIENT_DATA``. A missing *protective* GitHub auxiliary signal
+(Sponsors, maintainer profile, orgs, issues, CII badge) also raises the
+score because the corresponding factor defaults to 0, but the engine can
+still compute a usable result, so it flags the score
+``is_provisional=True`` for retry once the upstream recovers.
 
 This test module pins the contract:
 
@@ -33,7 +35,15 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-respx = pytest.importorskip("respx")
+try:
+    import respx
+except ImportError:  # pragma: no cover - exercised in environments without respx
+    class _RespxStub:
+        @staticmethod
+        def mock(fn):
+            return pytest.mark.skip(reason="respx unavailable")(fn)
+
+    respx = _RespxStub()
 
 from ossuary.collectors.github import GitHubCollector, GitHubData
 from ossuary.collectors.npm import NpmCollector
