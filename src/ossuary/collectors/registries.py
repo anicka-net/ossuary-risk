@@ -5,6 +5,7 @@ All other scoring data (git history, GitHub info) comes from the shared pipeline
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -128,6 +129,44 @@ class PackagistCollector(BaseCollector):
     def is_available(self) -> bool:
         return True
 
+    @staticmethod
+    def _pick_latest_packagist_version(versions: dict) -> str:
+        """Pick the newest Packagist version deterministically.
+
+        Prefer stable releases with a parseable ``version_normalized`` and fall
+        back to the highest normalized entry overall. JSON object order is not a
+        reliable source of version recency.
+        """
+        candidates: list[tuple[tuple[int, ...], bool, str]] = []
+
+        for meta in versions.values():
+            if not isinstance(meta, dict):
+                continue
+
+            version = meta.get("version", "")
+            normalized = str(meta.get("version_normalized", "") or "")
+            if not version or not normalized:
+                continue
+
+            parts = re.match(r"^(\d+(?:\.\d+)*)", normalized)
+            if not parts:
+                continue
+
+            numeric = tuple(int(p) for p in parts.group(1).split("."))
+            is_stable = "dev" not in normalized.lower()
+            candidates.append((numeric, is_stable, version))
+
+        if not candidates:
+            for meta in versions.values():
+                if isinstance(meta, dict) and meta.get("version"):
+                    return meta["version"]
+            return ""
+
+        stable_candidates = [c for c in candidates if c[1]]
+        ranked = stable_candidates or candidates
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        return ranked[0][2]
+
     async def collect(self, package_name: str) -> RegistryData:
         """Collect data. package_name should be vendor/package format."""
         data = RegistryData(name=package_name)
@@ -147,10 +186,7 @@ class PackagistCollector(BaseCollector):
                 # Get latest version
                 versions = pkg.get("versions", {})
                 if versions:
-                    # First key is usually the latest
-                    latest = next(iter(versions), {})
-                    if isinstance(versions.get(latest), dict):
-                        data.version = versions[latest].get("version", "")
+                    data.version = self._pick_latest_packagist_version(versions)
         except httpx.HTTPError as e:
             logger.error(f"Packagist API error: {e}")
         return data
