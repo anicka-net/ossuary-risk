@@ -1,6 +1,7 @@
 """Database caching layer for ossuary scores."""
 
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -13,6 +14,30 @@ from ossuary.db.models import Package, Score
 CACHE_FRESHNESS_DAYS = int(os.getenv("OSSUARY_CACHE_DAYS", "7"))
 
 
+_PYPI_NORMALIZE_RE = re.compile(r"[-_.]+")
+
+
+def normalize_package_name(name: str, ecosystem: str) -> str:
+    """Return the canonical name used for DB lookup and storage.
+
+    Currently normalises PyPI names per PEP 503 (lowercase, runs of ``_``,
+    ``-`` and ``.`` collapsed to a single ``-``). Other ecosystems are
+    pass-through pending evidence of similar duplication bugs — speculative
+    normalisation is worse than no normalisation because it hides legitimate
+    name distinctions (e.g. case-sensitive scoped npm packages).
+
+    Reason this exists: ``get_or_create_package`` previously did a
+    case-sensitive ``Package.name == name`` lookup, so the same logical
+    PyPI package could end up in the DB under multiple capitalisations
+    (``PyYAML`` vs ``pyyaml``) with separately-cached scores. PEP 503
+    fixes the canonical form for PyPI; applying it at the cache chokepoint
+    eliminates the duplication at both the lookup and the insert sides.
+    """
+    if ecosystem == "pypi":
+        return _PYPI_NORMALIZE_RE.sub("-", name.strip().lower())
+    return name
+
+
 class ScoreCache:
     """Manages cached score persistence and freshness."""
 
@@ -23,15 +48,21 @@ class ScoreCache:
     def get_or_create_package(
         self, name: str, ecosystem: str, repo_url: Optional[str] = None
     ) -> Package:
-        """Get existing package or create new one."""
+        """Get existing package or create new one.
+
+        ``name`` is normalised per :func:`normalize_package_name` before
+        lookup and storage so that case / underscore variants of the same
+        PyPI distribution resolve to the same row.
+        """
+        canonical = normalize_package_name(name, ecosystem)
         package = (
             self.session.query(Package)
-            .filter(Package.name == name, Package.ecosystem == ecosystem)
+            .filter(Package.name == canonical, Package.ecosystem == ecosystem)
             .first()
         )
 
         if package is None:
-            package = Package(name=name, ecosystem=ecosystem, repo_url=repo_url)
+            package = Package(name=canonical, ecosystem=ecosystem, repo_url=repo_url)
             self.session.add(package)
             self.session.flush()  # Get the ID
 

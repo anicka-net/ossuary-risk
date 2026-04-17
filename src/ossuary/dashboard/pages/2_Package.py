@@ -49,22 +49,20 @@ if qp_name and qp_eco:
     if target in pkg_names:
         default_idx = pkg_names.index(target) + 1  # +1 for "" at index 0
 
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    selected = st.selectbox(
-        "Select a tracked package, or type a new name below",
-        [""] + pkg_names,
-        index=default_idx,
-        label_visibility="collapsed",
-        placeholder="Select tracked package...",
-    )
+# Tracked-package selector. The label already shows "name (ecosystem)" so
+# the ecosystem dropdown is shown only when a *new* (untracked) name is
+# being entered below — otherwise it's redundant and confusing (you can
+# pick "pyyaml (pypi)" while the dropdown shows "npm").
+selected = st.selectbox(
+    "Select a tracked package, or type a new name below",
+    [""] + pkg_names,
+    index=default_idx,
+    label_visibility="collapsed",
+    placeholder="Select tracked package...",
+)
 
 ecosystems = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
 default_eco = ecosystems.index(qp_eco) if qp_eco in ecosystems else 0
-
-with col2:
-    new_eco = st.selectbox("Ecosystem", ecosystems, index=default_eco, key="pkg_eco", label_visibility="collapsed")
 
 new_name = st.text_input(
     "Or enter package name",
@@ -72,6 +70,18 @@ new_name = st.text_input(
     placeholder="e.g., lodash, owner/repo",
     label_visibility="collapsed",
 )
+
+# Show the ecosystem picker only when the user typed a fresh name —
+# tracked-package picks already carry their ecosystem in the label.
+new_eco = default_eco_value = ecosystems[default_eco]
+if new_name and not selected:
+    new_eco = st.selectbox(
+        "Ecosystem",
+        ecosystems,
+        index=default_eco,
+        key="pkg_eco",
+        label_visibility="visible",
+    )
 
 # Determine which package to show
 pkg_name = None
