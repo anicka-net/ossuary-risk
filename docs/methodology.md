@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 164 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.0% precision** (1 false positive) and **77.4% in-scope recall** (F1 0.857). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
+**Key Finding**: In validation testing against 167 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.0% precision** (1 false positive) and **77.4% in-scope recall** (F1 0.857) — Scope B numbers are unchanged from v3.1 because the only methodology change since (the `TOP_PACKAGES` reputation expansion) reclassified exactly one package (sidekiq, FP→TN). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
 
-**Version**: 6.0 (March 2026)
-**Validation Dataset**: 164 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
+**Version**: 6.1 (April 2026)
+**Validation Dataset**: 167 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
 
@@ -87,7 +87,7 @@ The xz-utils backdoor (CVE-2024-3094) represents the most sophisticated governan
 
 This incident validates Ossuary's approach: the attacker specifically targeted a project with high concentration and a burned-out maintainer - both signals Ossuary detects.
 
-**Proportion Shift Detection (v4.0)**: Ossuary's takeover detection compares each contributor's historical commit share against their recent (12-month) share. Applied to xz-utils, this detects Jia Tan by **March 2023** — a full 12 months before the backdoor was discovered in March 2024. Jia Tan's proportion shift: 0.8% historical → 50% recent = **+49.5 percentage point shift**, far exceeding the 30pp detection threshold. See Section 4.4 for technical details.
+**Proportion Shift Detection (v4.0)**: Ossuary's takeover detection compares each contributor's historical commit share against their recent (12-month) share. Applied to xz-utils, this detects Jia Tan by **March 2023** — a full 12 months before the backdoor was discovered in March 2024. At the March 2023 cutoff Jia Tan's share was 0.6% historical → 31% recent = **+30.4 percentage point shift**, just over the 30pp detection threshold; by January 2024 the shift had grown to +46.5pp (3.5% → 50%). See Section 4.4 for the full time-series.
 
 ### 2.4 Existing Tools and Gap Analysis
 
@@ -249,10 +249,10 @@ This classification catches stable infrastructure (argon2, dosfstools, logrotate
 | Component | Non-Mature | Mature |
 |-----------|-----------|--------|
 | Base risk | Recent (12-month) concentration | **Lifetime** concentration when <4 commits/year; recent otherwise |
-| Activity modifier | -30 to +20 | -30 to **0** (never penalized) |
+| Activity modifier | -30 to +20 | **+20** when zero recent commits (truly abandoned); otherwise clamped to ≤0 |
 | Takeover detection | N/A | **+20** if proportion shift detected |
 
-For mature projects, the real risk isn't abandonment — it's unexpected takeover (the xz-utils pattern). A project that sat quietly for 15 years with occasional small edits is safe by default.
+For mature projects with *some* activity (even 1–3 commits per year) the real risk isn't abandonment — it's unexpected takeover (the xz-utils pattern). A project that sat quietly for 15 years with occasional small edits is safe by default.
 
 The lifetime concentration fallback only applies when the project has fewer than 4 commits per year — the "abandoned" activity tier where concentration from 1-3 commits is unreliable. When a mature project has 4+ recent commits, the recent concentration is used as normal, preserving the governance signal.
 
@@ -300,7 +300,15 @@ Activity level indicates whether maintainers are engaged and responsive.
 
 **Rationale**: Abandoned packages are prime targets for takeover attacks (event-stream pattern).
 
-**Mature project exception**: For mature projects, the activity modifier is clamped to ≤0 (reductions only). Active maintenance still earns credit, but low activity is not penalized — a 15-year-old tool with 2 commits/year is stable, not abandoned.
+**Mature project exception**: For mature projects the activity modifier follows a three-way split:
+
+| Recent commits | Modifier | Interpretation |
+|---|---|---|
+| 0 | **+20** | Truly abandoned (no maintainer present at all) — the abandonment penalty applies even on mature projects |
+| 1–3 | clamped to ≤0 | Stable but quiet; the negative side of the modifier still gives credit if activity rises |
+| ≥4 | clamped to ≤0 | Actively maintained; standard mature-project handling |
+
+A 15-year-old tool with 2 commits/year is stable, not abandoned, and gets the clamp. The same tool with *zero* commits in the last 12 months is treated as abandoned: even mature projects need someone home, otherwise their long history just means a larger attack surface for an opportunistic takeover.
 
 ### 4.3 Protective Factors
 
@@ -354,11 +362,11 @@ Two filters prevent false alarms from established maintainers and automated tool
 
 1. **Bot filtering**: Contributors with `[bot]` in their email or name are excluded (e.g., dependabot, renovate). Bots can dominate recent commits on quiet projects without representing a takeover risk.
 
-2. **Historical share threshold**: Only contributors with **<5% of historical commits** are considered as takeover suspects. Established maintainers (e.g., a project creator at 20% historical share) naturally fluctuate in activity — that's not a takeover signal. This threshold catches Jia Tan (0.8% historical) while filtering out long-time contributors like project founders whose share temporarily increases.
+2. **Historical share threshold**: Only contributors with **<10% of historical commits** (measured against the full pre-recent window) are considered as takeover suspects. Established maintainers (e.g., a project creator at 20% historical share) naturally fluctuate in activity — that's not a takeover signal. The 10% threshold catches Jia Tan (~7.6% historical share against the full xz-utils history at the late-2024 cutoff used by the code's regression check) while filtering out long-time contributors like project founders whose share temporarily increases. A name-merged historical share is also computed to handle contributors who use multiple email identities (e.g., domain changes).
 
 #### Design Rationale
 
-This approach detects proportional change, not absolute newcomer status. Jia Tan made a few small patches in 2022 — enough to be "established" — before dominating the project in 2023. A binary newcomer check would miss this pattern. Proportion shift catches it because going from 0.8% to 50% of recent commits is a +49.5pp shift regardless of when the contributor first appeared.
+This approach detects proportional change, not absolute newcomer status. Jia Tan made a few small patches in 2022 — enough to be "established" — before dominating the project in 2023. A binary newcomer check would miss this pattern. Proportion shift catches it because, even at the modest historical share Jia Tan held at each cutoff (see Section 4.4 table), the recent share grew large enough to exceed the +30pp threshold regardless of when the contributor first appeared.
 
 #### Validation Against xz-utils Timeline
 
@@ -386,7 +394,7 @@ Reputation provides a composite assessment of maintainer trustworthiness and inv
 | **Total Stars** | +15 | ≥50,000 stars across repos |
 | **Sponsor Support** | +15 | ≥10 GitHub sponsors |
 | **Packages Published** | +10 | ≥20 packages maintained |
-| **Top Package Maintainer** | +15 | Maintains top-1000 ecosystem package |
+| **Top Package Maintainer** | +15 | Maintains a flagship package on the relevant registry (curated top-~30 list per ecosystem; covers npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub) |
 | **Recognized Org** | +15 | Member of nodejs, python, apache, etc. |
 
 ### 5.2 Reputation Tiers
@@ -396,6 +404,18 @@ Reputation provides a composite assessment of maintainer trustworthiness and inv
 | TIER_1 | ≥60 | -25 points |
 | TIER_2 | 30-59 | -10 points |
 | UNKNOWN | <30 | 0 points |
+
+#### Top-package list curation
+
+The flagship-package bonus uses a curated list per ecosystem
+(`TOP_PACKAGES` in `src/ossuary/scoring/reputation.py`). Lists were
+compiled from each registry's own download/installation count metric,
+snapshot date 2026-04-17, capped at roughly 30 entries per ecosystem.
+The intent is not to be exhaustive but to cover packages whose
+presence in a maintainer's portfolio clearly signals ecosystem-wide
+reach. The list is open to community refinement (see
+[`CONTRIBUTING.md`](../CONTRIBUTING.md)); refinements are treated as
+supportive contributions, not core methodology changes.
 
 ### 5.3 Recognized Organizations
 

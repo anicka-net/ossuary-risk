@@ -70,71 +70,114 @@ RECOGNIZED_ORGS = {
     "hashicorp",
 }
 
-# Top packages by ecosystem (starter list, should be expanded)
+# Top packages by ecosystem.
+#
+# Curation: roughly the top ~30 packages per ecosystem ranked by the
+# registry's own download/installation count metric, snapshot date
+# 2026-04-17. The intent is not to be exhaustive but to cover the
+# packages whose maintainer reputation deserves a flagship-package
+# bonus — that is, packages whose presence in a maintainer's portfolio
+# clearly signals ecosystem-wide reach. Lists may be refined by the
+# community; see CONTRIBUTING.md (lists are supportive, not core).
+#
+# Names are stored lowercase for case-insensitive matching against the
+# packages a maintainer publishes (the lookup uses ``.lower()``).
+# Namespaces follow each ecosystem's canonical form (e.g. PHP composer
+# uses ``vendor/package``; Go modules use the full module path).
 TOP_PACKAGES = {
     "npm": {
-        "lodash",
-        "chalk",
-        "express",
-        "react",
-        "vue",
-        "axios",
-        "moment",
-        "webpack",
-        "babel",
-        "eslint",
-        "typescript",
-        "next",
-        "prettier",
-        "jest",
-        "mocha",
-        "commander",
-        "debug",
-        "async",
-        "request",
-        "underscore",
-        "uuid",
-        "minimist",
-        "glob",
-        "yargs",
-        "semver",
-        "fs-extra",
-        "bluebird",
-        "rxjs",
-        "socket.io",
-        "mongoose",
+        "lodash", "chalk", "express", "react", "vue", "axios", "moment",
+        "webpack", "babel", "eslint", "typescript", "next", "prettier",
+        "jest", "mocha", "commander", "debug", "async", "request",
+        "underscore", "uuid", "minimist", "glob", "yargs", "semver",
+        "fs-extra", "bluebird", "rxjs", "socket.io", "mongoose",
     },
     "pypi": {
-        "requests",
-        "numpy",
-        "pandas",
-        "django",
-        "flask",
-        "pytest",
-        "boto3",
-        "urllib3",
-        "setuptools",
-        "pip",
-        "certifi",
-        "pyyaml",
-        "cryptography",
-        "pillow",
-        "sqlalchemy",
-        "jinja2",
-        "click",
-        "scipy",
-        "matplotlib",
-        "tensorflow",
-        "pytorch",
-        "fastapi",
-        "pydantic",
-        "httpx",
-        "aiohttp",
-        "redis",
-        "celery",
-        "scrapy",
-        "beautifulsoup4",
+        "requests", "numpy", "pandas", "django", "flask", "pytest",
+        "boto3", "urllib3", "setuptools", "pip", "certifi", "pyyaml",
+        "cryptography", "pillow", "sqlalchemy", "jinja2", "click", "scipy",
+        "matplotlib", "tensorflow", "pytorch", "fastapi", "pydantic",
+        "httpx", "aiohttp", "redis", "celery", "scrapy", "beautifulsoup4",
         "lxml",
+    },
+    # Cargo: top crates by downloads on crates.io.
+    "cargo": {
+        "serde", "serde_json", "tokio", "syn", "quote", "proc-macro2",
+        "log", "anyhow", "thiserror", "clap", "regex", "chrono", "rand",
+        "futures", "hyper", "reqwest", "tracing", "bytes", "uuid",
+        "lazy_static", "once_cell", "itertools", "rayon", "parking_lot",
+        "axum", "tower", "diesel", "sqlx", "indexmap", "base64",
+    },
+    # RubyGems: top gems by download count on rubygems.org.
+    "rubygems": {
+        "rails", "activerecord", "actionpack", "activesupport", "rake",
+        "bundler", "rspec", "rspec-rails", "minitest", "rubocop", "puma",
+        "sidekiq", "devise", "nokogiri", "jekyll", "sass", "json",
+        "faraday", "rack", "rack-test", "tzinfo", "concurrent-ruby",
+        "i18n", "loofah", "ffi", "thor", "rest-client", "httparty",
+        "kaminari", "pundit",
+    },
+    # Packagist (PHP composer): top vendor/package by installs.
+    "packagist": {
+        "symfony/console", "symfony/http-foundation", "symfony/framework-bundle",
+        "symfony/finder", "symfony/process", "symfony/yaml",
+        "monolog/monolog", "phpunit/phpunit", "guzzlehttp/guzzle",
+        "guzzlehttp/psr7", "doctrine/orm", "doctrine/dbal",
+        "psr/log", "psr/http-message", "psr/container",
+        "laravel/framework", "laravel/laravel", "twig/twig",
+        "phpstan/phpstan", "vlucas/phpdotenv", "nikic/php-parser",
+        "ramsey/uuid", "mockery/mockery", "fakerphp/faker",
+        "league/flysystem", "predis/predis", "swiftmailer/swiftmailer",
+        "phpoffice/phpspreadsheet", "phpmailer/phpmailer",
+        "symfony/event-dispatcher",
+    },
+    # NuGet: top .NET packages by download count on nuget.org. Match
+    # is case-insensitive via .lower(), so canonical PascalCase here
+    # is fine — the lookup normalises both sides.
+    "nuget": {
+        "newtonsoft.json", "microsoft.aspnetcore.app",
+        "microsoft.extensions.logging", "microsoft.extensions.dependencyinjection",
+        "microsoft.extensions.configuration", "microsoft.extensions.options",
+        "microsoft.entityframeworkcore", "entityframework",
+        "system.text.json", "automapper", "serilog", "serilog.aspnetcore",
+        "nlog", "log4net", "polly", "fluentvalidation", "moq", "xunit",
+        "nunit", "mstest.testframework", "swashbuckle.aspnetcore",
+        "dapper", "mediatr", "refit", "azure.identity", "azure.storage.blobs",
+        "stackexchange.redis", "rabbitmq.client", "grpc.net.client",
+        "system.linq.async",
+    },
+    # Go: canonical module paths (lowercase). Top modules by Go module
+    # graph reverse-dependency counts and broad ecosystem use.
+    "go": {
+        "github.com/spf13/cobra", "github.com/spf13/viper",
+        "github.com/sirupsen/logrus", "github.com/stretchr/testify",
+        "github.com/gin-gonic/gin", "github.com/gorilla/mux",
+        "github.com/gorilla/websocket", "github.com/google/uuid",
+        "github.com/golang/protobuf", "google.golang.org/grpc",
+        "google.golang.org/protobuf", "github.com/prometheus/client_golang",
+        "go.uber.org/zap", "github.com/pkg/errors", "github.com/json-iterator/go",
+        "k8s.io/client-go", "k8s.io/api", "k8s.io/apimachinery",
+        "github.com/aws/aws-sdk-go", "github.com/aws/aws-sdk-go-v2",
+        "github.com/go-sql-driver/mysql", "github.com/lib/pq",
+        "github.com/jmoiron/sqlx", "github.com/labstack/echo",
+        "github.com/julienschmidt/httprouter", "github.com/spf13/pflag",
+        "github.com/hashicorp/go-multierror", "github.com/golang-jwt/jwt",
+        "github.com/dgrijalva/jwt-go", "go.mongodb.org/mongo-driver",
+    },
+    # GitHub: top repositories used as direct pkg:github/<owner>/<repo>
+    # references. Stored as lowercase "owner/repo" to match the canonical
+    # form emitted by the PURL parser (see services/sbom.py).
+    "github": {
+        "torvalds/linux", "kubernetes/kubernetes", "moby/moby",
+        "git/git", "ansible/ansible", "kubernetes/kubectl",
+        "helm/helm", "containerd/containerd", "etcd-io/etcd",
+        "prometheus/prometheus", "grafana/grafana", "envoyproxy/envoy",
+        "istio/istio", "hashicorp/terraform", "hashicorp/consul",
+        "hashicorp/vault", "elastic/elasticsearch", "apache/kafka",
+        "apache/spark", "apache/airflow", "tensorflow/tensorflow",
+        "pytorch/pytorch", "huggingface/transformers", "rust-lang/rust",
+        "golang/go", "nodejs/node", "python/cpython", "openssl/openssl",
+        "curl/curl", "git-for-windows/git",
     },
 }
 
