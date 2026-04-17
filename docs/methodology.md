@@ -1035,6 +1035,16 @@ The `--enrich` flag writes the SBOM back with governance scores attached:
   payload that also carries the package's SPDXID, so the link to the
   package survives if a downstream tool extracts annotations standalone.
 
+  Conformance is enforced by tests: enriched output is validated against
+  the official SPDX 2.3 JSON Schema (vendored at
+  `tests/fixtures/spdx-schema-2.3.json` from the [`spdx/spdx-spec`
+  `support/2.3` branch](https://github.com/spdx/spdx-spec/tree/support/2.3/schemas))
+  on every commit. An optional interop test in
+  `tests/test_sbom_spdx_interop.py` additionally round-trips enriched
+  output through the `spdx-tools` Python library and confirms its
+  `validate_full_spdx_document` reports zero issues; install with
+  `pip install -e ".[dev,dev-spdx-interop]"` to run it locally.
+
 The original SBOM structure is preserved; tools that do not understand the
 ossuary additions still parse the file. Re-running enrichment on an
 already-enriched SBOM replaces (not appends) the Ossuary entries, so the

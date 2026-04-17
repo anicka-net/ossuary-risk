@@ -91,7 +91,7 @@ ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
 Ossuary v0.9 plugs into a Cyber Resilience Act (Regulation (EU) 2024/2847) workflow:
 
 - `ossuary score-sbom` consumes the manufacturer's SBOM (CycloneDX or SPDX) and scores every component, mapping CRA Article 13(5) due-diligence on third-party components to a per-component governance signal.
-- `--enrich` writes the SBOM back with scores attached as CycloneDX `components[].properties[]` entries or SPDX 2.3 package-level `annotations[]` entries.
+- `--enrich` writes the SBOM back with scores attached as CycloneDX `components[].properties[]` entries or SPDX 2.3 package-level `annotations[]` entries (validated against the official SPDX 2.3 JSON Schema in CI; an optional interop test round-trips through `spdx-tools`).
 - `--annex-vii` produces a structured, timestamped, methodology-versioned record suitable for inclusion in the Annex VII technical documentation required by Article 13(4).
 - `ossuary support-period[-sbom]` derives the implied maximum support period a manufacturer can defensibly claim under Article 13(8), bounded by the worst-governance critical dependency.
 

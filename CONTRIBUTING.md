@@ -56,7 +56,10 @@ the academic constraint.
    discuss the design before implementing.
 2. **Fork and branch.** Branch names: `feature/...`, `fix/...`, `docs/...`.
 3. **Keep PRs small and reviewable.** One conceptual change per PR.
-4. **Run the tests.** `python3 -m pytest -q tests`.
+4. **Run the tests.** `python3 -m pytest -q tests`. The default `[dev]`
+   extra is enough; SPDX interop tests in `tests/test_sbom_spdx_interop.py`
+   auto-skip unless you also install `[dev-spdx-interop]`, which pulls in
+   the heavier `spdx-tools` library.
 5. **Match the existing style.** Public-facing text in this repository is
    deliberately plain: short sentences, no marketing language, no emoji.
 6. **Update docs in the same PR** if your change affects user-visible behavior.

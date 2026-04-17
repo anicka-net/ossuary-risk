@@ -51,6 +51,10 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.8.0",
     "httpx>=0.26.0",
+    "jsonschema>=4.0",
+]
+dev-spdx-interop = [
+    "spdx-tools>=0.8",
 ]
 dashboard = [
     "streamlit>=1.30.0",
