@@ -272,9 +272,43 @@ def calculate_score_for_date(
             if r.get("created_at", "9999") <= cutoff_iso
         ]
         historical_sponsor_count = 0  # Cannot reconstruct
+        historical_repo_stargazers = 0
     else:
         historical_repos = github_data.maintainer_repos
         historical_sponsor_count = github_data.maintainer_sponsor_count
+        historical_repo_stargazers = collected_data.repo_stargazers
+
+    factor_availability = {
+        "reputation": "historical_reconstruction" if is_historical else "current_observed",
+        "funding": (
+            "unavailable_historical_neutralized"
+            if is_historical else "current_observed"
+        ),
+        "visibility": "missing",
+        "issue_sentiment": "missing",
+    }
+    warnings: list[str] = []
+
+    if collected_data.weekly_downloads > 0:
+        factor_availability["visibility"] = "registry_downloads"
+    elif is_historical:
+        factor_availability["visibility"] = "unavailable_historical_neutralized"
+        if collected_data.repo_stargazers > 0:
+            warnings.append(
+                "Historical scoring disables GitHub-star visibility proxy to avoid leaking present-day popularity into past scores."
+            )
+    elif collected_data.repo_stargazers > 0:
+        factor_availability["visibility"] = "current_repo_stars_proxy"
+
+    use_issue_sentiment = not is_historical
+    if github_data.issues:
+        if use_issue_sentiment:
+            factor_availability["issue_sentiment"] = "current_snapshot_sample"
+        else:
+            factor_availability["issue_sentiment"] = "disabled_historical_partial_snapshot"
+            warnings.append(
+                "Historical scoring disables issue/comment sentiment because the GitHub issue snapshot is current and incomplete."
+            )
 
     # Calculate reputation
     reputation_scorer = ReputationScorer()
@@ -292,9 +326,12 @@ def calculate_score_for_date(
     # Run sentiment analysis on commits up to cutoff
     sentiment_analyzer = SentimentAnalyzer()
     commit_sentiment = sentiment_analyzer.analyze_commits([c.message for c in git_metrics.commits])
-    issue_sentiment = sentiment_analyzer.analyze_issues(
-        _filter_issues_for_cutoff(github_data.issues, cutoff_date)
-    )
+    if use_issue_sentiment:
+        issue_sentiment = sentiment_analyzer.analyze_issues(
+            _filter_issues_for_cutoff(github_data.issues, cutoff_date)
+        )
+    else:
+        issue_sentiment = sentiment_analyzer.analyze_issues([])
 
     total_frustration = commit_sentiment.frustration_count + issue_sentiment.frustration_count
     total_sentiment_texts = (
@@ -317,7 +354,7 @@ def calculate_score_for_date(
         top_contributor_name=git_metrics.top_contributor_name,
         last_commit_date=git_metrics.last_commit_date,
         weekly_downloads=collected_data.weekly_downloads,
-        repo_stargazers=collected_data.repo_stargazers,
+        repo_stargazers=historical_repo_stargazers,
         maintainer_username=github_data.maintainer_username,
         maintainer_public_repos=github_data.maintainer_public_repos,
         maintainer_total_stars=github_data.maintainer_total_stars,
@@ -352,7 +389,10 @@ def calculate_score_for_date(
 
     # Calculate score
     scorer = RiskScorer()
-    return scorer.calculate(package_name, ecosystem, metrics, collected_data.repo_url)
+    breakdown = scorer.calculate(package_name, ecosystem, metrics, collected_data.repo_url)
+    breakdown.factor_availability = factor_availability
+    breakdown.warnings.extend(warnings)
+    return breakdown
 
 
 def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optional[RiskBreakdown]:
@@ -409,6 +449,7 @@ def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optio
             explanation=d.get("explanation", ""),
             recommendations=d.get("recommendations", []),
             data_sources=d.get("data_sources", {}),
+            factor_availability=d.get("factor_availability", {}),
             warnings=d.get("warnings", []),
         )
     except Exception:

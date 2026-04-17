@@ -554,6 +554,12 @@ T1 (governance decay, 88%) and T3 (weak-governance compromise, 100%) are the pri
 
 Historical reputation reconstruction (v3.2) verifies portfolio and tenure at the cutoff date using repo `created_at` timestamps. This gives honest T-1 scores: is-promise (45) reflects ForbesLindesay's real 2020 reputation rather than stripping it to zero. The cost is 1 fewer TP compared to the stripped version, but the score is more accurate.
 
+Historical scoring is intentionally conservative for unstable GitHub-only
+signals. Present-day repository stars are **not** reused as a proxy for past
+visibility, and issue/comment sentiment is disabled for T-1 scoring because
+the GitHub issue API snapshot is current-state and incomplete. Historical
+scores therefore prefer reconstructable signals over current-state proxies.
+
 ### 8.7 Out-of-Scope Incident Analysis
 
 14 out-of-scope incidents are included to validate detection boundaries:

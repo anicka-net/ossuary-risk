@@ -225,6 +225,95 @@ class TestHistoricalScoring:
         assert breakdown.protective_factors.frustration_score == 0
         assert breakdown.protective_factors.sentiment_score == 0
 
+    def test_calculate_score_for_date_disables_historical_star_proxy(self):
+        """Historical scoring must not use present-day GitHub stars as a past visibility proxy."""
+        commits = [
+            CommitData(
+                sha="1",
+                author_name="maintainer",
+                author_email="maintainer@example.com",
+                authored_date=datetime(2020, 1, 1),
+                committer_name="maintainer",
+                committer_email="maintainer@example.com",
+                committed_date=datetime(2020, 1, 1),
+                message="initial commit",
+            )
+        ]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits,
+            github_data=GitHubData(),
+            weekly_downloads=0,
+            maintainer_account_created=None,
+            repo_stargazers=60_000,
+        )
+
+        current = calculate_score_for_date(
+            "pkg", "github", data, datetime.now()
+        )
+        historical = calculate_score_for_date(
+            "pkg", "github", data, datetime(2021, 1, 1)
+        )
+
+        assert current.protective_factors.visibility_score == -20
+        assert historical.protective_factors.visibility_score == 0
+        assert historical.factor_availability["visibility"] == "unavailable_historical_neutralized"
+        assert any("GitHub-star visibility proxy" in warning for warning in historical.warnings)
+
+    def test_calculate_score_for_date_disables_historical_issue_sentiment_from_current_snapshot(self):
+        """Historical scoring should not use current issue snapshots for past sentiment."""
+        commits = [
+            CommitData(
+                sha="1",
+                author_name="maintainer",
+                author_email="maintainer@example.com",
+                authored_date=datetime(2024, 1, 1),
+                committer_name="maintainer",
+                committer_email="maintainer@example.com",
+                committed_date=datetime(2024, 1, 1),
+                message="normal maintenance",
+            )
+        ]
+        issue = IssueData(
+            number=1,
+            title="Burnout",
+            body="I am burned out and tired of this free work",
+            state="open",
+            is_pull_request=False,
+            author_login="maintainer",
+            created_at="2024-01-02T00:00:00Z",
+            updated_at="2024-01-02T00:00:00Z",
+            closed_at=None,
+            comments=[
+                {
+                    "id": 1,
+                    "author": "maintainer",
+                    "body": "Corporate exploitation is exhausting",
+                    "created_at": "2024-01-03T00:00:00Z",
+                }
+            ],
+        )
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits,
+            github_data=GitHubData(issues=[issue]),
+            weekly_downloads=0,
+            maintainer_account_created=None,
+        )
+
+        current = calculate_score_for_date(
+            "pkg", "github", data, datetime.now()
+        )
+        historical = calculate_score_for_date(
+            "pkg", "github", data, datetime(2024, 12, 31)
+        )
+
+        assert current.protective_factors.frustration_score == 20
+        assert historical.protective_factors.frustration_score == 0
+        assert historical.protective_factors.sentiment_score == 0
+        assert historical.factor_availability["issue_sentiment"] == "disabled_historical_partial_snapshot"
+        assert any("issue/comment sentiment" in warning for warning in historical.warnings)
+
     def test_calculate_score_for_date_weights_sentiment_by_sample_count(self):
         """Commit sentiment should not be diluted just because there are no issues."""
         commits = [
@@ -308,6 +397,7 @@ class TestCachedBreakdownRebuild:
                     "explanation": "cached",
                     "recommendations": [],
                     "data_sources": {},
+                    "factor_availability": {"visibility": "registry_downloads"},
                     "warnings": [],
                 },
                 "risk_level": "LOW",
@@ -327,3 +417,4 @@ class TestCachedBreakdownRebuild:
         assert breakdown.bus_factor == 2
         assert breakdown.elephant_factor == 1
         assert breakdown.inactive_contributor_ratio == 0.5
+        assert breakdown.factor_availability["visibility"] == "registry_downloads"

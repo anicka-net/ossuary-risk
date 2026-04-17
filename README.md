@@ -150,3 +150,11 @@ MBA thesis research on OSS supply chain risk (VŠE Prague, due Dec 2026).
 **AI assistance declaration**: The tool was co-developed with Claude Opus (Anthropic) and reviewed by OpenAI Codex/GPT. AI assistance was used for implementation, data collection, analysis scripts, and working notes. Code reviews by both models are marked in commit history via `Co-Authored-By` trailers. All thesis text is the author's own.
 
 Key contribution: governance-based risk indicators are observable in public metadata before incidents occur, but they address a specific attack subset — not a universal detector.
+
+## Agent Contract
+
+This repository accepts AI agent contributions. See [AGENTS.md](AGENTS.md)
+for the repository contract and `spec/` for the machine-facing version.
+The contract emphasizes correctness, reproducibility, and academic honesty:
+agents must not overclaim results, fabricate sources, or let methodology,
+validation, code, and public documentation drift out of sync.

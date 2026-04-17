@@ -280,7 +280,7 @@ This detection relies on the proportion shift being visible in commit data. A mo
 | F1 | 0.79 | 0.74 | 0.73 | 0.857 |
 | False Positives | 0 | 0 | 1 | 1 |
 
-The v3.1 recall improvement (59%→77%) reflects the scoped framework, not a model improvement. The model correctly stopped penalizing for undetectable attack types. The modest recall (77.4% vs earlier 80.6%) is the cost of honest historical scoring — reconstructing verifiable reputation at cutoff dates rather than stripping it entirely.
+The v3.1 recall improvement (59%→77%) reflects the scoped framework, not a model improvement. The model correctly stopped penalizing for undetectable attack types. The modest recall (77.4% vs earlier 80.6%) is the cost of honest historical scoring — reconstructing verifiable reputation at cutoff dates rather than stripping it entirely. Historical mode is also intentionally conservative for unstable GitHub-only factors: present-day stars are not backfilled into the past, and issue/comment sentiment is disabled for T-1 scoring because the GitHub issue snapshot is current and incomplete.
 
 ---
 

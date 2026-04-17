@@ -160,6 +160,7 @@ class RiskBreakdown:
 
     # Data completeness tracking
     data_sources: dict[str, bool] = field(default_factory=dict)
+    factor_availability: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -194,5 +195,6 @@ class RiskBreakdown:
             "explanation": self.explanation,
             "recommendations": self.recommendations,
             "data_sources": self.data_sources,
+            "factor_availability": self.factor_availability,
             "warnings": self.warnings,
         }
