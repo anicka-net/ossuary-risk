@@ -136,6 +136,7 @@ class ScoreCache:
         unique_contributors: Optional[int],
         weekly_downloads: Optional[int] = 0,
         sentiment_modifier: int = 0,
+        is_provisional: bool = False,
     ) -> Score:
         """Store a calculated score in the database.
 
@@ -143,6 +144,11 @@ class ScoreCache:
         ``risk_level == 'INSUFFICIENT_DATA'`` rows, where the score has
         not been computed and the components are unknown. The breakdown
         JSON carries the failure reasons under ``incomplete_reasons``.
+
+        ``is_provisional=True`` flags rows where the score *was*
+        computed but a non-essential signal failed (e.g. GitHub
+        Sponsors lookup) — the score is conservative and should be
+        retried via ``rescore-invalid``.
         """
         score = Score(
             package_id=package.id,
@@ -159,6 +165,7 @@ class ScoreCache:
             commits_last_year=commits_last_year,
             unique_contributors=unique_contributors,
             weekly_downloads=weekly_downloads,
+            is_provisional=is_provisional,
         )
         self.session.add(score)
         return score

@@ -125,11 +125,32 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
 
     st.divider()
 
+    # Provisional banner — see 2_Package.py for the full rationale.
+    is_provisional = getattr(b, "is_provisional", False)
+    provisional_reasons = getattr(b, "provisional_reasons", []) or []
+    if is_provisional:
+        st.warning(
+            "⚠ **PROVISIONAL** — one or more non-essential signals were "
+            "unavailable. The score below is **conservative** (likely "
+            "higher than the true value). Re-run via `ossuary "
+            "rescore-invalid` once the upstream stabilises.",
+            icon="⚠️",
+        )
+        if provisional_reasons:
+            with st.expander(f"Failed signals ({len(provisional_reasons)})", expanded=False):
+                for reason in provisional_reasons:
+                    st.markdown(f"- `{reason}`")
+
+    provisional_marker = (
+        ' <span style="font-size:0.85em;color:#bb9d43;font-weight:600;">⚠ PROVISIONAL</span>'
+        if is_provisional else ''
+    )
+
     # Score display
     st.markdown(
         f'<div style="display:flex;align-items:baseline;gap:16px;">'
         f'<span style="font-size:2.5em;font-family:monospace;font-weight:700;color:{color};">{score}</span>'
-        f'<span style="font-size:1.2em;color:{color};">{level}</span>'
+        f'<span style="font-size:1.2em;color:{color};">{level}</span>{provisional_marker}'
         f'<span style="color:#6c757d;">{pkg} · {eco}</span>'
         f'</div>',
         unsafe_allow_html=True,

@@ -42,6 +42,13 @@ class CheckResponse(BaseModel):
     Reasons for that state are listed in ``incomplete_reasons``. CI/CD
     consumers should treat INSUFFICIENT_DATA as a separate gate from any
     numeric threshold rather than coercing it to 0 or 100.
+
+    ``is_provisional == True`` means the score *was* computed but a
+    non-essential signal was unavailable (typically a GitHub auxiliary
+    endpoint failed transiently). The score skews **higher** than the
+    true value because missing protective factors default to 0 — safe
+    to treat the package as the score indicates, but worth re-checking
+    once the upstream recovers. Reasons are in ``provisional_reasons``.
     """
 
     package: str
@@ -50,15 +57,17 @@ class CheckResponse(BaseModel):
     risk_level: str
     semaphore: str
     incomplete_reasons: list[str] = []
+    is_provisional: bool = False
+    provisional_reasons: list[str] = []
 
 
 class ScoreResponse(BaseModel):
     """Full scoring response with breakdown.
 
     ``score`` is ``None`` for INSUFFICIENT_DATA; see :class:`CheckResponse`.
-    The full breakdown and ``incomplete_reasons`` are still returned so
-    callers can render the failing inputs and decide their own retry
-    policy.
+    The full breakdown, ``incomplete_reasons``, ``is_provisional`` and
+    ``provisional_reasons`` are still returned so callers can render
+    the failing inputs and decide their own retry policy.
     """
 
     package: str
@@ -72,6 +81,8 @@ class ScoreResponse(BaseModel):
     recommendations: list[str]
     warnings: list[str] = []
     incomplete_reasons: list[str] = []
+    is_provisional: bool = False
+    provisional_reasons: list[str] = []
 
 
 # -- Endpoints --
@@ -110,6 +121,8 @@ async def check_package(
         risk_level=result.breakdown.risk_level.value,
         semaphore=result.breakdown.risk_level.semaphore,
         incomplete_reasons=result.breakdown.incomplete_reasons,
+        is_provisional=result.breakdown.is_provisional,
+        provisional_reasons=result.breakdown.provisional_reasons,
     )
 
 
@@ -146,6 +159,8 @@ async def get_score(
         recommendations=b.recommendations,
         warnings=result.warnings,
         incomplete_reasons=b.incomplete_reasons,
+        is_provisional=b.is_provisional,
+        provisional_reasons=b.provisional_reasons,
     )
 
 

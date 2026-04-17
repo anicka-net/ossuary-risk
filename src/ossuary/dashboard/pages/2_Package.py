@@ -186,12 +186,36 @@ color = risk_color(level)
 
 st.divider()
 
+# Provisional banner: surface the conservative-skew before showing the
+# score so users don't make decisions on a number that's likely too high.
+# ``getattr`` avoids hard-failing if a stale ``RiskBreakdown`` import
+# (Streamlit's module cache) doesn't yet have ``is_provisional``.
+is_provisional = getattr(b, "is_provisional", False)
+provisional_reasons = getattr(b, "provisional_reasons", []) or []
+if is_provisional:
+    st.warning(
+        "⚠ **PROVISIONAL** — one or more non-essential signals were "
+        "unavailable when this score was computed. The number below is "
+        "**conservative** (likely higher than the true value). Re-run "
+        "via `ossuary rescore-invalid` once the upstream stabilises.",
+        icon="⚠️",
+    )
+    if provisional_reasons:
+        with st.expander(f"Failed signals ({len(provisional_reasons)})", expanded=False):
+            for reason in provisional_reasons:
+                st.markdown(f"- `{reason}`")
+
 # -- Score header --
+
+provisional_marker = (
+    ' <span style="font-size:0.85em;color:#bb9d43;font-weight:600;">⚠ PROVISIONAL</span>'
+    if is_provisional else ''
+)
 
 st.markdown(
     f'<div style="display:flex;align-items:baseline;gap:16px;">'
     f'<span style="font-size:2.5em;font-family:monospace;font-weight:700;color:{color};">{score}</span>'
-    f'<span style="font-size:1.2em;color:{color};">{level}</span>'
+    f'<span style="font-size:1.2em;color:{color};">{level}</span>{provisional_marker}'
     f'<span style="color:#6c757d;font-size:0.95em;">{pkg_name} · {pkg_eco}</span>'
     f'</div>',
     unsafe_allow_html=True,

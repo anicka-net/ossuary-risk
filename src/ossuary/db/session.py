@@ -1,13 +1,16 @@
 """Database session management."""
 
+import logging
 import os
 from contextlib import contextmanager
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from ossuary.db.models import Base
+
+logger = logging.getLogger(__name__)
 
 # Default to SQLite for development
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ossuary.db")
@@ -21,9 +24,53 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+def _autoapply_simple_migrations(connection) -> None:
+    """Apply non-destructive ``ADD COLUMN`` migrations in place.
+
+    SQLAlchemy's ``create_all`` only creates *missing* tables; it
+    silently leaves an existing table alone even if the model has
+    grown new columns. Without help, a user who upgrades Ossuary in
+    place hits a hard SQL error on the first write to a new column
+    (most recently: ``scores.is_provisional``).
+
+    Each entry below is an in-place ``ALTER TABLE ... ADD COLUMN``
+    that the SQLite engine can apply without recreating the table.
+    Idempotent — we check ``PRAGMA table_info`` first and skip any
+    column that already exists. Only safe migrations live here;
+    schema changes that need data movement (NOT NULL → nullable,
+    column rename, etc.) still ship as standalone scripts under
+    ``scripts/``.
+    """
+    inspector = inspect(connection)
+    if "scores" not in inspector.get_table_names():
+        # Brand-new DB — create_all() built the table with the column already.
+        return
+
+    existing_cols = {col["name"] for col in inspector.get_columns("scores")}
+    if "is_provisional" not in existing_cols:
+        logger.warning(
+            "Auto-migrating scores schema: adding is_provisional column "
+            "(see scripts/migrate_provisional_column.py for the standalone version)"
+        )
+        connection.execute(text(
+            "ALTER TABLE scores ADD COLUMN is_provisional "
+            "BOOLEAN NOT NULL DEFAULT 0"
+        ))
+
+
 def init_db() -> None:
-    """Initialize the database, creating all tables."""
+    """Initialize the database, creating tables and applying pending
+    in-place migrations.
+
+    Existing databases that pre-date a schema-extending release would
+    otherwise crash on the first write — see
+    :func:`_autoapply_simple_migrations` for the auto-applied set.
+    Migrations that need data movement still ship as scripts under
+    ``scripts/``.
+    """
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        _autoapply_simple_migrations(conn)
 
 
 def get_session() -> Generator[Session, None, None]:

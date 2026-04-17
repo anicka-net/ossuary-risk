@@ -205,8 +205,26 @@ def _display_results(breakdown):
     }[breakdown.risk_level]
 
     # Main score panel
-    score_text = f"[bold {color}]{breakdown.risk_level.semaphore} {breakdown.final_score} - {breakdown.risk_level.value}[/bold {color}]"
+    provisional_marker = " [yellow]⚠ PROVISIONAL[/yellow]" if breakdown.is_provisional else ""
+    score_text = (
+        f"[bold {color}]{breakdown.risk_level.semaphore} {breakdown.final_score} - "
+        f"{breakdown.risk_level.value}[/bold {color}]{provisional_marker}"
+    )
     console.print(Panel(score_text, title=f"[bold]{breakdown.package_name}[/bold]", border_style=color))
+
+    # Provisional banner: explain the conservative-skew and recovery path.
+    if breakdown.is_provisional:
+        console.print(
+            "[yellow]⚠ PROVISIONAL:[/yellow] one or more non-essential signals "
+            "were unavailable. The score is computed conservatively (likely "
+            "[bold]higher[/bold] than the true value) and should be retried."
+        )
+        for reason in breakdown.provisional_reasons:
+            console.print(f"  [dim]•[/dim] {reason}")
+        console.print(
+            "[dim]Recover with[/dim] [bold cyan]ossuary rescore-invalid[/bold cyan]"
+            " [dim]once the upstream stabilises.[/dim]\n"
+        )
 
     # Score breakdown table
     table = Table(title="Score Breakdown")
@@ -407,8 +425,9 @@ async def _scan(
             # INSUFFICIENT_DATA leaves final_score=None by contract, so the
             # ":3d" format spec would crash. Render a placeholder instead.
             score_cell = "  —" if b.final_score is None else f"{b.final_score:3d}"
+            prov = " [yellow]⚠[/yellow]" if b.is_provisional else ""
             console.print(
-                f"  [{scored}/{len(entries)}] [{color}]{score_cell} {b.risk_level.value:18s}[/{color}] {name}"
+                f"  [{scored}/{len(entries)}] [{color}]{score_cell} {b.risk_level.value:18s}[/{color}]{prov} {name}"
             )
         else:
             errors += 1
@@ -445,6 +464,8 @@ async def _scan(
             # INSUFFICIENT_DATA rows leave numeric columns as None by
             # contract; render placeholders instead of crashing the table.
             score_cell = "—" if b.final_score is None else str(b.final_score)
+            if b.is_provisional and b.final_score is not None:
+                score_cell = f"{score_cell} ⚠"
             conc_cell = "—" if b.maintainer_concentration is None else f"{b.maintainer_concentration:.0f}%"
             commits_cell = "—" if b.commits_last_year is None else str(b.commits_last_year)
             table.add_row(
@@ -498,6 +519,8 @@ async def _scan(
                 "explanation": r.breakdown.explanation,
                 "recommendations": r.breakdown.recommendations,
                 "incomplete_reasons": r.breakdown.incomplete_reasons,
+                "is_provisional": r.breakdown.is_provisional,
+                "provisional_reasons": r.breakdown.provisional_reasons,
             }
             for name, r in scored_results
         ],
@@ -589,25 +612,46 @@ def rescore_invalid(
         False, "--dry-run",
         help="List the packages that would be retried without actually rescoring",
     ),
+    only: str = typer.Option(
+        "both", "--only",
+        help="Which rows to retry: 'insufficient' (INSUFFICIENT_DATA only), "
+        "'provisional' (provisional only), or 'both' (default).",
+    ),
 ):
-    """Retry packages whose most recent score is INSUFFICIENT_DATA.
+    """Retry packages whose most recent score is INSUFFICIENT_DATA or provisional.
 
-    A score is INSUFFICIENT_DATA when one or more upstream fetches failed
-    (e.g. pypistats.org rate-limited). The methodology contract is not to
-    compute a number from partial input, so the row records the attempt
-    without a score. This command finds those rows and retries them.
+    A score is INSUFFICIENT_DATA when one or more *essential* upstream
+    fetches failed (e.g. pypistats.org rate-limited). The methodology
+    contract is not to compute a number from partial input, so the row
+    records the attempt without a score.
+
+    A score is *provisional* when a non-essential signal failed
+    (typically GitHub auxiliary endpoints) and the score was computed
+    from defaults — conservative (likely too high). Rescoring once the
+    upstream recovers gives the true number.
+
+    By default this command retries both states; use ``--only`` to
+    restrict.
     """
-    from sqlalchemy import desc, func, select
+    from sqlalchemy import desc, func, or_, select
     from ossuary.db.models import Package, Score
     from ossuary.db.session import session_scope
     from ossuary.scoring.factors import RiskLevel
     from ossuary.services.scorer import score_package as svc_score
 
+    only = only.lower()
+    if only not in ("both", "insufficient", "provisional"):
+        console.print(
+            f"[red]Invalid --only value: {only}. "
+            "Use 'both', 'insufficient', or 'provisional'.[/red]"
+        )
+        raise typer.Exit(2)
+
     init_db()
 
-    # Find packages whose latest Score row (by calculated_at) has
-    # risk_level = INSUFFICIENT_DATA. Done in two queries for clarity:
-    # the per-package latest score, then filter to invalid ones.
+    # Find packages whose latest Score row (by calculated_at) is in a
+    # retry-worthy state. Done in two queries for clarity: the
+    # per-package latest score, then filter.
     with session_scope() as session:
         latest_score_subq = (
             select(
@@ -624,32 +668,48 @@ def rescore_invalid(
             .join(Score,
                   (Score.package_id == Package.id)
                   & (Score.calculated_at == latest_score_subq.c.latest_calc))
-            .filter(Score.risk_level == RiskLevel.INSUFFICIENT_DATA.value)
         )
+        is_insufficient = Score.risk_level == RiskLevel.INSUFFICIENT_DATA.value
+        is_provisional = Score.is_provisional.is_(True)
+        if only == "insufficient":
+            invalid_rows = invalid_rows.filter(is_insufficient)
+        elif only == "provisional":
+            invalid_rows = invalid_rows.filter(is_provisional)
+        else:
+            invalid_rows = invalid_rows.filter(or_(is_insufficient, is_provisional))
         if ecosystem:
             invalid_rows = invalid_rows.filter(Package.ecosystem == ecosystem.lower())
         invalid_rows = invalid_rows.order_by(desc(Score.calculated_at))
         if limit:
             invalid_rows = invalid_rows.limit(limit)
 
-        targets = [(pkg.name, pkg.ecosystem, pkg.repo_url) for pkg, _ in invalid_rows.all()]
+        targets = [
+            (pkg.name, pkg.ecosystem, pkg.repo_url, score.risk_level, bool(score.is_provisional))
+            for pkg, score in invalid_rows.all()
+        ]
 
     if not targets:
-        console.print("[green]No packages currently have an INSUFFICIENT_DATA latest score.[/green]")
+        console.print("[green]No packages currently need rescoring.[/green]")
         return
 
     console.print(
-        f"\n[bold]{len(targets)} package(s)[/bold] with INSUFFICIENT_DATA latest score:\n"
+        f"\n[bold]{len(targets)} package(s)[/bold] needing rescore:\n"
     )
-    for name, eco, _ in targets:
-        console.print(f"  • {name} [dim]({eco})[/dim]")
+    for name, eco, _repo, risk_level, is_prov in targets:
+        if risk_level == RiskLevel.INSUFFICIENT_DATA.value:
+            tag = "[grey50]⚪ INSUFFICIENT_DATA[/grey50]"
+        elif is_prov:
+            tag = "[yellow]⚠ provisional[/yellow]"
+        else:
+            tag = ""
+        console.print(f"  • {name} [dim]({eco})[/dim] {tag}")
 
     if dry_run:
         console.print("\n[dim]--dry-run set; not retrying.[/dim]")
         return
 
     console.print("\n[bold]Retrying...[/bold]\n")
-    asyncio.run(_rescore_invalid_run(targets))
+    asyncio.run(_rescore_invalid_run([(n, e, u) for n, e, u, _, _ in targets]))
 
 
 async def _rescore_invalid_run(targets: list[tuple[str, str, Optional[str]]]):
@@ -659,6 +719,7 @@ async def _rescore_invalid_run(targets: list[tuple[str, str, Optional[str]]]):
 
     recovered = 0
     still_invalid = 0
+    still_provisional = 0
     failed = 0
     for name, eco, repo_url in targets:
         try:
@@ -674,10 +735,17 @@ async def _rescore_invalid_run(targets: list[tuple[str, str, Optional[str]]]):
         bd = result.breakdown
         if bd.risk_level == RiskLevel.INSUFFICIENT_DATA:
             console.print(
-                f"  [yellow]⚪[/yellow] {name} [dim]({eco})[/dim] — still INSUFFICIENT_DATA: "
+                f"  [grey50]⚪[/grey50] {name} [dim]({eco})[/dim] — still INSUFFICIENT_DATA: "
                 + "; ".join(bd.incomplete_reasons)
             )
             still_invalid += 1
+        elif bd.is_provisional:
+            console.print(
+                f"  [yellow]⚠[/yellow] {name} [dim]({eco})[/dim] → "
+                f"{bd.final_score} {bd.risk_level.value} "
+                f"[dim](still provisional: {len(bd.provisional_reasons)} signal(s))[/dim]"
+            )
+            still_provisional += 1
         else:
             console.print(
                 f"  [green]✓[/green] {name} [dim]({eco})[/dim] → "
@@ -687,6 +755,7 @@ async def _rescore_invalid_run(targets: list[tuple[str, str, Optional[str]]]):
 
     console.print(
         f"\n[bold]Done.[/bold] recovered: {recovered}, "
+        f"still provisional: {still_provisional}, "
         f"still INSUFFICIENT_DATA: {still_invalid}, failed: {failed}"
     )
 

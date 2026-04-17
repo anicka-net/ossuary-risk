@@ -262,6 +262,63 @@ If retries do not recover the call, the score lands as
 `INSUFFICIENT_DATA`. Use `ossuary rescore-invalid` to retry every such
 package in one pass; the upstream failure is usually transient.
 
+#### Provisional scores: when partial data is still useful
+
+Every protective-factor input that fails silently makes the resulting
+score *higher* than the true score, because the missing factor
+contributes 0 instead of its negative bonus. So the user-facing
+direction is the same in both classes of failure: the score is
+conservative (overstated risk), not understated. The two classes
+differ in **signal magnitude** and what the missing signal makes us
+*blind to*, not in the sign of the bias.
+
+The contract above (`INSUFFICIENT_DATA`) applies to failures that are
+load-bearing for the popularity assessment that distinguishes
+"well-known and well-watched" from "obscure":
+
+- A failed registry-downloads fetch (PyPI, npm, cargo, RubyGems,
+  Packagist, NuGet) means the engine cannot tell a 50M-downloads/week
+  package from a 0-downloads/week one. The visibility factor is the
+  single largest protective bonus (−10 for >10M, −20 for >50M
+  weekly downloads), so its absence can move a score across two
+  buckets (e.g. CRITICAL → MODERATE if the bonus had landed).
+  Refusing to score is the right call: a number computed without
+  this signal collapses the popularity dimension and is not directly
+  comparable to a number computed with it.
+- A failed GitHub *repo_info* fetch (when transient — 429/5xx/network)
+  leaves the engine without an owner type to branch on; downstream
+  org-vs-user logic cannot run. Refused.
+
+The provisional class covers failures of *corroborating* protective
+signals where the missing factor is smaller and the system can still
+distinguish the things it needs to distinguish. The canonical case is
+GitHub's auxiliary endpoints (Sponsors, maintainer profile, orgs,
+issues, CII badge): each contributes −10 to −15 individually, none of
+them are load-bearing for the popularity signal, and refusing to
+score whenever any of them fails would render the system unusable
+during normal GitHub rate-limit windows.
+
+For this class the engine still computes a number but flags the
+breakdown as ``is_provisional = True`` with the failing endpoints in
+``provisional_reasons``. Surfaces (CLI, API, dashboard) display a
+"⚠ PROVISIONAL" badge so the user knows the number is conservative
+and worth retrying. ``rescore-invalid`` retries both INSUFFICIENT_DATA
+and provisional rows by default; pass ``--only insufficient`` or
+``--only provisional`` to restrict.
+
+| Source | Failure → state | Why |
+|---|---|---|
+| Registry downloads (PyPI, npm, cargo, RubyGems, Packagist, NuGet) | `INSUFFICIENT_DATA` | Visibility is the largest single protective factor (−10 to −20); without it the engine cannot tell popular from obscure |
+| GitHub `repo_info` (transient 429/5xx) | `INSUFFICIENT_DATA` | No owner type → can't run downstream branches |
+| GitHub `repo_info` 404 | hard error ("repo not found") | Permanent, not transient |
+| GitHub maintainer profile / repos / sponsors / orgs / issues / CII / contributors | `is_provisional` | Each is small (−10 to −15) and corroborating; missing one keeps popularity assessment intact |
+| Go proxy `@latest` | logged only | Go has no download API; version display only, not scored |
+
+Both classes produce a *higher* (more cautious) score than the
+complete-data run would. The split decides whether the engine should
+publish that number at all (`INSUFFICIENT_DATA`) or publish it with a
+conservative-bias flag (`is_provisional`).
+
 ### 4.0 Two-Track Scoring (Mature vs. Non-Mature Projects)
 
 A critical insight from validating against real-world package inventories: the original scoring model conflated "stable/finished" with "abandoned." A project like argon2 or dosfstools — quietly maintained for 15 years with occasional small edits — would score identically to a package whose maintainer disappeared. Both show high concentration and low recent activity, but the risk profiles are fundamentally different.

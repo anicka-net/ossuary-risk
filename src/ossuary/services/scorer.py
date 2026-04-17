@@ -24,13 +24,34 @@ class CollectedData:
     """All collected data for a package (cached for historical calculations).
 
     ``fetch_errors`` is the data-completeness contract: any non-empty
-    list signals that one or more required upstream fetches failed in a
-    *known* way (HTTP non-2xx, exception, malformed payload). The scoring
-    engine treats a non-empty list as an instruction to short-circuit the
-    score with ``RiskLevel.INSUFFICIENT_DATA`` rather than computing a
-    number from partial data. Empty results (a package with zero sponsors,
-    a project with zero recent commits) are *not* failures and do not
-    populate this list — those are valid measurements of zero.
+    list signals that one or more *essential* upstream fetches failed in
+    a *known* way (HTTP non-2xx, exception, malformed payload). The
+    scoring engine treats a non-empty list as an instruction to
+    short-circuit the score with ``RiskLevel.INSUFFICIENT_DATA`` rather
+    than computing a number from partial data. Empty results (a package
+    with zero sponsors, a project with zero recent commits) are *not*
+    failures and do not populate this list — those are valid
+    measurements of zero.
+
+    ``provisional_reasons`` records *non-essential* failures that left
+    the score computable but conservative (artificially higher). The
+    canonical case is GitHub auxiliary endpoints (sponsors, orgs,
+    issues, CII badge) returning a transient 4xx/5xx: the missing
+    protective factor defaults to 0, raising the final score. The
+    engine still produces a number and a risk_level, but flags the
+    breakdown as ``is_provisional=True`` so the user can rescore once
+    the upstream recovers.
+
+    Both classes of failure produce a *higher* score than a complete
+    run would (a missing protective factor contributes 0 instead of its
+    negative bonus). The split is not about direction of bias — both
+    are conservative — but about **signal magnitude** and what the
+    missing input makes us blind to. Visibility (downloads) is the
+    largest single protective factor (−10 to −20) and without it the
+    engine cannot distinguish popular packages from obscure ones, so
+    we refuse. Auxiliary GitHub signals are smaller (−10 to −15) and
+    corroborating; missing one keeps the popularity assessment intact,
+    so we publish the (conservative) score with the provisional flag.
     """
 
     repo_url: str
@@ -40,6 +61,7 @@ class CollectedData:
     maintainer_account_created: Optional[datetime]
     repo_stargazers: int = 0
     fetch_errors: list[str] = field(default_factory=list)
+    provisional_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -103,6 +125,7 @@ async def collect_package_data(
             if not repo_url:
                 repo_url = pkg_data.repository_url
             weekly_downloads = pkg_data.weekly_downloads
+            fetch_errors.extend(pkg_data.fetch_errors)
         finally:
             await pkg_collector.close()
     elif ecosystem == "pypi":
@@ -123,6 +146,7 @@ async def collect_package_data(
             if not repo_url:
                 repo_url = pkg_data.repository_url
             weekly_downloads = pkg_data.weekly_downloads
+            fetch_errors.extend(pkg_data.fetch_errors)
         finally:
             await pkg_collector.close()
     else:
@@ -167,15 +191,29 @@ async def collect_package_data(
             top_contributor_username=top_contributor_username,
             top_contributor_email=current_metrics.top_contributor_email,
         )
-        # Get repo stargazers for visibility proxy
+        # Pull through the per-call classification recorded inside
+        # GitHubCollector.collect (essential vs non-essential).
+        fetch_errors.extend(github_data.fetch_errors)
+        # Get repo stargazers for visibility proxy. This is the only
+        # other call after collect() — treat its failure as provisional
+        # since stars are only used as a fallback when downloads = 0.
         owner, repo = GitHubCollector.parse_repo_url(repo_url)
         if owner and repo:
             repo_info = await github_collector.get_repo_info(owner, repo)
             if repo_info:
                 repo_stargazers = repo_info.get("stargazers_count", 0)
+            elif github_collector.last_error:
+                github_data.provisional_reasons.append(
+                    f"github.repo_stargazers: {github_collector.last_error}"
+                )
     except Exception as e:
         warnings.append(f"GitHub data incomplete: {e}")
-        # Create minimal github data for graceful degradation
+        # Create minimal github data for graceful degradation. The bare
+        # exception path is now uncommon — most failures are caught and
+        # classified inside GitHubCollector.collect — but we keep it as
+        # a defensive fallback. Any failure that lands here is treated
+        # as provisional rather than INSUFFICIENT_DATA, matching the
+        # missing-protective-factor → conservative-score rule.
         from ossuary.collectors.github import GitHubData
         github_data = GitHubData(
             maintainer_username="",
@@ -189,9 +227,15 @@ async def collect_package_data(
             is_org_owned=False,
             org_admin_count=0,
             issues=[],
+            provisional_reasons=[f"github.collect: unhandled exception ({e})"],
         )
     finally:
         await github_collector.close()
+
+    # Surface GitHub's non-essential failures as provisional reasons on
+    # the resulting CollectedData (kept separate from the essential
+    # `fetch_errors` list).
+    provisional_reasons = list(github_data.provisional_reasons)
 
     # Parse account created date
     maintainer_account_created = None
@@ -211,6 +255,7 @@ async def collect_package_data(
         maintainer_account_created=maintainer_account_created,
         repo_stargazers=repo_stargazers,
         fetch_errors=fetch_errors,
+        provisional_reasons=provisional_reasons,
     ), warnings
 
 
@@ -286,6 +331,10 @@ def calculate_score_for_date(
                 "Run `ossuary rescore-invalid` to retry all packages in this state.",
             ],
         )
+
+    # Capture provisional reasons so they propagate to the final
+    # breakdown even though the score is computed normally below.
+    provisional_reasons = list(collected_data.provisional_reasons)
 
     git_collector = GitCollector()
 
@@ -436,6 +485,14 @@ def calculate_score_for_date(
     breakdown = scorer.calculate(package_name, ecosystem, metrics, collected_data.repo_url)
     breakdown.factor_availability = factor_availability
     breakdown.warnings.extend(warnings)
+    if provisional_reasons:
+        # The score was produced from incomplete-but-conservative inputs
+        # (a non-essential signal failed). Surface so the user can rescore.
+        breakdown.provisional_reasons = provisional_reasons
+        breakdown.recommendations.append(
+            "PROVISIONAL: one or more non-essential signals were unavailable; "
+            "rescore later via `ossuary rescore-invalid` for the final number."
+        )
     return breakdown
 
 
@@ -496,6 +553,7 @@ def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optio
             factor_availability=d.get("factor_availability", {}),
             warnings=d.get("warnings", []),
             incomplete_reasons=d.get("incomplete_reasons", []),
+            provisional_reasons=d.get("provisional_reasons", []),
         )
     except Exception:
         return None
@@ -579,6 +637,7 @@ async def score_package(
                 commits_last_year=None if is_invalid else breakdown.commits_last_year,
                 unique_contributors=None if is_invalid else breakdown.unique_contributors,
                 weekly_downloads=None if is_invalid else breakdown.weekly_downloads,
+                is_provisional=breakdown.is_provisional,
             )
             cache.mark_analyzed(package)
 
@@ -702,6 +761,7 @@ async def get_historical_scores(
                     commits_last_year=hs.commits_year,
                     unique_contributors=hs.contributors,
                     weekly_downloads=collected_data.weekly_downloads,
+                    is_provisional=breakdown.is_provisional,
                 )
 
     return historical_scores, warnings

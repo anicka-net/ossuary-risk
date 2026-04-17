@@ -98,9 +98,7 @@ These mirror `AGENTS.md` §3 and apply to humans too:
 The project is MIT-licensed. By contributing you agree that your contribution
 will be released under the same license.
 
-Reviews come from the author. Turnaround depends on thesis schedule — expect
-slower review around kontrolní-den deadlines (June and September 2026) and
-faster review afterwards.
+Reviews come from the author. Turnaround is best-effort and not promised.
 
 ## Questions
 

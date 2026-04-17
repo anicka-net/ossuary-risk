@@ -168,6 +168,22 @@ class RiskBreakdown:
     # as ``"pypi.weekly_downloads: HTTP 429 from pypistats.org"``.
     incomplete_reasons: list[str] = field(default_factory=list)
 
+    # Reasons the score is PROVISIONAL: a non-essential signal failed
+    # (e.g. GitHub Sponsors lookup rate-limited) and the score was still
+    # computed, but with at least one protective factor missing. Because
+    # missing protective factors default to 0, a provisional score is
+    # *higher than the true score* — conservative, not dangerous, but
+    # the user should re-run once the upstream recovers.
+    # The split vs ``incomplete_reasons`` is signal-magnitude based, not
+    # direction-of-bias based: both classes of failure raise the score.
+    # Visibility (downloads) is the largest protective factor and gates
+    # the popular-vs-obscure distinction → refused as INSUFFICIENT_DATA.
+    # Auxiliary GitHub signals (sponsors, orgs, etc.) are smaller and
+    # corroborating → score still produced, flagged provisional.
+    # Reasons are single-line strings such as
+    # ``"github.sponsors: HTTP 403 from api.github.com"``.
+    provisional_reasons: list[str] = field(default_factory=list)
+
     # Explanation
     explanation: str = ""
     recommendations: list[str] = field(default_factory=list)
@@ -176,6 +192,13 @@ class RiskBreakdown:
     data_sources: dict[str, bool] = field(default_factory=dict)
     factor_availability: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def is_provisional(self) -> bool:
+        """True iff the score was computed with one or more non-essential
+        signals missing. The score is conservative (likely too high) and
+        should be retried via ``ossuary rescore-invalid``."""
+        return bool(self.provisional_reasons)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -212,4 +235,6 @@ class RiskBreakdown:
             "factor_availability": self.factor_availability,
             "warnings": self.warnings,
             "incomplete_reasons": self.incomplete_reasons,
+            "provisional_reasons": self.provisional_reasons,
+            "is_provisional": self.is_provisional,
         }

@@ -16,6 +16,15 @@ from ossuary.collectors.base import BaseCollector
 logger = logging.getLogger(__name__)
 
 
+def _url_path(url: str) -> str:
+    """Return just the path portion of a URL for short error labels."""
+    try:
+        from urllib.parse import urlparse
+        return urlparse(url).path or url
+    except Exception:
+        return url
+
+
 @dataclass
 class IssueData:
     """Extracted issue/PR data."""
@@ -34,7 +43,24 @@ class IssueData:
 
 @dataclass
 class GitHubData:
-    """Data collected from GitHub API."""
+    """Data collected from GitHub API.
+
+    Two parallel error lists carry the data-completeness contract:
+
+    - ``fetch_errors``: an essential call failed in a known transient
+      way (rate limit / 5xx / network). The scoring engine treats this
+      as ``INSUFFICIENT_DATA`` because we cannot even identify the
+      repo. Permanent failures (404) are *not* listed here — they
+      surface as "Repository not found" via the upstream collector.
+    - ``provisional_reasons``: a non-essential call failed (sponsors,
+      maintainer profile, orgs, issues, CII). The corresponding
+      protective factor defaults to 0, raising the score
+      conservatively. The engine still produces a number but flags it
+      ``is_provisional=True`` so the user can rescore later. (Both
+      lists describe failures whose missing protective factor raises
+      the score; the split is about signal magnitude, not direction —
+      see ``services.scorer.CollectedData``.)
+    """
 
     # Repository info
     owner: str = ""
@@ -61,6 +87,10 @@ class GitHubData:
 
     # Issues and PRs
     issues: list[IssueData] = field(default_factory=list)
+
+    # Data-completeness tracking (see class docstring)
+    fetch_errors: list[str] = field(default_factory=list)
+    provisional_reasons: list[str] = field(default_factory=list)
 
 
 class GitHubCollector(BaseCollector):
@@ -94,6 +124,14 @@ class GitHubCollector(BaseCollector):
         if self.token:
             self.client.headers["Authorization"] = f"Bearer {self.token}"
         self.client.headers["Accept"] = "application/vnd.github.v3+json"
+
+        # ``last_error`` carries the failure description from the most
+        # recent ``_request`` / ``_graphql`` call. ``None`` means the
+        # call either succeeded or returned a permanent ``404`` (not a
+        # transient failure). Public methods leave their existing
+        # return signature unchanged; ``collect()`` reads this between
+        # calls to classify each failure as essential or provisional.
+        self.last_error: Optional[str] = None
 
     @staticmethod
     def _collect_tokens(explicit_token: Optional[str] = None) -> list[str]:
@@ -145,7 +183,17 @@ class GitHubCollector(BaseCollector):
         return None, None
 
     async def _request(self, method: str, url: str, _rotated: bool = False, **kwargs) -> Optional[dict]:
-        """Make a rate-limit-aware request."""
+        """Make a rate-limit-aware request.
+
+        Sets ``self.last_error`` to a single-line failure string when
+        the call fails in a transient way (rate limit / 5xx / network /
+        malformed JSON). ``404`` is intentionally *not* a transient
+        failure — callers rely on the ``None`` return to mean
+        "doesn't exist", and ``last_error`` stays ``None``. Successful
+        calls clear ``last_error`` to ``None`` so callers can read it
+        after each call without holding a stale value.
+        """
+        self.last_error = None
         delay = self.REQUEST_DELAY if self.token else self.REQUEST_DELAY_UNAUTHENTICATED
         await asyncio.sleep(delay)
 
@@ -167,11 +215,22 @@ class GitHubCollector(BaseCollector):
             if response.status_code == 404:
                 return None
 
-            response.raise_for_status()
+            if response.status_code >= 400:
+                self.last_error = (
+                    f"HTTP {response.status_code} from api.github.com "
+                    f"({_url_path(url)})"
+                )
+                response.raise_for_status()
             return response.json()
 
         except httpx.HTTPError as e:
+            if self.last_error is None:
+                self.last_error = f"transport error from api.github.com ({e})"
             logger.error(f"GitHub API error: {e}")
+            return None
+        except ValueError as e:
+            self.last_error = f"malformed JSON from api.github.com ({e})"
+            logger.error(self.last_error)
             return None
 
     async def _get(self, endpoint: str, params: Optional[dict] = None) -> Optional[dict]:
@@ -181,7 +240,13 @@ class GitHubCollector(BaseCollector):
 
     async def _graphql(self, query: str, variables: Optional[dict] = None,
                        _rotated: bool = False) -> Optional[dict]:
-        """Execute GraphQL query."""
+        """Execute GraphQL query.
+
+        Same ``last_error`` contract as ``_request``: cleared on
+        success, set to a transient failure string on 4xx/5xx /
+        network / malformed payload. Returns ``None`` on failure.
+        """
+        self.last_error = None
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
@@ -195,10 +260,15 @@ class GitHubCollector(BaseCollector):
                 logger.warning("GraphQL rate limited. Rotated token, retrying.")
                 return await self._graphql(query, variables, _rotated=True)
 
-            response.raise_for_status()
+            if response.status_code >= 400:
+                self.last_error = (
+                    f"HTTP {response.status_code} from api.github.com (graphql)"
+                )
+                response.raise_for_status()
             data = response.json()
 
             if "errors" in data:
+                self.last_error = "graphql errors: " + str(data["errors"])[:200]
                 logger.error(f"GraphQL errors: {data['errors']}")
                 return None
 
@@ -208,7 +278,13 @@ class GitHubCollector(BaseCollector):
             if not _rotated and self._rotate_token():
                 logger.warning("GraphQL error, rotated token, retrying.")
                 return await self._graphql(query, variables, _rotated=True)
+            if self.last_error is None:
+                self.last_error = f"transport error from api.github.com (graphql: {e})"
             logger.error(f"GraphQL error: {e}")
+            return None
+        except ValueError as e:
+            self.last_error = f"malformed JSON from api.github.com (graphql: {e})"
+            logger.error(self.last_error)
             return None
 
     async def get_user(self, username: str) -> Optional[dict]:
@@ -455,6 +531,26 @@ class GitHubCollector(BaseCollector):
 
         return issues
 
+    def _record_failure(
+        self, data: GitHubData, label: str, *, essential: bool
+    ) -> None:
+        """Append ``self.last_error`` to the right bucket on ``data``.
+
+        Essential = the call is load-bearing for scoring; missing it
+        leaves us without a usable signal so we mark INSUFFICIENT_DATA.
+        Non-essential = the missing signal would default to "no
+        protective factor", raising the score conservatively. We mark
+        provisional and let the score still compute.
+
+        Idempotent: if ``last_error`` is ``None`` (success or 404)
+        nothing is recorded.
+        """
+        err = self.last_error
+        if not err:
+            return
+        bucket = data.fetch_errors if essential else data.provisional_reasons
+        bucket.append(f"github.{label}: {err}")
+
     async def collect(
         self,
         repo_url: str,
@@ -463,6 +559,17 @@ class GitHubCollector(BaseCollector):
     ) -> GitHubData:
         """
         Collect all GitHub data for a repository.
+
+        Failure classification (see ``GitHubData`` docstring):
+        - repo_info transient failure: ESSENTIAL — without it we don't
+          know owner type, can't find the canonical name, can't run
+          the org-admin check. Marked ``fetch_errors`` →
+          INSUFFICIENT_DATA upstream.
+        - everything else (user profile, repos, sponsors, orgs, org
+          admins, CII, issues, contributors): NON-ESSENTIAL — failure
+          defaults the corresponding protective factor to 0, which
+          raises the score conservatively. Marked
+          ``provisional_reasons``.
 
         Args:
             repo_url: GitHub repository URL
@@ -481,6 +588,12 @@ class GitHubCollector(BaseCollector):
 
         # Get repo info (follows 301 redirects for renamed/transferred repos)
         repo_info = await self.get_repo_info(owner, repo)
+        # repo_info is essential — without it we don't have an owner type
+        # for downstream branching. A 404 here is fine (repo doesn't
+        # exist; caller treats that as a hard error). Transient failures
+        # propagate as fetch_errors → INSUFFICIENT_DATA.
+        if repo_info is None:
+            self._record_failure(data, "repo_info", essential=True)
         if repo_info:
             data.owner_type = repo_info.get("owner", {}).get("type", "")
             # Update owner/repo to canonical name (handles renames/transfers)
@@ -506,6 +619,8 @@ class GitHubCollector(BaseCollector):
         if not maintainer_username and data.owner_type == "Organization":
             logger.info(f"Repo is org-owned, finding top contributor...")
             contributors = await self.get_repo_contributors(owner, repo, limit=1)
+            if not contributors:
+                self._record_failure(data, "contributors", essential=False)
             if contributors:
                 maintainer_username = contributors[0].get("login")
                 logger.info(f"Top contributor from GitHub API: {maintainer_username}")
@@ -514,6 +629,7 @@ class GitHubCollector(BaseCollector):
         if not maintainer_username and top_contributor_email:
             logger.info(f"Searching GitHub for user with email: {top_contributor_email}")
             maintainer_username = await self.search_user_by_email(top_contributor_email)
+            # email search is best-effort; failures are silently fine
             if maintainer_username:
                 logger.info(f"Found user by email: {maintainer_username}")
 
@@ -530,28 +646,43 @@ class GitHubCollector(BaseCollector):
         data.maintainer_username = maintainer_username
         logger.info(f"Final maintainer: {data.maintainer_username}")
 
-        # Get user profile (for account age)
+        # Get user profile (for account age) — non-essential; missing
+        # account_age zeroes the reputation tenure component (already
+        # covered by the bigger reputation calc).
         user_profile = await self.get_user(data.maintainer_username)
+        if user_profile is None:
+            self._record_failure(data, "user_profile", essential=False)
         if user_profile:
             data.maintainer_account_created = user_profile.get("created_at", "")
             data.maintainer_public_repos = user_profile.get("public_repos", 0)
 
-        # Get full repo list for reputation scoring
+        # Get full repo list for reputation scoring — non-essential.
+        # Empty list zeroes the reputation factor (no top-N contribution).
         logger.info(f"Fetching repos for {data.maintainer_username}...")
         repos = await self.get_user_repos(data.maintainer_username)
+        if not repos:
+            self._record_failure(data, "user_repos", essential=False)
         data.maintainer_repos = repos
         data.maintainer_total_stars = sum(r.get("stargazers_count", 0) for r in repos)
 
-        # Check sponsors status and count (skip bot accounts)
+        # Check sponsors status and count — non-essential. Missing
+        # sponsors zeroes the funding protective factor (-15), which
+        # *raises* the final score conservatively.
         if data.maintainer_username and "[bot]" not in data.maintainer_username:
             logger.info(f"Checking sponsors for {data.maintainer_username}...")
             data.has_github_sponsors = await self.get_sponsors_status(data.maintainer_username)
+            if self.last_error:
+                self._record_failure(data, "sponsors_status", essential=False)
             if data.has_github_sponsors:
                 data.maintainer_sponsor_count = await self.get_sponsor_count(data.maintainer_username)
+                if self.last_error:
+                    self._record_failure(data, "sponsor_count", essential=False)
 
-        # Get user's organizations
+        # Get user's organizations — non-essential.
         logger.info(f"Fetching orgs for {data.maintainer_username}...")
         data.maintainer_orgs = await self.get_user_orgs(data.maintainer_username)
+        if not data.maintainer_orgs and self.last_error:
+            self._record_failure(data, "user_orgs", essential=False)
 
         # Legacy tier-1 check (deprecated, use ReputationScorer instead)
         data.is_tier1_maintainer = (
@@ -559,18 +690,26 @@ class GitHubCollector(BaseCollector):
             or data.maintainer_total_stars > self.TIER1_STARS
         )
 
-        # Check organization ownership of repo
+        # Check organization ownership of repo — non-essential.
+        # Missing zeros the org protective factor (-15).
         logger.info(f"Checking organization status for {owner}/{repo}...")
         org_info = await self.get_org_admins(owner, repo)
+        if self.last_error:
+            self._record_failure(data, "org_admins", essential=False)
         data.is_org_owned = org_info["is_org"]
         data.org_admin_count = org_info["admin_count"]
 
         logger.info(f"Checking CII badge for {owner}/{repo}...")
         data.cii_badge_level = await self.get_cii_badge_level(owner, repo)
+        if data.cii_badge_level == "none" and self.last_error:
+            self._record_failure(data, "cii_badge", essential=False)
 
-        # Get issues
+        # Get issues — non-essential. Missing issues disables sentiment
+        # analysis but leaves the rest of the score intact.
         logger.info(f"Fetching issues for {owner}/{repo}...")
         data.issues = await self.get_issues(owner, repo)
+        if not data.issues and self.last_error:
+            self._record_failure(data, "issues", essential=False)
 
         return data
 

@@ -6,6 +6,7 @@ from typing import Optional
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -157,6 +158,13 @@ class Score(Base):
     commits_last_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     unique_contributors: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     weekly_downloads: Mapped[Optional[int]] = mapped_column(Integer, default=0, nullable=True)
+
+    # True when the score was computed with one or more non-essential
+    # signals missing (e.g. GitHub Sponsors lookup rate-limited). The
+    # score itself is valid but conservative; ``rescore-invalid`` retries
+    # these rows alongside ``risk_level == 'INSUFFICIENT_DATA'`` rows.
+    # Reasons live in ``breakdown['provisional_reasons']``.
+    is_provisional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships
     package: Mapped["Package"] = relationship(back_populates="scores")
