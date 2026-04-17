@@ -202,11 +202,7 @@ class RiskScorer:
 
         pf.reputation_score = reputation.tier.risk_reduction
         if pf.reputation_score != 0:
-            pf.reputation_evidence = (
-                f"{reputation.username}: {reputation.total_score} pts ({reputation.tier.value}) - "
-                f"tenure={reputation.tenure_score}, portfolio={reputation.portfolio_score}, "
-                f"stars={reputation.stars_score}, sponsors={reputation.sponsors_score}"
-            )
+            pf.reputation_evidence = reputation.summary()
 
         # Factor 2: Economic Sustainability (-15)
         if metrics.has_github_sponsors:

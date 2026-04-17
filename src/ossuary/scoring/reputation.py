@@ -263,6 +263,16 @@ class ReputationBreakdown:
             },
         }
 
+    def summary(self) -> str:
+        """Return a stable human-readable signal summary for logs/evidence."""
+        return (
+            f"{self.username}: {self.total_score} pts ({self.tier.value}) - "
+            f"tenure={self.tenure_score}, portfolio={self.portfolio_score}, "
+            f"stars={self.stars_score}, sponsors={self.sponsors_score}, "
+            f"packages={self.packages_score}, top_packages={self.top_package_score}, "
+            f"organizations={self.org_membership_score}"
+        )
+
 
 class ReputationScorer:
     """Calculate composite reputation score for maintainers."""
@@ -360,10 +370,6 @@ class ReputationScorer:
         if recognized:
             breakdown.org_membership_score = 15
 
-        logger.info(
-            f"Reputation for {username}: {breakdown.total_score} ({breakdown.tier.value}) - "
-            f"tenure={breakdown.tenure_score}, portfolio={breakdown.portfolio_score}, "
-            f"stars={breakdown.stars_score}, sponsors={breakdown.sponsors_score}"
-        )
+        logger.info("Reputation for %s", breakdown.summary())
 
         return breakdown

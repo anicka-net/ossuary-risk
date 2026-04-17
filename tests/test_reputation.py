@@ -1,6 +1,7 @@
 """Tests for reputation scoring."""
 
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 
@@ -49,6 +50,22 @@ class TestReputationBreakdown:
         assert "total_score" in d
         assert "tier" in d
         assert d["signals"]["tenure"]["score"] == 15
+
+    def test_summary_includes_all_public_signal_scores(self):
+        b = ReputationBreakdown(
+            username="maintainer",
+            tenure_score=15,
+            portfolio_score=15,
+            stars_score=15,
+            sponsors_score=15,
+            packages_score=10,
+            top_package_score=15,
+            org_membership_score=15,
+        )
+        summary = b.summary()
+        assert "packages=10" in summary
+        assert "top_packages=15" in summary
+        assert "organizations=15" in summary
 
 
 class TestReputationScorer:
@@ -199,3 +216,19 @@ class TestReputationScorer:
         )
         assert result.tier == ReputationTier.UNKNOWN
         assert result.total_score < 30
+
+    def test_logger_uses_complete_summary(self):
+        with patch("ossuary.scoring.reputation.logger.info") as mock_info:
+            self.scorer.calculate(
+                username="maintainer",
+                account_created=datetime.now() - timedelta(days=365 * 10),
+                repos=[{"stargazers_count": 1000, "fork": False} for _ in range(60)],
+                sponsor_count=20,
+                orgs=["nodejs"],
+                packages_maintained=["chalk"] + [f"pkg-{i}" for i in range(24)],
+            )
+
+        logged = mock_info.call_args[0][1]
+        assert "packages=10" in logged
+        assert "top_packages=15" in logged
+        assert "organizations=15" in logged
