@@ -1202,6 +1202,442 @@ def score_deps(
     console.print(f"\n[bold]Done:[/bold] {ok} scored, {fail} errors")
 
 
+@app.command("score-sbom")
+def score_sbom(
+    sbom_file: str = typer.Argument(..., help="Path to a CycloneDX or SPDX JSON SBOM"),
+    ecosystem_default: Optional[str] = typer.Option(
+        None, "-e", "--ecosystem-default",
+        help="Ecosystem to use for components without a parseable PURL",
+    ),
+    enrich_out: Optional[str] = typer.Option(
+        None, "--enrich",
+        help="Write enriched SBOM (with ossuary scores) to this path",
+    ),
+    annex_vii_out: Optional[str] = typer.Option(
+        None, "--annex-vii",
+        help="Write Annex VII technical-documentation record to this path",
+    ),
+    critical_top_n: int = typer.Option(
+        5, "--critical-top-n",
+        help="How many components count as 'critical' for the support-period derivation",
+    ),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Emit JSON summary to stdout"),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Force re-scoring of every component"),
+):
+    """Score every component in an SBOM (CycloneDX or SPDX).
+
+    Components are identified by Package URL (PURL) where present; otherwise
+    --ecosystem-default is used. Components with no PURL and no default
+    ecosystem hint are listed but not scored.
+
+    With --enrich, writes the SBOM back with ossuary governance scores
+    attached as native CycloneDX properties or SPDX annotations, suitable
+    for inclusion in CRA Annex VII technical documentation.
+
+    With --annex-vii, writes a structured, timestamped, methodology-versioned
+    Annex VII record (CRA Art. 13(4)) to the given path, including the
+    implied product-level maximum support period (CRA Art. 13(8)).
+    """
+    from ossuary.services.annex_vii import build_annex_vii_record, write_annex_vii_record
+    from ossuary.services.sbom import (
+        enrich_cyclonedx,
+        enrich_spdx,
+        parse_sbom,
+    )
+    from ossuary.services.scorer import score_package as svc_score
+    from ossuary.services.support_period import (
+        derive_product_support_period,
+        parse_cyclonedx_dependents,
+        parse_spdx_dependents,
+    )
+
+    if ecosystem_default and ecosystem_default not in SUPPORTED_ECOSYSTEMS:
+        console.print(f"[red]Unsupported --ecosystem-default: {ecosystem_default}[/red]")
+        raise typer.Exit(1)
+    if critical_top_n < 1:
+        console.print(
+            f"[red]--critical-top-n must be >= 1 (got {critical_top_n}). "
+            f"A smaller value would coerce a 'CRA-supportable' verdict regardless of "
+            f"dependency health.[/red]"
+        )
+        raise typer.Exit(1)
+
+    init_db()
+
+    try:
+        sbom = parse_sbom(sbom_file)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Could not read SBOM: {e}[/red]")
+        raise typer.Exit(1)
+
+    console.print(
+        f"[bold]{sbom.format.upper()} {sbom.spec_version}[/bold] — "
+        f"{len(sbom.components)} components extracted from {sbom_file}"
+    )
+
+    scored: dict[int, dict] = {}
+    skipped: list[tuple[str, str, Optional[str]]] = []  # (name, reason, ecosystem-or-none)
+    failed: list[tuple[str, str, str]] = []  # (name, ecosystem, error)
+    rows: list[tuple[str, str, str, int, str]] = []
+    component_summaries: list[dict] = []  # for support-period derivation
+
+    for component in sbom.components:
+        eco = component.ecosystem or ecosystem_default
+        if not eco:
+            skipped.append((component.name, "no PURL, no --ecosystem-default", None))
+            continue
+
+        # GitHub ecosystem requires owner/repo; skip bare names with a clear reason.
+        if eco == "github" and "/" not in component.name:
+            skipped.append((component.name, "github ecosystem needs owner/repo", eco))
+            continue
+
+        result = asyncio.run(svc_score(component.name, eco, force=no_cache))
+        if not result.success:
+            err = result.error or "scoring failed"
+            failed.append((component.name, eco, err))
+            rows.append((component.name, eco, "—", -1, err))
+            continue
+
+        bd = result.breakdown
+        score_dict = bd.to_dict()
+        scored[component.raw_index] = score_dict
+        rows.append((component.name, eco, bd.risk_level.value, bd.final_score, ""))
+        component_summaries.append({
+            "name": bd.package_name,
+            "ecosystem": bd.ecosystem,
+            "score": bd.final_score,
+            "risk_level": bd.risk_level.value,
+            "contributors": bd.unique_contributors,
+            "concentration": bd.maintainer_concentration,
+            "commits_last_year": bd.commits_last_year,
+            "lifetime_commits": 0,  # not exposed via RiskBreakdown.to_dict() yet
+        })
+
+    # Derive product-level implied support period (CRA Art. 13(8)).
+    if sbom.format == "cyclonedx":
+        dependents = parse_cyclonedx_dependents(sbom.raw)
+    else:
+        dependents = parse_spdx_dependents(sbom.raw)
+    product_support_period = derive_product_support_period(
+        component_summaries,
+        dependents_count=dependents,
+        critical_top_n=critical_top_n,
+    )
+
+    if not output_json:
+        table = Table(title="SBOM component scores", show_lines=False)
+        table.add_column("Component")
+        table.add_column("Ecosystem")
+        table.add_column("Risk level")
+        table.add_column("Score", justify="right")
+        table.add_column("Note", overflow="fold")
+        for name, eco, level, score, note in rows:
+            colour = {
+                "CRITICAL": "red", "HIGH": "orange1",
+                "MODERATE": "yellow", "LOW": "green", "VERY_LOW": "green",
+            }.get(level, "white")
+            score_str = "—" if score < 0 else str(score)
+            level_str = f"[{colour}]{level}[/{colour}]" if score >= 0 else "[dim]—[/dim]"
+            table.add_row(name, eco, level_str, score_str, note)
+        console.print(table)
+
+        # Implied support period summary (CRA Art. 13(8))
+        if product_support_period.components_scored > 0:
+            psp = product_support_period
+            cra_marker = "[green]meets CRA 5-year minimum[/green]" if psp.cra_minimum_supportable \
+                else "[red]below CRA 5-year minimum[/red]"
+            console.print(
+                f"\n[bold]Implied product support period:[/bold] "
+                f"{psp.horizon_months} months — {cra_marker}"
+            )
+            console.print(
+                f"[dim]Critical subset: top {psp.critical_top_n} by "
+                f"{psp.critical_selection_method.replace('_', ' ')}[/dim]"
+            )
+            if psp.limiting_components:
+                names = ", ".join(c.package_name for c in psp.limiting_components)
+                console.print(f"[dim]Limiting component(s): {names}[/dim]")
+
+        if skipped:
+            console.print(
+                f"\n[dim]Skipped {len(skipped)} component(s) without a known ecosystem. "
+                f"Pass --ecosystem-default to score them.[/dim]"
+            )
+            for name, reason, _ in skipped[:5]:
+                console.print(f"  [dim]- {name}: {reason}[/dim]")
+            if len(skipped) > 5:
+                console.print(f"  [dim]… and {len(skipped) - 5} more[/dim]")
+
+        if failed:
+            console.print(
+                f"\n[yellow]Failed to score {len(failed)} component(s) "
+                f"(network/repo errors). These are recorded in --annex-vii output.[/yellow]"
+            )
+            for name, eco, err in failed[:5]:
+                console.print(f"  [dim]- {name} ({eco}): {err}[/dim]")
+            if len(failed) > 5:
+                console.print(f"  [dim]… and {len(failed) - 5} more[/dim]")
+
+    if enrich_out:
+        if sbom.format == "cyclonedx":
+            enriched = enrich_cyclonedx(sbom.raw, scored)
+        else:
+            from ossuary import __version__ as _osv
+            enriched = enrich_spdx(sbom.raw, scored, ossuary_version=_osv)
+        with open(enrich_out, "w", encoding="utf-8") as fh:
+            json.dump(enriched, fh, indent=2)
+        if not output_json:
+            console.print(f"\n[green]Enriched SBOM written to {enrich_out}[/green]")
+
+    if annex_vii_out:
+        skipped_records = [
+            {"name": n, "ecosystem": eco, "reason": r} for n, r, eco in skipped
+        ]
+        failed_records = [
+            {"name": n, "ecosystem": eco, "error": err} for n, eco, err in failed
+        ]
+        record = build_annex_vii_record(
+            component_score_dicts=list(scored.values()),
+            skipped_components=skipped_records,
+            failed_components=failed_records,
+            product_support_period=product_support_period,
+            source_sbom_path=sbom_file,
+            source_sbom_format=sbom.format,
+            source_sbom_spec_version=sbom.spec_version,
+        )
+        write_annex_vii_record(record, annex_vii_out)
+        if not output_json:
+            console.print(f"[green]Annex VII record written to {annex_vii_out}[/green]")
+
+    if output_json:
+        summary = {
+            "sbom_format": sbom.format,
+            "sbom_spec_version": sbom.spec_version,
+            "components_total": len(sbom.components),
+            "components_scored": len(scored),
+            "components_skipped": len(skipped),
+            "components_failed": len(failed),
+            "scores": [
+                {
+                    "name": name,
+                    "ecosystem": eco,
+                    "risk_level": level,
+                    "score": score if score >= 0 else None,
+                    "error": note or None,
+                }
+                for name, eco, level, score, note in rows
+            ],
+            "skipped": [
+                {"name": n, "ecosystem": eco, "reason": r} for n, r, eco in skipped
+            ],
+            "failed": [
+                {"name": n, "ecosystem": eco, "error": err} for n, eco, err in failed
+            ],
+            "implied_support_period": product_support_period.to_dict(),
+        }
+        console.print(json.dumps(summary, indent=2))
+
+
+@app.command("support-period")
+def support_period(
+    package: str = typer.Argument(..., help="Package name (e.g., 'lodash', 'requests')"),
+    ecosystem: str = typer.Option(
+        "github", "-e", "--ecosystem",
+        help=f"Package ecosystem ({', '.join(SUPPORTED_ECOSYSTEMS)})",
+    ),
+    repo_url: Optional[str] = typer.Option(None, "--repo", "-r", help="Repository URL override"),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Emit JSON to stdout"),
+):
+    """Estimate the implied maximum CRA support period for a single package.
+
+    Maps the governance score to a defensible upper bound on the support
+    period a manufacturer can claim for a product whose core function relies
+    on this dependency (CRA Article 13(8)). The mapping is heuristic and
+    intentionally conservative; manufacturers may justify a different
+    horizon with compensating controls.
+    """
+    from ossuary.services.scorer import score_package as svc_score
+    from ossuary.services.support_period import (
+        CRA_MINIMUM_SUPPORT_MONTHS,
+        estimate_for_score,
+    )
+
+    eco = ecosystem.lower()
+    if eco not in SUPPORTED_ECOSYSTEMS:
+        console.print(f"[red]Unsupported ecosystem: {ecosystem}[/red]")
+        raise typer.Exit(1)
+
+    init_db()
+    with console.status(f"[bold blue]Scoring {package} ({eco})...[/bold blue]"):
+        result = asyncio.run(svc_score(package, eco, repo_url=repo_url, force=True))
+
+    if not result.success:
+        console.print(f"[red]Error: {result.error}[/red]")
+        raise typer.Exit(1)
+
+    bd = result.breakdown
+    estimate = estimate_for_score(
+        package_name=bd.package_name,
+        ecosystem=bd.ecosystem,
+        score=bd.final_score,
+        risk_level=bd.risk_level.value,
+    )
+
+    if output_json:
+        payload = {
+            "estimate": estimate.to_dict(),
+            "cra_minimum_support_months": CRA_MINIMUM_SUPPORT_MONTHS,
+        }
+        console.print(json.dumps(payload, indent=2))
+        return
+
+    cra_marker = (
+        "[green]meets CRA 5-year minimum[/green]"
+        if estimate.cra_minimum_supportable
+        else "[red]below CRA 5-year minimum[/red]"
+    )
+    console.print(
+        f"[bold]{bd.package_name}[/bold] ({bd.ecosystem}) — "
+        f"score {bd.final_score} {bd.risk_level.value}"
+    )
+    console.print(
+        f"Implied maximum support period: [bold]{estimate.horizon_months} months[/bold] — {cra_marker}"
+    )
+    console.print(f"[dim]{estimate.reason}[/dim]")
+
+
+@app.command("support-period-sbom")
+def support_period_sbom(
+    sbom_file: str = typer.Argument(..., help="Path to a CycloneDX or SPDX JSON SBOM"),
+    ecosystem_default: Optional[str] = typer.Option(
+        None, "-e", "--ecosystem-default",
+        help="Ecosystem to use for components without a parseable PURL",
+    ),
+    critical_top_n: int = typer.Option(
+        5, "--critical-top-n",
+        help="How many components count as 'critical' for the derivation",
+    ),
+    output_json: bool = typer.Option(False, "--json", "-j", help="Emit JSON to stdout"),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Force re-scoring of every component"),
+):
+    """Derive the implied maximum support period for an entire SBOM.
+
+    Scores every component, picks the top-N most structurally critical
+    components (by tree position when the SBOM carries dependency
+    relationships, otherwise by raw governance score), and reports the
+    minimum implied horizon across that subset. The product cannot
+    defensibly claim a longer support period than its weakest critical
+    dependency (CRA Art. 13(8)).
+    """
+    from ossuary.services.sbom import parse_sbom
+    from ossuary.services.scorer import score_package as svc_score
+    from ossuary.services.support_period import (
+        CRA_MINIMUM_SUPPORT_MONTHS,
+        derive_product_support_period,
+        parse_cyclonedx_dependents,
+        parse_spdx_dependents,
+    )
+
+    if ecosystem_default and ecosystem_default not in SUPPORTED_ECOSYSTEMS:
+        console.print(f"[red]Unsupported --ecosystem-default: {ecosystem_default}[/red]")
+        raise typer.Exit(1)
+    if critical_top_n < 1:
+        console.print(
+            f"[red]--critical-top-n must be >= 1 (got {critical_top_n}). "
+            f"A smaller value would coerce a 'CRA-supportable' verdict regardless of "
+            f"dependency health.[/red]"
+        )
+        raise typer.Exit(1)
+
+    init_db()
+    try:
+        sbom = parse_sbom(sbom_file)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Could not read SBOM: {e}[/red]")
+        raise typer.Exit(1)
+
+    component_summaries: list[dict] = []
+    skipped: list[tuple[str, str]] = []
+    failed: list[tuple[str, str, str]] = []
+    for component in sbom.components:
+        eco = component.ecosystem or ecosystem_default
+        if not eco:
+            skipped.append((component.name, "no PURL, no --ecosystem-default"))
+            continue
+        if eco == "github" and "/" not in component.name:
+            skipped.append((component.name, "github ecosystem needs owner/repo"))
+            continue
+
+        result = asyncio.run(svc_score(component.name, eco, force=no_cache))
+        if not result.success:
+            failed.append((component.name, eco, result.error or "scoring failed"))
+            continue
+        bd = result.breakdown
+        component_summaries.append({
+            "name": bd.package_name,
+            "ecosystem": bd.ecosystem,
+            "score": bd.final_score,
+            "risk_level": bd.risk_level.value,
+            "contributors": bd.unique_contributors,
+            "concentration": bd.maintainer_concentration,
+            "commits_last_year": bd.commits_last_year,
+            "lifetime_commits": 0,
+        })
+
+    if sbom.format == "cyclonedx":
+        dependents = parse_cyclonedx_dependents(sbom.raw)
+    else:
+        dependents = parse_spdx_dependents(sbom.raw)
+
+    psp = derive_product_support_period(
+        component_summaries,
+        dependents_count=dependents,
+        critical_top_n=critical_top_n,
+    )
+
+    if output_json:
+        console.print(json.dumps({
+            "implied_support_period": psp.to_dict(),
+            "cra_minimum_support_months": CRA_MINIMUM_SUPPORT_MONTHS,
+            "skipped": [{"name": n, "reason": r} for n, r in skipped],
+            "failed": [{"name": n, "ecosystem": eco, "error": err} for n, eco, err in failed],
+        }, indent=2))
+        return
+
+    cra_marker = (
+        "[green]meets CRA 5-year minimum[/green]"
+        if psp.cra_minimum_supportable
+        else "[red]below CRA 5-year minimum[/red]"
+    )
+    console.print(
+        f"[bold]Implied product support period:[/bold] "
+        f"{psp.horizon_months} months — {cra_marker}"
+    )
+    console.print(
+        f"[dim]Critical subset: top {psp.critical_top_n} by "
+        f"{psp.critical_selection_method.replace('_', ' ')}[/dim]"
+    )
+    if psp.limiting_components:
+        table = Table(title="Limiting components", show_lines=False)
+        table.add_column("Component")
+        table.add_column("Ecosystem")
+        table.add_column("Score", justify="right")
+        table.add_column("Risk level")
+        table.add_column("Reason", overflow="fold")
+        for c in psp.limiting_components:
+            table.add_row(c.package_name, c.ecosystem, str(c.score), c.risk_level, c.reason)
+        console.print(table)
+    if skipped:
+        console.print(
+            f"[dim]Skipped {len(skipped)} component(s); pass --ecosystem-default to score them.[/dim]"
+        )
+    if failed:
+        console.print(
+            f"[yellow]Failed to score {len(failed)} component(s); these are excluded from the support-period calculation.[/yellow]"
+        )
+
+
 @app.command("xkcd-tree")
 def xkcd_tree(
     package: str = typer.Argument(..., help="Root package (e.g., 'express')"),

@@ -24,7 +24,7 @@ defense (Feb 2027). Bug reports, questions, and discussion are still welcome.
 | `src/ossuary/scoring/` | The scoring formula, engine, factors, and reputation logic are the thesis's main technical contribution. |
 | `docs/methodology.md` | Public statement of the scoring methodology. |
 | `docs/validation.md` | Public statement of validation results, scope, and limitations. |
-| `seeds/validation_seed.yaml` (labels) | Tier classifications and ground-truth labels. *Adding* new incidents with sources is supportive (see below); changing tier labels is core. |
+| `scripts/validate.py` (labels and tiers) | The validation dataset — ground-truth labels and tier classifications — is currently inlined in this script. *Adding* new incidents with primary-source citations is supportive (see below); changing existing tier labels or methodology code in the same file is core. |
 | `spec/`, `AGENTS.md` | Contributor and agent contract. |
 
 These are the parts that are open to outside contribution:
@@ -37,7 +37,8 @@ These are the parts that are open to outside contribution:
 | `src/ossuary/cli.py` | New commands, output formats, ergonomic improvements, shell completion. |
 | `src/ossuary/db/`, `migrations/` | Schema migrations, Postgres support, indexing. |
 | `src/ossuary/services/`, `src/ossuary/sentiment/` | Caching, batch, integrations. Bug fixes welcome. Behavior changes that move scoring outputs are core — open an issue first. |
-| `seeds/` (additions) | New incidents with primary-source citations, new control packages. Submit the source link in the PR. |
+| `seeds/` (additions) | New batch-scoring lists (e.g. ecosystem-popular, project-stack). Each list is a curated package set, not a validation dataset. New lists welcome. |
+| New incident catalog entries | Submit via PR to `scripts/validate.py` with at least one primary-source link (advisory, post-mortem, or news report) per incident. Tier classification will be reviewed by the author. |
 | Distribution & packaging | openSUSE / Debian / Fedora packaging, container images, Helm charts, systemd units. |
 | CI/CD | GitHub Actions, release automation, security scanning, SBOM generation. |
 | `tests/` | Better coverage of any non-core area. Tests of scoring outputs are accepted but reviewed with care: a test that pins a numeric score acts as a methodology assertion. |

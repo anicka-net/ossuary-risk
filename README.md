@@ -39,6 +39,14 @@ ossuary score event-stream -e npm --cutoff 2018-09-01
 # Score an entire dependency tree
 ossuary score-deps transformers -e pypi
 
+# Score every component in an SBOM (CycloneDX or SPDX)
+ossuary score-sbom product.cdx.json
+ossuary score-sbom product.spdx.json --enrich enriched.cdx.json --annex-vii report.json
+
+# Estimate the implied maximum CRA support period
+ossuary support-period lodash -e npm
+ossuary support-period-sbom product.cdx.json
+
 # Show dependency tree with risk scores
 ossuary deps express
 
@@ -77,6 +85,17 @@ The `xkcd-tree` command generates dependency tower diagrams inspired by [xkcd 23
 ossuary score-deps transformers -e pypi  # score all deps first
 ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
 ```
+
+## CRA Compliance Workflow
+
+Ossuary v0.9 plugs into a Cyber Resilience Act (Regulation (EU) 2024/2847) workflow:
+
+- `ossuary score-sbom` consumes the manufacturer's SBOM (CycloneDX or SPDX) and scores every component, mapping CRA Article 13(5) due-diligence on third-party components to a per-component governance signal.
+- `--enrich` writes the SBOM back with scores attached as CycloneDX `components[].properties[]` entries or SPDX 2.3 package-level `annotations[]` entries.
+- `--annex-vii` produces a structured, timestamped, methodology-versioned record suitable for inclusion in the Annex VII technical documentation required by Article 13(4).
+- `ossuary support-period[-sbom]` derives the implied maximum support period a manufacturer can defensibly claim under Article 13(8), bounded by the worst-governance critical dependency.
+
+These outputs do not change the underlying scoring methodology; they are derivations on top of it. See [methodology §12](docs/methodology.md#12-cra-aligned-outputs) for full details and the heuristic mapping behind the support-period derivation.
 
 ## Dashboard
 

@@ -1002,17 +1002,132 @@ The `ossuary scan` command makes this risk visible in seconds, enabling:
 
 ---
 
-## 12. Future Work
+## 12. CRA-Aligned Outputs
+
+This section describes the v0.9 outputs designed to plug into a Cyber
+Resilience Act (Regulation (EU) 2024/2847) compliance workflow. **None of
+these outputs change the risk score** — they are derivations on top of it.
+
+### 12.1 SBOM ingestion and enrichment
+
+Article 13(24) and Annex I Part II point (1) make the software bill of
+materials the canonical interchange format for component data. Ossuary
+v0.9 accepts CycloneDX 1.4+ JSON and SPDX 2.3+ JSON via:
+
+```bash
+ossuary score-sbom product.cdx.json
+ossuary score-sbom product.spdx.json --enrich enriched.cdx.json
+```
+
+Components are identified by Package URL (PURL) where present, mapped to
+Ossuary ecosystems via the standard PURL types (`pkg:npm`, `pkg:pypi`,
+`pkg:cargo`, `pkg:gem`, `pkg:composer`, `pkg:nuget`, `pkg:golang`,
+`pkg:github`). Components without a parseable PURL can be scored if a
+single ecosystem hint is supplied via `--ecosystem-default`.
+
+The `--enrich` flag writes the SBOM back with governance scores attached:
+- **CycloneDX**: as `components[].properties[]` entries under the
+  `ossuary:governance:` name prefix.
+- **SPDX 2.3**: as embedded `packages[].annotations[]` entries with
+  `annotator: Tool: ossuary-<version>`. Both per-element embedding and
+  document-root annotation arrays are valid in the SPDX 2.3 JSON schema;
+  Ossuary uses the per-element form. The annotation comment is a JSON
+  payload that also carries the package's SPDXID, so the link to the
+  package survives if a downstream tool extracts annotations standalone.
+
+The original SBOM structure is preserved; tools that do not understand the
+ossuary additions still parse the file. Re-running enrichment on an
+already-enriched SBOM replaces (not appends) the Ossuary entries, so the
+operation is idempotent.
+
+### 12.2 Implied maximum support period
+
+CRA Article 13(8) requires the manufacturer's declared support period to
+take into account "the support periods of integrated components that
+provide core functions and are sourced from third parties." For OSS
+dependencies there is no formally declared support period. Ossuary v0.9
+derives a defensible upper bound from the governance score:
+
+| Score range | Risk level | Implied horizon |
+|---|---|---|
+| 0–19 | VERY_LOW | ≥60 months — no constraint on a 5-year claim |
+| 20–39 | LOW | 60 months (matches the CRA 5-year minimum) |
+| 40–59 | MODERATE | 36 months — reassess before extending |
+| 60–79 | HIGH | 18 months — only with compensating controls |
+| 80–100 | CRITICAL | 6 months — consider replacing or forking |
+
+The mapping is heuristic and clearly labelled as such in tool output. It
+is not derived from incident data; a manufacturer may justify a different
+horizon with compensating controls.
+
+For an SBOM the product-level horizon is computed by:
+1. Scoring every component.
+2. Selecting the **critical subset**: top-N components by structural
+   importance (the same fragility × irreplaceability × tree-impact formula
+   used by `xkcd-tree --tower`'s "most structurally critical dependency"
+   indicator) when the SBOM contains dependency relationships, otherwise
+   top-N by raw governance score.
+3. Taking the **minimum** horizon across that subset. The product cannot
+   defensibly claim a longer support period than its weakest critical
+   dependency.
+
+The default critical-top-N is 5; override with `--critical-top-n`.
+
+```bash
+ossuary support-period lodash -e npm
+ossuary support-period-sbom product.cdx.json --critical-top-n 10
+```
+
+The "top-N by structural importance" choice is deliberate: ranking *all*
+components as critical would let a tiny utility with bus factor 1 cap a
+product's support claim, even if that utility is structurally trivial.
+
+### 12.3 Annex VII technical-documentation record
+
+Article 13(4) requires the cybersecurity risk assessment to be included in
+the technical documentation set out in Annex VII; Articles 13(12)–(13)
+require that documentation to be retained ≥10 years or for the support
+period (whichever is longer). A loose JSON dump from Ossuary is not an
+audit-ready artefact for that purpose.
+
+The `--annex-vii` flag on `score-sbom` produces a structured record
+declaring:
+
+- Tool name, Ossuary version, scoring methodology version (declared in
+  this document's "Version" field).
+- Generation timestamp (UTC).
+- Source SBOM path, format, spec version, and SHA-256.
+- Articles addressed: 13(2), 13(3), 13(4), 13(5), 13(8).
+- Explicit scope statement: what the assessment covers and — equally
+  important — what it does **not** cover (vulnerability scanning, licence
+  compliance, Article 14 reporting, account-compromise on healthy
+  projects, CI/CD exploits).
+- Per-component scores with full factor breakdowns.
+- The product-level implied support period, including limiting components.
+
+```bash
+ossuary score-sbom product.cdx.json --annex-vii governance-assessment.json
+```
+
+The schema identifier `ossuary.annex_vii.v1` is included in the record so
+downstream tooling can verify the format version it received.
+
+---
+
+## 13. Future Work
 
 1. ~~**Expand ecosystem support**~~: Done - 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub)
 2. **Historical snapshots**: Archive reputation/org data for better T-1 analysis
 3. **ML enhancement**: Train classifier on larger incident corpus
 4. ~~**Dependency file scanning**~~: Done - `ossuary scan` supports requirements.txt, package.json, Cargo.toml, go.mod, Gemfile, composer.json, .csproj
 5. **Dependency graph analysis**: Transitive risk aggregation
-5. **Maintainer network analysis**: Identify shared maintainer risks across packages
-6. ~~**PyPI repository URL discovery**~~: Done - case-insensitive URL extraction with multi-priority fallback
-7. ~~**Mature project detection**~~: Done - two-track scoring for projects >5 years old with established history
-8. ~~**Takeover detection**~~: Done - proportion shift analysis catches xz-utils pattern 12 months early
+6. **Maintainer network analysis**: Identify shared maintainer risks across packages
+7. ~~**PyPI repository URL discovery**~~: Done - case-insensitive URL extraction with multi-priority fallback
+8. ~~**Mature project detection**~~: Done - two-track scoring for projects >5 years old with established history
+9. ~~**Takeover detection**~~: Done - proportion shift analysis catches xz-utils pattern 12 months early
+10. ~~**SBOM ingestion and Annex VII export**~~: Done in v0.9 — see §12
+11. ~~**Implied support period (CRA Art. 13(8))**~~: Done in v0.9 — see §12.2
+12. **Surface lifetime-commit count via RiskBreakdown**: would let `support-period-sbom` use the full structural-importance formula instead of falling back on the irreplaceability floor
 
 ---
 
