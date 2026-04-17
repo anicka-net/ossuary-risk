@@ -146,6 +146,37 @@ if result.warnings:
         st.caption(f"Note: {w}")
 
 b = result.breakdown
+
+# INSUFFICIENT_DATA short-circuit: don't render the per-component panels
+# from a breakdown that has no real numbers to show. Surface the failing
+# inputs and the recovery path instead.
+from ossuary.scoring.factors import RiskLevel
+
+if b.risk_level == RiskLevel.INSUFFICIENT_DATA:
+    st.divider()
+    st.markdown(
+        f'<div style="display:flex;align-items:baseline;gap:16px;">'
+        f'<span style="font-size:2.2em;font-family:monospace;font-weight:700;color:#6c757d;">⚪</span>'
+        f'<span style="font-size:1.4em;color:#6c757d;font-weight:600;">INSUFFICIENT DATA</span>'
+        f'<span style="color:#6c757d;font-size:0.95em;">{pkg_name} · {pkg_eco}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.write("")
+    st.warning(
+        "No score was computed for this package. The methodology requires "
+        "complete input data; one or more upstream fetches failed."
+    )
+    if b.incomplete_reasons:
+        st.markdown("**Failed inputs:**")
+        for reason in b.incomplete_reasons:
+            st.markdown(f"- `{reason}`")
+    st.info(
+        "**To recover:** retry from the CLI later, or run "
+        "`ossuary rescore-invalid` to retry every package currently in this state."
+    )
+    st.stop()
+
 score = b.final_score
 level = b.risk_level.value
 color = risk_color(level)

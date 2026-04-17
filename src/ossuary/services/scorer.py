@@ -495,6 +495,7 @@ def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optio
             data_sources=d.get("data_sources", {}),
             factor_availability=d.get("factor_availability", {}),
             warnings=d.get("warnings", []),
+            incomplete_reasons=d.get("incomplete_reasons", []),
         )
     except Exception:
         return None

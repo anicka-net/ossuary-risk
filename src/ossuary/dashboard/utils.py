@@ -169,10 +169,18 @@ def get_all_tracked_packages() -> list[dict]:
                 is_mature = maturity_evidence is not None
                 has_takeover_risk = (tak.get("score", 0) > 0)
 
-            # Compute delta from previous score
+            # Compute delta from previous score. Either side may be None
+            # if it's an INSUFFICIENT_DATA row (the data-completeness
+            # contract leaves final_score = NULL in that case); skip the
+            # delta in that case rather than crash.
             delta = None
             previous_score_val = None
-            if latest_score and previous_score:
+            if (
+                latest_score
+                and previous_score
+                and latest_score.final_score is not None
+                and previous_score.final_score is not None
+            ):
                 delta = latest_score.final_score - previous_score.final_score
                 previous_score_val = previous_score.final_score
 

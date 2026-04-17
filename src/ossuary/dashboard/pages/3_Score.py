@@ -81,6 +81,37 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
     pkg = st.session_state.score_pkg
     eco = st.session_state.score_eco
 
+    # INSUFFICIENT_DATA short-circuit — same contract as the CLI and
+    # the package-detail page: the methodology refuses to score on
+    # partial inputs, so don't render misleading numeric panels.
+    from ossuary.scoring.factors import RiskLevel
+
+    if b.risk_level == RiskLevel.INSUFFICIENT_DATA:
+        st.divider()
+        st.markdown(
+            f'<div style="display:flex;align-items:baseline;gap:16px;">'
+            f'<span style="font-size:2.2em;font-family:monospace;font-weight:700;color:#6c757d;">⚪</span>'
+            f'<span style="font-size:1.4em;color:#6c757d;font-weight:600;">INSUFFICIENT DATA</span>'
+            f'<span style="color:#6c757d;">{pkg} · {eco}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        st.write("")
+        st.warning(
+            "No score was computed. The methodology requires complete input "
+            "data; one or more upstream fetches failed."
+        )
+        if b.incomplete_reasons:
+            st.markdown("**Failed inputs:**")
+            for reason in b.incomplete_reasons:
+                st.markdown(f"- `{reason}`")
+        st.info(
+            "**To recover:** click *Score* again later, or run "
+            "`ossuary rescore-invalid` from the CLI to retry every package "
+            "currently in this state."
+        )
+        st.stop()
+
     score = b.final_score
     level = b.risk_level.value
     color = risk_color(level)
