@@ -13,6 +13,11 @@ class RiskLevel(str, Enum):
     MODERATE = "MODERATE"
     LOW = "LOW"
     VERY_LOW = "VERY_LOW"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+    """One or more required input fetches failed. The score has not been
+    computed because the methodology's contract is not to score on partial
+    data. Reasons are recorded in ``RiskBreakdown.incomplete_reasons``;
+    use ``ossuary rescore-invalid`` to retry."""
 
     @classmethod
     def from_score(cls, score: int) -> "RiskLevel":
@@ -37,6 +42,7 @@ class RiskLevel(str, Enum):
             RiskLevel.MODERATE: "🟡",
             RiskLevel.LOW: "🟢",
             RiskLevel.VERY_LOW: "🟢",
+            RiskLevel.INSUFFICIENT_DATA: "⚪",
         }[self]
 
     @property
@@ -48,6 +54,7 @@ class RiskLevel(str, Enum):
             RiskLevel.MODERATE: "Requires active monitoring",
             RiskLevel.LOW: "Minor concerns, generally stable",
             RiskLevel.VERY_LOW: "Safe, well-governed package",
+            RiskLevel.INSUFFICIENT_DATA: "Score not computed: required input data unavailable",
         }[self]
 
 
@@ -150,9 +157,16 @@ class RiskBreakdown:
     activity_modifier: int = 0
     protective_factors: ProtectiveFactors = field(default_factory=ProtectiveFactors)
 
-    # Final score
-    final_score: int = 0
+    # Final score. ``None`` when ``risk_level == INSUFFICIENT_DATA`` —
+    # the methodology contract is not to compute a number from partial
+    # input data; reasons are listed in ``incomplete_reasons``.
+    final_score: Optional[int] = 0
     risk_level: RiskLevel = RiskLevel.VERY_LOW
+
+    # Reasons the score is INSUFFICIENT_DATA, populated only in that case.
+    # Each entry is a single-line, human-readable failure description such
+    # as ``"pypi.weekly_downloads: HTTP 429 from pypistats.org"``.
+    incomplete_reasons: list[str] = field(default_factory=list)
 
     # Explanation
     explanation: str = ""
@@ -197,4 +211,5 @@ class RiskBreakdown:
             "data_sources": self.data_sources,
             "factor_availability": self.factor_availability,
             "warnings": self.warnings,
+            "incomplete_reasons": self.incomplete_reasons,
         }

@@ -135,24 +135,28 @@ class Score(Base):
     calculated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     cutoff_date: Mapped[datetime] = mapped_column(DateTime)
 
-    # Final score
-    final_score: Mapped[int] = mapped_column(Integer)
-    risk_level: Mapped[str] = mapped_column(String(20))  # CRITICAL, HIGH, MODERATE, LOW, VERY_LOW
+    # Final score. ``NULL`` when ``risk_level == 'INSUFFICIENT_DATA'`` —
+    # the methodology contract is not to compute a numeric score from
+    # partial input data; reasons are captured in the ``breakdown`` JSON
+    # under ``incomplete_reasons``. The component columns below are
+    # likewise nullable for the same reason.
+    final_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    risk_level: Mapped[str] = mapped_column(String(32))
 
-    # Score components
-    base_risk: Mapped[int] = mapped_column(Integer)
-    activity_modifier: Mapped[int] = mapped_column(Integer)
-    protective_factors_total: Mapped[int] = mapped_column(Integer)
+    # Score components (NULL for INSUFFICIENT_DATA rows)
+    base_risk: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    activity_modifier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    protective_factors_total: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sentiment_modifier: Mapped[int] = mapped_column(Integer, default=0)
 
     # Detailed breakdown stored as JSON
     breakdown: Mapped[dict] = mapped_column(JSON)
 
-    # Core metrics at time of scoring
-    maintainer_concentration: Mapped[float] = mapped_column(Float)
-    commits_last_year: Mapped[int] = mapped_column(Integer)
-    unique_contributors: Mapped[int] = mapped_column(Integer)
-    weekly_downloads: Mapped[int] = mapped_column(Integer, default=0)
+    # Core metrics at time of scoring (NULL for INSUFFICIENT_DATA rows)
+    maintainer_concentration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    commits_last_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    unique_contributors: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    weekly_downloads: Mapped[Optional[int]] = mapped_column(Integer, default=0, nullable=True)
 
     # Relationships
     package: Mapped["Package"] = relationship(back_populates="scores")

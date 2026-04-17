@@ -125,19 +125,25 @@ class ScoreCache:
         self,
         package: Package,
         cutoff_date: datetime,
-        final_score: int,
+        final_score: Optional[int],
         risk_level: str,
-        base_risk: int,
-        activity_modifier: int,
-        protective_factors_total: int,
+        base_risk: Optional[int],
+        activity_modifier: Optional[int],
+        protective_factors_total: Optional[int],
         breakdown: dict,
-        maintainer_concentration: float,
-        commits_last_year: int,
-        unique_contributors: int,
-        weekly_downloads: int = 0,
+        maintainer_concentration: Optional[float],
+        commits_last_year: Optional[int],
+        unique_contributors: Optional[int],
+        weekly_downloads: Optional[int] = 0,
         sentiment_modifier: int = 0,
     ) -> Score:
-        """Store a calculated score in the database."""
+        """Store a calculated score in the database.
+
+        Numeric columns are ``Optional`` to support
+        ``risk_level == 'INSUFFICIENT_DATA'`` rows, where the score has
+        not been computed and the components are unknown. The breakdown
+        JSON carries the failure reasons under ``incomplete_reasons``.
+        """
         score = Score(
             package_id=package.id,
             calculated_at=datetime.utcnow(),

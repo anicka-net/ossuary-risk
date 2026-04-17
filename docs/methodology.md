@@ -223,6 +223,45 @@ Final Score = Base Risk + Activity Modifier + Protective Factors
 Score Range: 0-100 (clamped)
 ```
 
+### 4.-1 Data-completeness contract
+
+Before any of the components below are computed, Ossuary applies a hard
+rule: **a score is only produced from complete input data.** If any
+upstream fetch (package registry, download stats, GitHub API, git
+clone, sentiment analysis) returned a *known* failure — non-2xx HTTP
+response, transport exception, malformed payload — the scoring engine
+short-circuits and returns ``risk_level = INSUFFICIENT_DATA`` with the
+failing inputs listed under ``incomplete_reasons``. No numeric score
+is computed and no risk level is inferred.
+
+The reason for this rule is empirical: silent fallbacks (e.g. treating
+a rate-limited download-stats fetch as "zero downloads") produce
+*different* scores from successful runs without any signal to the user
+that the inputs differed. The score for `pyyaml` could swing from 35
+LOW to 55 MODERATE between runs minutes apart depending only on
+whether `pypistats.org` happened to rate-limit the second call. The
+methodology refuses that outcome — better to surface "insufficient
+data, retry" than to produce a misleading number.
+
+A failure is *known* when the call returned a status the collector
+recognises as a failure mode. Empty results (a package with zero
+sponsors, a project with zero recent commits) are valid measurements
+and do **not** trigger this contract.
+
+Transient failures are retried before the contract fires:
+
+| Failure class | Backoff | Max retries |
+|---|---|---|
+| HTTP 429 (rate limit) | `Retry-After` header if present (capped at 30 s); else 5 s | 2 |
+| HTTP 5xx (server error) | 1.5 s × attempt | 2 |
+| Transport timeout | 1 s × attempt | 2 |
+| HTTP 4xx (other) | none — treated as permanent | 0 |
+| Transport exception (DNS/TLS) | none — treated as permanent | 0 |
+
+If retries do not recover the call, the score lands as
+`INSUFFICIENT_DATA`. Use `ossuary rescore-invalid` to retry every such
+package in one pass; the upstream failure is usually transient.
+
 ### 4.0 Two-Track Scoring (Mature vs. Non-Mature Projects)
 
 A critical insight from validating against real-world package inventories: the original scoring model conflated "stable/finished" with "abandoned." A project like argon2 or dosfstools — quietly maintained for 15 years with occasional small edits — would score identically to a package whose maintainer disappeared. Both show high concentration and low recent activity, but the risk profiles are fundamentally different.

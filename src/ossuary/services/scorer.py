@@ -1,6 +1,6 @@
 """Reusable scoring functions for ossuary."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -21,14 +21,25 @@ from ossuary.services.cache import ScoreCache
 
 @dataclass
 class CollectedData:
-    """All collected data for a package (cached for historical calculations)."""
+    """All collected data for a package (cached for historical calculations).
+
+    ``fetch_errors`` is the data-completeness contract: any non-empty
+    list signals that one or more required upstream fetches failed in a
+    *known* way (HTTP non-2xx, exception, malformed payload). The scoring
+    engine treats a non-empty list as an instruction to short-circuit the
+    score with ``RiskLevel.INSUFFICIENT_DATA`` rather than computing a
+    number from partial data. Empty results (a package with zero sponsors,
+    a project with zero recent commits) are *not* failures and do not
+    populate this list — those are valid measurements of zero.
+    """
 
     repo_url: str
     all_commits: list[CommitData]
     github_data: GitHubData
-    weekly_downloads: int
+    weekly_downloads: Optional[int]
     maintainer_account_created: Optional[datetime]
     repo_stargazers: int = 0
+    fetch_errors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -68,7 +79,11 @@ async def collect_package_data(
     Returns tuple of (CollectedData or None, list of warnings).
     """
     warnings = []
-    weekly_downloads = 0
+    fetch_errors: list[str] = []
+    # Use Optional sentinel for downloads so the engine can distinguish a
+    # genuine zero from a fetch failure (the latter populates fetch_errors
+    # and triggers RiskLevel.INSUFFICIENT_DATA).
+    weekly_downloads: Optional[int] = 0
     repo_stargazers = 0
 
     # 1. Get package registry info (or construct repo URL for github ecosystem)
@@ -97,6 +112,7 @@ async def collect_package_data(
             if not repo_url:
                 repo_url = pkg_data.repository_url
             weekly_downloads = pkg_data.weekly_downloads
+            fetch_errors.extend(pkg_data.fetch_errors)
         finally:
             await pkg_collector.close()
     elif ecosystem in REGISTRY_COLLECTORS:
@@ -194,6 +210,7 @@ async def collect_package_data(
         weekly_downloads=weekly_downloads,
         maintainer_account_created=maintainer_account_created,
         repo_stargazers=repo_stargazers,
+        fetch_errors=fetch_errors,
     ), warnings
 
 
@@ -246,7 +263,30 @@ def calculate_score_for_date(
 ) -> RiskBreakdown:
     """
     Calculate risk score for a specific cutoff date using pre-collected data.
+
+    Honours the data-completeness contract: if ``collected_data.fetch_errors``
+    is non-empty, no numeric score is computed. The result is a
+    ``RiskBreakdown`` with ``risk_level == INSUFFICIENT_DATA``,
+    ``final_score = None``, and the failure list copied to
+    ``incomplete_reasons``. Use ``ossuary rescore-invalid`` to retry.
     """
+    if collected_data.fetch_errors:
+        return RiskBreakdown(
+            package_name=package_name,
+            ecosystem=ecosystem,
+            repo_url=collected_data.repo_url,
+            final_score=None,
+            risk_level=RiskLevel.INSUFFICIENT_DATA,
+            incomplete_reasons=list(collected_data.fetch_errors),
+            explanation=(
+                "Score not computed: " + "; ".join(collected_data.fetch_errors)
+            ),
+            recommendations=[
+                "Retry later — the failing upstream is most likely transient.",
+                "Run `ossuary rescore-invalid` to retry all packages in this state.",
+            ],
+        )
+
     git_collector = GitCollector()
 
     # Filter commits up to cutoff date and calculate metrics
@@ -289,7 +329,7 @@ def calculate_score_for_date(
     }
     warnings: list[str] = []
 
-    if collected_data.weekly_downloads > 0:
+    if (collected_data.weekly_downloads or 0) > 0:
         factor_availability["visibility"] = "registry_downloads"
     elif is_historical:
         factor_availability["visibility"] = "unavailable_historical_neutralized"
@@ -353,7 +393,11 @@ def calculate_score_for_date(
         top_contributor_email=git_metrics.top_contributor_email,
         top_contributor_name=git_metrics.top_contributor_name,
         last_commit_date=git_metrics.last_commit_date,
-        weekly_downloads=collected_data.weekly_downloads,
+        # weekly_downloads is Optional[int] in CollectedData (None on fetch
+        # failure). Coerce to 0 here so the engine's bucket comparisons stay
+        # type-safe; the short-circuit above ensures we only reach this path
+        # when fetch_errors was empty (i.e. the value really is an int or 0).
+        weekly_downloads=collected_data.weekly_downloads or 0,
         repo_stargazers=historical_repo_stargazers,
         maintainer_username=github_data.maintainer_username,
         maintainer_public_repos=github_data.maintainer_public_repos,
@@ -510,8 +554,12 @@ async def score_package(
     except Exception as e:
         return ScoringResult(success=False, error=str(e), warnings=warnings)
 
-    # Store in cache
+    # Store in cache. INSUFFICIENT_DATA rows persist NULLs for the
+    # numeric columns — there is no meaningful score to record, but the
+    # row itself documents the attempt and is what `rescore-invalid`
+    # finds and retries.
     if use_cache:
+        is_invalid = breakdown.risk_level == RiskLevel.INSUFFICIENT_DATA
         with session_scope() as session:
             cache = ScoreCache(session, freshness_days=freshness_days or ScoreCache(session).freshness_threshold.days)
             package = cache.get_or_create_package(
@@ -520,16 +568,16 @@ async def score_package(
             cache.store_score(
                 package=package,
                 cutoff_date=cutoff,
-                final_score=breakdown.final_score,
+                final_score=None if is_invalid else breakdown.final_score,
                 risk_level=breakdown.risk_level.value,
-                base_risk=breakdown.base_risk,
-                activity_modifier=breakdown.activity_modifier,
-                protective_factors_total=breakdown.protective_factors.total,
+                base_risk=None if is_invalid else breakdown.base_risk,
+                activity_modifier=None if is_invalid else breakdown.activity_modifier,
+                protective_factors_total=None if is_invalid else breakdown.protective_factors.total,
                 breakdown=breakdown.to_dict(),
-                maintainer_concentration=breakdown.maintainer_concentration,
-                commits_last_year=breakdown.commits_last_year,
-                unique_contributors=breakdown.unique_contributors,
-                weekly_downloads=breakdown.weekly_downloads,
+                maintainer_concentration=None if is_invalid else breakdown.maintainer_concentration,
+                commits_last_year=None if is_invalid else breakdown.commits_last_year,
+                unique_contributors=None if is_invalid else breakdown.unique_contributors,
+                weekly_downloads=None if is_invalid else breakdown.weekly_downloads,
             )
             cache.mark_analyzed(package)
 

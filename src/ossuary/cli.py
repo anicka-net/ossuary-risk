@@ -167,6 +167,34 @@ async def _score_package(
 
 def _display_results(breakdown):
     """Display results in a formatted way."""
+    # INSUFFICIENT_DATA: short-circuit before the breakdown tables. The
+    # methodology contract is not to compute a score from partial input
+    # data; we surface that state explicitly with the failing inputs and
+    # a recovery path rather than rendering misleading numbers.
+    if breakdown.risk_level == RiskLevel.INSUFFICIENT_DATA:
+        score_text = (
+            f"[bold white on grey50]{breakdown.risk_level.semaphore} "
+            f"INSUFFICIENT DATA[/bold white on grey50]"
+        )
+        console.print(Panel(
+            score_text,
+            title=f"[bold]{breakdown.package_name}[/bold]",
+            border_style="grey50",
+        ))
+        console.print(
+            "[grey70]No score was computed. The methodology requires complete "
+            "input data; one or more upstream fetches failed:[/grey70]"
+        )
+        for reason in breakdown.incomplete_reasons:
+            console.print(f"  [yellow]•[/yellow] {reason}")
+        console.print()
+        console.print(
+            "[bold]To recover:[/bold] re-run this command later, or run "
+            "[bold cyan]ossuary rescore-invalid[/bold cyan] to retry every "
+            "package currently in this state."
+        )
+        return
+
     # Semaphore color
     color = {
         RiskLevel.CRITICAL: "red",
@@ -385,7 +413,9 @@ async def _scan(
 
     # Sort by score descending for summary
     scored_results = [(n, r) for n, r in results if r.success]
-    scored_results.sort(key=lambda x: -x[1].breakdown.final_score)
+    # Sort by score descending; INSUFFICIENT_DATA rows have final_score=None
+    # and are sorted to the end (treated as 0 for ordering purposes).
+    scored_results.sort(key=lambda x: -(x[1].breakdown.final_score or 0))
     error_results = [(n, r) for n, r in results if not r.success]
 
     # Summary table
@@ -495,6 +525,11 @@ def movers(
                 .all()
             )
             if len(scores) >= 2:
+                # INSUFFICIENT_DATA rows have final_score=None — skip those
+                # comparisons rather than crash; they're surfaced by the
+                # rescore-invalid command instead.
+                if scores[0].final_score is None or scores[1].final_score is None:
+                    continue
                 delta = scores[0].final_score - scores[1].final_score
                 if delta != 0:
                     changes.append({
@@ -521,6 +556,122 @@ def movers(
                 f"[{color}]({sign}{d})[/{color}]  {c['ecosystem']}"
             )
         console.print()
+
+
+@app.command("rescore-invalid")
+def rescore_invalid(
+    ecosystem: Optional[str] = typer.Option(
+        None, "--ecosystem", "-e",
+        help="Restrict to one ecosystem (npm, pypi, cargo, rubygems, packagist, nuget, go, github)",
+    ),
+    limit: Optional[int] = typer.Option(
+        None, "--limit", "-n",
+        help="Cap the number of packages to retry (default: all)",
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run",
+        help="List the packages that would be retried without actually rescoring",
+    ),
+):
+    """Retry packages whose most recent score is INSUFFICIENT_DATA.
+
+    A score is INSUFFICIENT_DATA when one or more upstream fetches failed
+    (e.g. pypistats.org rate-limited). The methodology contract is not to
+    compute a number from partial input, so the row records the attempt
+    without a score. This command finds those rows and retries them.
+    """
+    from sqlalchemy import desc, func, select
+    from ossuary.db.models import Package, Score
+    from ossuary.db.session import session_scope
+    from ossuary.scoring.factors import RiskLevel
+    from ossuary.services.scorer import score_package as svc_score
+
+    init_db()
+
+    # Find packages whose latest Score row (by calculated_at) has
+    # risk_level = INSUFFICIENT_DATA. Done in two queries for clarity:
+    # the per-package latest score, then filter to invalid ones.
+    with session_scope() as session:
+        latest_score_subq = (
+            select(
+                Score.package_id,
+                func.max(Score.calculated_at).label("latest_calc"),
+            )
+            .group_by(Score.package_id)
+            .subquery()
+        )
+        invalid_rows = (
+            session.query(Package, Score)
+            .join(latest_score_subq,
+                  latest_score_subq.c.package_id == Package.id)
+            .join(Score,
+                  (Score.package_id == Package.id)
+                  & (Score.calculated_at == latest_score_subq.c.latest_calc))
+            .filter(Score.risk_level == RiskLevel.INSUFFICIENT_DATA.value)
+        )
+        if ecosystem:
+            invalid_rows = invalid_rows.filter(Package.ecosystem == ecosystem.lower())
+        invalid_rows = invalid_rows.order_by(desc(Score.calculated_at))
+        if limit:
+            invalid_rows = invalid_rows.limit(limit)
+
+        targets = [(pkg.name, pkg.ecosystem, pkg.repo_url) for pkg, _ in invalid_rows.all()]
+
+    if not targets:
+        console.print("[green]No packages currently have an INSUFFICIENT_DATA latest score.[/green]")
+        return
+
+    console.print(
+        f"\n[bold]{len(targets)} package(s)[/bold] with INSUFFICIENT_DATA latest score:\n"
+    )
+    for name, eco, _ in targets:
+        console.print(f"  • {name} [dim]({eco})[/dim]")
+
+    if dry_run:
+        console.print("\n[dim]--dry-run set; not retrying.[/dim]")
+        return
+
+    console.print("\n[bold]Retrying...[/bold]\n")
+    asyncio.run(_rescore_invalid_run(targets))
+
+
+async def _rescore_invalid_run(targets: list[tuple[str, str, Optional[str]]]):
+    """Retry each target with cache bypass; print before→after summary."""
+    from ossuary.scoring.factors import RiskLevel
+    from ossuary.services.scorer import score_package as svc_score
+
+    recovered = 0
+    still_invalid = 0
+    failed = 0
+    for name, eco, repo_url in targets:
+        try:
+            result = await svc_score(name, eco, repo_url=repo_url, force=True)
+        except Exception as exc:
+            console.print(f"  [red]✗[/red] {name} [dim]({eco})[/dim] — error: {exc}")
+            failed += 1
+            continue
+        if not result.success or result.breakdown is None:
+            console.print(f"  [red]✗[/red] {name} [dim]({eco})[/dim] — {result.error or 'unknown error'}")
+            failed += 1
+            continue
+        bd = result.breakdown
+        if bd.risk_level == RiskLevel.INSUFFICIENT_DATA:
+            console.print(
+                f"  [yellow]⚪[/yellow] {name} [dim]({eco})[/dim] — still INSUFFICIENT_DATA: "
+                + "; ".join(bd.incomplete_reasons)
+            )
+            still_invalid += 1
+        else:
+            console.print(
+                f"  [green]✓[/green] {name} [dim]({eco})[/dim] → "
+                f"{bd.final_score} {bd.risk_level.value}"
+            )
+            recovered += 1
+
+    console.print(
+        f"\n[bold]Done.[/bold] recovered: {recovered}, "
+        f"still INSUFFICIENT_DATA: {still_invalid}, failed: {failed}"
+    )
 
 
 @app.command()
