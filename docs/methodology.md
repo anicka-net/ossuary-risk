@@ -606,20 +606,61 @@ same order.
 ### 6.4 Validation: corpus-driven coverage
 
 Rule changes are driven by a committed corpus at
-`tests/fixtures/sentiment_corpus.jsonl` — currently 51 positive
+`tests/fixtures/sentiment_corpus.jsonl` — currently 45 positive
 examples (Marak Squires variants, event-stream-style handover
 language, node-ipc-style protest, generic OSS-burnout discourse,
-funding frustration, sabotage precursors) and 29 dev-text negatives
-chosen to surface plausible false-positive traps (`"Don't give up
-on the test suite"`, `"Boycott of legacy browser support"`, etc).
+funding frustration, sabotage precursors) and 42 negatives
+chosen to surface plausible false-positive traps:
+
+- `dev_corpus` — ordinary dev-text patterns (`"Don't give up on
+  the test suite"`, `"Boycott of legacy browser support"`,
+  `"Pay-per-use API tier added"`).
+- `lifecycle_corpus` — orderly handover and deprecation language
+  (`"looking for a new maintainer for this package"`,
+  `"this project is no longer actively maintained"`,
+  `"this is the last release supporting Python 3.8"`).
+- `process_corpus` — routine release / sprint communication
+  (`"out of bandwidth for this milestone"`,
+  `"please stop opening PRs against the release branch"`,
+  `"we support Fortune 500 companies"`).
+
 Each entry is tagged with a `source` bucket so a thesis defender
-can trace why it is in the set.
+can trace why it is in the set. The lifecycle and process buckets
+were added in the v6.2.1 fix-up after a GPT review (2026-04-19)
+flagged that several first-pass rules had been overshooting onto
+healthy governance text — see §6.4.1 for the principle.
 
 The corpus drives three guard tests in `tests/test_sentiment.py`:
 positive recall ≥ 95% (currently 100%), false-positive rate ≤ 5%
 (currently 0%), and per-bucket recall ≥ 80% (so a future rule
 change cannot silently gut one whole category while staying above
 the global bar).
+
+#### 6.4.1 Precision-over-recall on lifecycle text
+
+The +20 frustration factor is the heaviest single contribution
+in the protective-factors aggregation. A false-positive on
+healthy lifecycle text (orderly maintainer succession, planned
+deprecation, EOL announcements) materially overstates risk for a
+project that is doing exactly what good OSS governance looks like.
+
+Principle: **emotional / personal exit signals fire frustration;
+clinical lifecycle / governance announcements do not.** Examples:
+
+| Phrase | Fires? | Why |
+|---|---|---|
+| "I'm walking away from this project." | yes | first-person, abandonment connotation |
+| "I quit." | yes | direct exit signal |
+| "I am no longer going to support … with my free work." | yes | refusal + economic frustration |
+| "looking for a new maintainer for this package" | no | passive, third-person, collaborative |
+| "this is the last release supporting Python 3.8" | no | EOL announcement, scoped to a runtime |
+| "transfer ownership to the new team" | no | orderly handover |
+
+Genuinely-frustrated handover ("I quit, find another maintainer")
+is still caught — through the emotional rules (`im_exhausted`,
+`i_quit`, `cant_keep_doing`), not the lifecycle ones. A small
+amount of recall is intentionally traded for precision on this
+boundary.
 
 ### 6.5 Known signal gap: external surfaces
 

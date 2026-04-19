@@ -20,8 +20,6 @@
 {"label": "positive", "source": "burnout_corpus", "text": "I need a break from open source."}
 {"label": "positive", "source": "burnout_corpus", "text": "I'm walking away from this project."}
 {"label": "positive", "source": "burnout_corpus", "text": "I'm archiving this repo."}
-{"label": "positive", "source": "burnout_corpus", "text": "Find another maintainer."}
-{"label": "positive", "source": "burnout_corpus", "text": "Please stop opening issues."}
 {"label": "positive", "source": "burnout_corpus", "text": "I will not be reviewing PRs anymore."}
 {"label": "positive", "source": "burnout_corpus", "text": "Don't expect any more updates."}
 {"label": "positive", "source": "burnout_corpus", "text": "I have lost all motivation."}
@@ -37,13 +35,9 @@
 {"label": "positive", "source": "sabotage_precursor", "text": "Time to teach these corporations a lesson."}
 {"label": "positive", "source": "sabotage_precursor", "text": "I am considering an act of protest."}
 {"label": "positive", "source": "burnout_corpus", "text": "after years of unpaid maintenance i'm done"}
-{"label": "positive", "source": "burnout_corpus", "text": "this is my last release"}
 {"label": "positive", "source": "burnout_corpus", "text": "i quit"}
 {"label": "positive", "source": "burnout_corpus", "text": "i don't have the bandwidth anymore"}
 {"label": "positive", "source": "burnout_corpus", "text": "going to stop merging PRs"}
-{"label": "positive", "source": "handover_corpus", "text": "i'm transferring ownership of this repo"}
-{"label": "positive", "source": "handover_corpus", "text": "this will be unmaintained going forward"}
-{"label": "positive", "source": "handover_corpus", "text": "this is no longer actively maintained"}
 {"label": "positive", "source": "funding_corpus", "text": "the corporations who depend on this never paid a dime"}
 {"label": "positive", "source": "burnout_corpus", "text": "burning out fast"}
 {"label": "positive", "source": "funding_corpus", "text": "where are the sponsors?"}
@@ -78,3 +72,16 @@
 {"label": "negative", "source": "dev_corpus", "text": "Looking for someone to review this PR."}
 {"label": "negative", "source": "dev_corpus", "text": "The protest demo for next week's release."}
 {"label": "negative", "source": "dev_corpus", "text": "We are tired and shipping it anyway."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "Find another maintainer if you need faster reviews."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "Looking for a new maintainer for this package."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "Transfer ownership to the new team."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "This project is no longer actively maintained."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "This is the last release supporting Python 3.8."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "I'm transferring ownership of this repo to the new team."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "This will be unmaintained going forward."}
+{"label": "negative", "source": "lifecycle_corpus", "text": "Please stop opening issues without a reproducer."}
+{"label": "negative", "source": "process_corpus", "text": "We support Fortune 500 companies."}
+{"label": "negative", "source": "process_corpus", "text": "Without funding we cannot continue the benchmark run."}
+{"label": "negative", "source": "process_corpus", "text": "Out of bandwidth for this milestone."}
+{"label": "negative", "source": "process_corpus", "text": "Need a break from coding this weekend."}
+{"label": "negative", "source": "process_corpus", "text": "Please stop opening PRs against the release branch."}

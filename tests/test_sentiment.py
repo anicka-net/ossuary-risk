@@ -204,7 +204,11 @@ class TestFrustrationTemplates:
 
     def test_marak_rant_still_caught(self):
         # Regression: Marak Squires' actual Nov 2020 phrasing must
-        # remain detected after the rule rewrite.
+        # remain detected after the rule rewrite. "Fortune 500" alone
+        # was dropped as a literal in v6.2.1 (it fired on neutral
+        # marketing copy like "we support Fortune 500 companies");
+        # the meaningful Marak signals — refusal-to-support and
+        # free-labor — still fire and are sufficient.
         result = self.analyzer.analyze_text(
             "With all due respect, I am no longer going to support "
             "the Fortune 500 with my free work."
@@ -213,7 +217,6 @@ class TestFrustrationTemplates:
         labels = set(result.frustration_keywords)
         assert "no_longer_support" in labels
         assert "free_labor" in labels
-        assert "fortune_500" in labels
 
     def test_normal_dev_text_not_flagged(self):
         # Negative corpus: ordinary changelog/PR language must NOT
@@ -419,7 +422,7 @@ class TestCorpusCoverage:
     @pytest.mark.parametrize(
         "bucket",
         ["marak_2020", "burnout_corpus", "funding_corpus",
-         "handover_corpus", "sabotage_precursor"],
+         "sabotage_precursor"],
     )
     def test_per_bucket_recall(self, bucket):
         # Per-source recall so a rule change can't silently gut one
@@ -435,4 +438,62 @@ class TestCorpusCoverage:
         assert recall >= 0.8, (
             f"bucket {bucket!r} recall {recall:.1%} "
             f"(missed {[m['text'] for m in missed]})"
+        )
+
+
+class TestGovernanceLifecycleNotFrustration:
+    """Regression guard for GPT 2026-04-19 review.
+
+    Healthy OSS governance / deprecation / handover language and
+    routine release-management asks must NOT trigger the +20
+    frustration factor. The principle: emotional / personal exit
+    signals fire frustration; clinical lifecycle announcements do
+    not. Genuinely-frustrated handover ("I'm walking away from
+    this", "I quit") still trips emotional rules.
+    """
+
+    def setup_method(self):
+        self.analyzer = SentimentAnalyzer()
+
+    @pytest.mark.parametrize("text", [
+        # Succession / handover (orderly)
+        "looking for a new maintainer for this package",
+        "find another maintainer if you need faster reviews",
+        "transfer ownership to the new team",
+        "I'm transferring ownership of this repo to the new team",
+        # Deprecation / EOL announcements
+        "this project is no longer actively maintained",
+        "this is the last release supporting Python 3.8",
+        "this will be unmaintained going forward",
+        # Operational / process language
+        "we support Fortune 500 companies",
+        "without funding we cannot continue the benchmark run",
+        "out of bandwidth for this milestone",
+        "need a break from coding this weekend",
+        "please stop opening PRs against the release branch",
+        "Please stop opening issues without a reproducer.",
+    ])
+    def test_governance_text_does_not_fire_frustration(self, text):
+        result = self.analyzer.analyze_text(text)
+        assert not result.frustration_detected, (
+            f"governance/lifecycle text triggered frustration: "
+            f"{text!r} → {result.frustration_keywords}"
+        )
+
+    @pytest.mark.parametrize("text", [
+        # Genuinely-frustrated exit MUST still fire — these are the
+        # signals the dropped/tightened rules used to share with
+        # neutral lifecycle text. Their detection is now load-bearing
+        # on the emotional rules instead.
+        "I'm walking away from this project.",
+        "I quit.",
+        "I am sick and tired of doing this for nothing.",
+        "I don't have the bandwidth anymore.",
+        "After years of unpaid maintenance I'm done.",
+        "I am no longer going to support the Fortune 500 with my free work.",
+    ])
+    def test_emotional_exit_still_fires(self, text):
+        result = self.analyzer.analyze_text(text)
+        assert result.frustration_detected, (
+            f"emotional exit signal lost: {text!r}"
         )

@@ -120,8 +120,10 @@ FRUSTRATION_RULES: list[tuple[str, str]] = [
         r"\b(don'?t enjoy|no longer enjoy|stopped enjoying) (this|it|maintaining|coding|oss|open source)?\b"),
     ("no_more_free",
         r"\bno more free \w+\b"),
+    # "need a break from coding this weekend" is normal life-balance
+    # talk; only the project-level / OSS-level break signals fire.
     ("need_break_from",
-        r"\bneed a break from (this|open source|oss|maintaining|coding|github)\b"),
+        r"\bneed a break from (this|open source|oss|maintaining|github)\b"),
     # Will-not / not-going-to refusals.
     ("will_not_be",
         r"\bwill not be (reviewing|fixing|maintaining|supporting|merging|"
@@ -129,20 +131,25 @@ FRUSTRATION_RULES: list[tuple[str, str]] = [
     ("dont_expect_more",
         r"\bdon'?t expect (any more|more|further) "
         r"(updates|releases|fixes|features|prs|reviews)\b"),
-    # Handover / replacement-seeking signals.
-    ("find_another_maintainer",
-        r"\bfind (another|a new|someone else as) maintainer\b"),
-    ("looking_for_maintainer",
-        r"\blooking for (a )?(new )?maintainer\b"),
+    # NOTE: "find another maintainer" / "looking for a new maintainer"
+    # are AMBIGUOUS — orderly succession reads the same as a burnout
+    # exit. Dropped from v6.2.1 (GPT review 2026-04-19): the +20
+    # frustration factor is too heavy to fire on neutral handover
+    # text. Genuinely-frustrated cases will still trip other rules
+    # (im_exhausted, cant_keep_doing, etc).
     # Funding-or-die and sponsor demands.
     # Sponsor / fund-or-die, with optional "on GitHub" / "on Patreon".
     ("sponsor_or_die",
         r"\b(sponsor (me|us)|fund (this|us|me|the project))"
         r"(\s+on\s+\w+)?\s+or\s+(this|the)\s+(project|repo|library)\s+"
         r"(will\s+)?(die|stop|end|be archived|shut down|go unmaintained)\b"),
+    # First-person "I cannot continue [project]" pattern. The bare
+    # "we cannot continue [the benchmark run]" form is normal release
+    # / sprint talk and is intentionally NOT matched.
     ("without_funding",
         r"\bwithout (funding|sponsorship|sponsors|donations|payment) "
-        r"(i|we) (cannot|can'?t|won'?t) (continue|maintain|sustain|keep)\b"),
+        r"i (cannot|can'?t|won'?t) (continue|maintain|sustain|keep|"
+        r"keep this going|keep going|keep maintaining)\b"),
     # Allow an optional adjective ("six figure yearly contract").
     ("six_figure",
         r"\bsix(\s|-)?figure (\w+ )?(contract|salary|deal|sponsorship|"
@@ -154,9 +161,11 @@ FRUSTRATION_RULES: list[tuple[str, str]] = [
         r"\b(give|grant|hand(ing)? over) (you|someone|them|whoever|the next)\s*"
         r"(access|the keys|maintainer|publish access|push access|"
         r"commit access|ownership|the repo|the project)\b"),
-    ("please_stop_opening",
-        r"\b(please )?stop (opening|filing|submitting|making|posting) "
-        r"(issues|tickets|prs|requests|bug reports)\b"),
+    # NOTE: "please stop opening (issues|prs)" was tried and
+    # dropped in v6.2.1 — it fired on routine release-management
+    # asks ("please stop opening PRs against the release branch").
+    # Burnout-flavoured asks ("I can't keep up with all the issues
+    # you're opening") will still trip cant_keep_doing / im_exhausted.
     # Complaint-volume / entitled-users frustration.
     ("thankless",
         r"\bthankless\b"),
@@ -171,20 +180,26 @@ FRUSTRATION_RULES: list[tuple[str, str]] = [
         r"\bi(?:'m| am)\s+(exhausted|drained|done|spent|burnt? out)\b"),
     ("i_quit",
         r"\bi (quit|resign|am quitting|am resigning|am out|'m out|'m quitting|'m resigning)\b"),
+    # First-person + project-level scope. "Out of bandwidth for this
+    # milestone" is sprint talk and is intentionally NOT matched;
+    # "I don't have the bandwidth anymore" / "I'm out of patience
+    # with this" is.
     ("no_bandwidth",
-        r"\b(don'?t have|out of|running out of) (the )?"
-        r"(bandwidth|capacity|energy|patience|time)\b"),
+        r"\bi (don'?t have|am out of|am running out of|'m out of|'m running out of) "
+        r"(the )?(bandwidth|capacity|energy|patience)( anymore| left| for this| with this)?\b"),
     ("cant_keep_doing",
         r"\bcan'?t keep (doing|maintaining|supporting|fixing|reviewing)\b"),
-    ("transferring_ownership",
-        r"\b(transfer(ring|red)?|hand(ing|ed)? over|passing on|giving up) "
-        r"(ownership|the project|the repo|the keys|maintainer(ship)?)\b"),
-    ("unmaintained_signal",
-        r"\b(no longer (actively )?maintained|"
-        r"(will be|is now|going) unmaintained|"
-        r"this project is dead|this is dead)\b"),
-    ("last_release",
-        r"\b(my|the|this is the) last release\b"),
+    # NOTE: ``transferring_ownership``, ``unmaintained_signal``, and
+    # ``last_release`` were dropped in v6.2.1 (GPT review 2026-04-19).
+    # Lifecycle / deprecation / handover announcements are healthy
+    # OSS governance, not maintainer frustration. Examples that used
+    # to trip them and now correctly stay clean:
+    #   - "transfer ownership to the new team"
+    #   - "this project is no longer actively maintained"
+    #   - "this is the last release supporting Python 3.8"
+    # Genuinely-frustrated handover language ("I'm walking away
+    # from this project", "I quit") is still caught by walking_away,
+    # i_quit, im_exhausted, etc.
     ("never_paid",
         r"\bnever paid (a dime|a cent|me|us|anything|the maintainer)\b"),
     ("where_are_sponsors",
@@ -212,8 +227,12 @@ FRUSTRATION_RULES: list[tuple[str, str]] = [
         r"\bmass resignation\b"),
     ("open_source_exploitation",
         r"\bopen source exploitation\b"),
-    ("fortune_500",
-        r"\bfortune\s*500\b"),
+    # NOTE: bare ``fortune_500`` literal was dropped in v6.2.1 — it
+    # fired on neutral marketing copy ("we support Fortune 500
+    # companies"). The Marak-class usage ("support the Fortune 500
+    # with my free work") is already caught by the no_longer_support
+    # / free_labor / corporate_exploitation rules, the last of which
+    # explicitly includes ``fortune\s*500`` inside its company list.
     ("fund_open_source",
         r"\bfund open source\b"),
     ("on_strike",
