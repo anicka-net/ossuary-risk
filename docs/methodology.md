@@ -8,7 +8,7 @@ Ossuary calculates a risk score (0-100) based on observable governance signals i
 
 **Key Finding**: In validation testing against 167 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.0% precision** (1 false positive) and **77.4% in-scope recall** (F1 0.857) — Scope B numbers are unchanged from v3.1 because the only methodology change since (the `TOP_PACKAGES` reputation expansion) reclassified exactly one package (sidekiq, FP→TN). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
 
-**Version**: 6.1 (April 2026)
+**Version**: 6.2 (April 2026)
 **Validation Dataset**: 167 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
@@ -528,21 +528,72 @@ Membership in these organizations confers institutional backing:
 
 ### 6.1 Approach
 
-Ossuary analyzes commit messages and issue discussions for:
+Ossuary analyses commit messages and issue discussions through two
+deterministic layers:
 
-1. **General Sentiment**: Using VADER sentiment analysis
-2. **Frustration Keywords**: Pattern matching for burnout/exploitation signals
+1. **General sentiment** — VADER compound score across every text
+   (commits, issue bodies, comments). Feeds the ±10 sentiment
+   factor as a community-mood signal.
+2. **Rule-based frustration detection** — a curated set of regex
+   templates plus literal phrases targeting burnout / sabotage
+   precursor language. Frustration evidence drives the +20 risk
+   factor in §4 Factor 10.
 
-### 6.2 Frustration Keywords
+VADER alone is not sufficient: it scored Marak Squires' Nov 2020
+sabotage rant at +0.676 (positive!) because of words like "support"
+and "opportunity". The rule layer is the backstop that keeps the
+obvious frustration cases visible.
 
-High-signal keywords that historically preceded sabotage:
+#### 6.1.1 Author attribution (v6.2)
 
-```
-"not getting paid", "unpaid work", "free labor", "corporate exploitation",
-"burned out", "burnout", "stepping down", "abandoning this project",
-"fortune 500", "pay developers", "companies make millions",
-"protest", "on strike", "boycott", "resentment", "exploitation"
-```
+Frustration is a signal about the *maintainer*, not random users
+complaining about the project. Through v6.1, every issue text was
+weighted equally, which made noisy issue trackers a major source of
+spurious +20 frustration hits.
+
+v6.2 restricts frustration scoring to text authored by the
+maintainer login (`top_contributor_email` / `maintainer_username`
+already on `CollectedData`). Bot accounts (`*[bot]`) are always
+excluded. The general VADER pass continues to scan everything so the
+community-mood signal is not lost. When the maintainer login cannot
+be determined, the v6.1 behaviour (scan all texts) is preserved as a
+conservative fallback — the analyzer doesn't silently drop the
+signal.
+
+Commits already imply maintainer authorship and so are not filtered.
+
+### 6.2 Frustration rules (v6.2)
+
+Through v6.1 frustration detection used a flat list of literal
+keywords. It caught Marak's exact phrasing ("free work", "no longer
+support") but missed paraphrases — "I'm done giving away my labor",
+"tired of supporting Fortune 500s", "stop maintaining this" all
+slipped through.
+
+v6.2 replaces the flat list with a small set of regex *templates*
+that capture verb stems and structural patterns, plus literal
+fallbacks for multi-word phrases that don't generalise cleanly. Each
+rule has a short label that surfaces as evidence in the breakdown.
+The full set lives in `src/ossuary/sentiment/analyzer.py`
+(`FRUSTRATION_RULES`); representative templates:
+
+| Template | Catches |
+|---|---|
+| `tired of \w+(ing\|s)?` | "tired of fixing", "tired of bugs" |
+| `no longer (going to )?(support\|maintain\|fix\|...)` | Marak's exact phrasing + variants |
+| `stop(ping)? (support\|maintain\|fix\|...)` | "stop maintaining this" |
+| `done (with\|maintaining\|...) (this\|the\|my)` | "done with this project" |
+| `giv(e\|ing) up on (this\|the\|maintaining\|...)` | "giving up on this" |
+| `(my )?free (work\|labor\|time)` | Marak's "free work" + paraphrases |
+| `unpaid \w+` | "unpaid work", "unpaid labor", "unpaid hours" |
+| `pay (me\|us\|developers\|maintainers)` | financial-protest pattern |
+| `(corporate\|company\|companies\|fortune 500\|...) (exploit\|profit\|...)` | "company makes millions off my code" |
+
+Literal fallbacks cover phrases like `burned out`, `stepping down`,
+`mass resignation`, `protest`, `boycott`, `on strike`, `taken
+advantage of`, `resentment`. All matching is case-insensitive and
+deterministic — same input always produces the same labels in the
+same order.
 
 ### 6.3 Sentiment Scoring
 
@@ -551,6 +602,68 @@ High-signal keywords that historically preceded sabotage:
 | < -0.3 | +10 risk points |
 | > 0.3 | -5 risk points |
 | Otherwise | Neutral |
+
+### 6.4 Validation: corpus-driven coverage
+
+Rule changes are driven by a committed corpus at
+`tests/fixtures/sentiment_corpus.jsonl` — currently 51 positive
+examples (Marak Squires variants, event-stream-style handover
+language, node-ipc-style protest, generic OSS-burnout discourse,
+funding frustration, sabotage precursors) and 29 dev-text negatives
+chosen to surface plausible false-positive traps (`"Don't give up
+on the test suite"`, `"Boycott of legacy browser support"`, etc).
+Each entry is tagged with a `source` bucket so a thesis defender
+can trace why it is in the set.
+
+The corpus drives three guard tests in `tests/test_sentiment.py`:
+positive recall ≥ 95% (currently 100%), false-positive rate ≤ 5%
+(currently 0%), and per-bucket recall ≥ 80% (so a future rule
+change cannot silently gut one whole category while staying above
+the global bar).
+
+### 6.5 Known signal gap: external surfaces
+
+The analyzer can only see what GitHub returns through its issues /
+PRs / commits APIs. Maintainer-frustration text frequently lives on
+external surfaces the collector cannot reach:
+
+- Personal blog posts and Substack newsletters.
+- GitHub Gists (Marak Squires' Nov 2020 "No more free works" rant
+  was published as a gist, not in any of his repo issue trackers).
+- Twitter / X / Mastodon threads.
+- Hacker News and Lobsters comments.
+- README files outside the default branch (e.g. on a sabotage
+  release branch where the only warning is in the new README).
+
+This is observable in the `colors.js` real-data probe (April 2026):
+without author attribution the analyzer found three frustration
+hits in the issue tracker, all written by *users* about Marak's
+behaviour after the sabotage. With v6.2 author attribution applied,
+zero hits were attributed to the maintainer, because his actual
+rant was never posted in the repo. The community-mood signal is
+preserved through VADER (the same user comments scored -0.8 to
+-0.89, feeding the ±10 sentiment factor) — but the maintainer-side
+frustration signal is genuinely absent.
+
+This gap is not solved by the deferred embedding layer (§6.6)
+either: any classifier is bounded by the text it can see. The
+honest mitigation is to widen collection (gist polling, blog
+discovery via the maintainer's GitHub profile URL) rather than
+making the classifier smarter — which is logged as future work, not
+a v6.2 commitment.
+
+### 6.6 Forward look — semantic embeddings (deferred)
+
+A third layer using pinned sentence-embedding similarity against a
+curated frustration corpus is designed but not implemented (see
+`thesis/sentiment_v2_design.md`). It would ship behind an
+opt-in environment flag, with the asymmetric guarantee that the
+embedding layer can only *add* frustration evidence — the
+deterministic v6.2 rule layers remain the floor regardless of
+embedding-model availability. As noted in §6.5, embeddings do not
+address the external-surfaces gap; they would only catch
+paraphrases the rule layer missed *within* the text already
+collected.
 
 ---
 

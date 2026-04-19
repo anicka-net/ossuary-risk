@@ -141,8 +141,13 @@ async def score_package(name: str, ecosystem: str, cutoff: Optional[datetime] = 
         [c.message for c in git_metrics.commits]
     )
     issue_sentiment = sentiment_analyzer.analyze_issues(
-        [{"title": i.title, "body": i.body, "comments": i.comments}
-         for i in github_data.issues]
+        [{"title": i.title, "body": i.body,
+          "author_login": i.author_login, "comments": i.comments}
+         for i in github_data.issues],
+        maintainer_logins=(
+            {github_data.maintainer_username}
+            if github_data.maintainer_username else None
+        ),
     )
 
     total_frustration = commit_sentiment.frustration_count + issue_sentiment.frustration_count

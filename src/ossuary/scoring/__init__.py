@@ -8,7 +8,7 @@ from ossuary.scoring.reputation import ReputationBreakdown, ReputationScorer, Re
 # Mirrors the Version field in docs/methodology.md so that audit-ready
 # outputs (Annex VII export, enriched SBOMs) can declare which methodology
 # revision produced the score.
-METHODOLOGY_VERSION = "6.1"
+METHODOLOGY_VERSION = "6.2"
 
 __all__ = [
     "METHODOLOGY_VERSION",

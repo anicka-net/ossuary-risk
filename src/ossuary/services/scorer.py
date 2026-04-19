@@ -294,6 +294,7 @@ def _filter_issues_for_cutoff(issues: list[IssueData], cutoff_date: datetime) ->
         filtered.append({
             "title": issue.title,
             "body": issue.body,
+            "author_login": issue.author_login,
             "comments": comments,
         })
 
@@ -412,12 +413,23 @@ def calculate_score_for_date(
         as_of_date=cutoff_date if is_historical else None,
     )
 
-    # Run sentiment analysis on commits up to cutoff
+    # Run sentiment analysis on commits up to cutoff. Restrict
+    # frustration detection in issues to maintainer-authored text so
+    # noisy user comments don't spuriously fire the +20 risk factor;
+    # commits already imply maintainer authorship. See
+    # ``ossuary.sentiment.analyzer`` module docstring for the v6.2
+    # author-attribution design.
     sentiment_analyzer = SentimentAnalyzer()
     commit_sentiment = sentiment_analyzer.analyze_commits([c.message for c in git_metrics.commits])
+    maintainer_logins = (
+        {github_data.maintainer_username}
+        if github_data.maintainer_username
+        else None
+    )
     if use_issue_sentiment:
         issue_sentiment = sentiment_analyzer.analyze_issues(
-            _filter_issues_for_cutoff(github_data.issues, cutoff_date)
+            _filter_issues_for_cutoff(github_data.issues, cutoff_date),
+            maintainer_logins=maintainer_logins,
         )
     else:
         issue_sentiment = sentiment_analyzer.analyze_issues([])

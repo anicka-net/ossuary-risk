@@ -1,0 +1,80 @@
+{"label": "positive", "source": "marak_2020", "text": "No more free works from Marak."}
+{"label": "positive", "source": "marak_2020", "text": "Pay me or fork it."}
+{"label": "positive", "source": "marak_2020", "text": "I am no longer going to support the Fortune 500 with my free work."}
+{"label": "positive", "source": "marak_2020", "text": "Take this as an opportunity to send me a six figure yearly contract."}
+{"label": "positive", "source": "marak_2022", "text": "I am not going to support corporations with my unpaid labor anymore."}
+{"label": "positive", "source": "event_stream_2018", "text": "I haven't used this module in years and I don't really have time to maintain it."}
+{"label": "positive", "source": "event_stream_2018", "text": "If someone wants to publish releases, I can probably give them access."}
+{"label": "positive", "source": "event_stream_2018", "text": "I lost interest in this project."}
+{"label": "positive", "source": "node_ipc_2022", "text": "This is a protest against corporate war profiteering."}
+{"label": "positive", "source": "node_ipc_2022", "text": "I am taking a stand."}
+{"label": "positive", "source": "burnout_corpus", "text": "I'm exhausted. This project is consuming my weekends."}
+{"label": "positive", "source": "burnout_corpus", "text": "I can't keep doing this for free."}
+{"label": "positive", "source": "burnout_corpus", "text": "I have no energy left for this."}
+{"label": "positive", "source": "burnout_corpus", "text": "I'm not getting any compensation for this work."}
+{"label": "positive", "source": "burnout_corpus", "text": "Maintaining this is a thankless job."}
+{"label": "positive", "source": "burnout_corpus", "text": "I get nothing but complaints and no thanks."}
+{"label": "positive", "source": "burnout_corpus", "text": "I'm done answering the same question over and over."}
+{"label": "positive", "source": "burnout_corpus", "text": "Why am I doing this for free?"}
+{"label": "positive", "source": "burnout_corpus", "text": "I have been maintaining this alone for years."}
+{"label": "positive", "source": "burnout_corpus", "text": "I need a break from open source."}
+{"label": "positive", "source": "burnout_corpus", "text": "I'm walking away from this project."}
+{"label": "positive", "source": "burnout_corpus", "text": "I'm archiving this repo."}
+{"label": "positive", "source": "burnout_corpus", "text": "Find another maintainer."}
+{"label": "positive", "source": "burnout_corpus", "text": "Please stop opening issues."}
+{"label": "positive", "source": "burnout_corpus", "text": "I will not be reviewing PRs anymore."}
+{"label": "positive", "source": "burnout_corpus", "text": "Don't expect any more updates."}
+{"label": "positive", "source": "burnout_corpus", "text": "I have lost all motivation."}
+{"label": "positive", "source": "burnout_corpus", "text": "I don't enjoy this anymore."}
+{"label": "positive", "source": "funding_corpus", "text": "Big tech profits off my unpaid work."}
+{"label": "positive", "source": "funding_corpus", "text": "Companies use this in production but never contribute back."}
+{"label": "positive", "source": "funding_corpus", "text": "Sponsor me on GitHub or this project will die."}
+{"label": "positive", "source": "funding_corpus", "text": "Without funding I cannot continue."}
+{"label": "positive", "source": "burnout_corpus", "text": "I am sick and tired of doing this for nothing."}
+{"label": "positive", "source": "burnout_corpus", "text": "Entitled users are draining my will to maintain."}
+{"label": "positive", "source": "sabotage_precursor", "text": "I might just delete the repo."}
+{"label": "positive", "source": "sabotage_precursor", "text": "I'm thinking of breaking this on purpose."}
+{"label": "positive", "source": "sabotage_precursor", "text": "Time to teach these corporations a lesson."}
+{"label": "positive", "source": "sabotage_precursor", "text": "I am considering an act of protest."}
+{"label": "positive", "source": "burnout_corpus", "text": "after years of unpaid maintenance i'm done"}
+{"label": "positive", "source": "burnout_corpus", "text": "this is my last release"}
+{"label": "positive", "source": "burnout_corpus", "text": "i quit"}
+{"label": "positive", "source": "burnout_corpus", "text": "i don't have the bandwidth anymore"}
+{"label": "positive", "source": "burnout_corpus", "text": "going to stop merging PRs"}
+{"label": "positive", "source": "handover_corpus", "text": "i'm transferring ownership of this repo"}
+{"label": "positive", "source": "handover_corpus", "text": "this will be unmaintained going forward"}
+{"label": "positive", "source": "handover_corpus", "text": "this is no longer actively maintained"}
+{"label": "positive", "source": "funding_corpus", "text": "the corporations who depend on this never paid a dime"}
+{"label": "positive", "source": "burnout_corpus", "text": "burning out fast"}
+{"label": "positive", "source": "funding_corpus", "text": "where are the sponsors?"}
+{"label": "positive", "source": "burnout_corpus", "text": "i can't keep doing this forever"}
+{"label": "positive", "source": "burnout_corpus", "text": "feeling unappreciated"}
+{"label": "negative", "source": "dev_corpus", "text": "Refactor parser to support nested expressions."}
+{"label": "negative", "source": "dev_corpus", "text": "Bump dependency to fix CVE-2025-1234."}
+{"label": "negative", "source": "dev_corpus", "text": "Add docs for the new sponsorship tier."}
+{"label": "negative", "source": "dev_corpus", "text": "We support Python 3.10+."}
+{"label": "negative", "source": "dev_corpus", "text": "Stop iterating once the buffer is full."}
+{"label": "negative", "source": "dev_corpus", "text": "Pay attention to the test output."}
+{"label": "negative", "source": "dev_corpus", "text": "The maintainer team approved this PR."}
+{"label": "negative", "source": "dev_corpus", "text": "Free up some memory before allocating again."}
+{"label": "negative", "source": "dev_corpus", "text": "This work is done."}
+{"label": "negative", "source": "dev_corpus", "text": "I'm tired but I'll review this tomorrow."}
+{"label": "negative", "source": "dev_corpus", "text": "Companies should sponsor open source projects."}
+{"label": "negative", "source": "dev_corpus", "text": "Profit from this commercially is allowed under MIT."}
+{"label": "negative", "source": "dev_corpus", "text": "Maintain backwards compatibility with v1."}
+{"label": "negative", "source": "dev_corpus", "text": "Don't give up on the test suite."}
+{"label": "negative", "source": "dev_corpus", "text": "Free as in freedom, not free as in beer."}
+{"label": "negative", "source": "dev_corpus", "text": "I'm working on this for free time fun."}
+{"label": "negative", "source": "dev_corpus", "text": "Boycott of legacy browser support is in this release."}
+{"label": "negative", "source": "dev_corpus", "text": "Resentment-driven design is a code smell."}
+{"label": "negative", "source": "dev_corpus", "text": "Burn the cache after each test."}
+{"label": "negative", "source": "dev_corpus", "text": "Pay-per-use API tier added."}
+{"label": "negative", "source": "dev_corpus", "text": "Free trial period extended."}
+{"label": "negative", "source": "dev_corpus", "text": "Maintainer documentation updated."}
+{"label": "negative", "source": "dev_corpus", "text": "Stop the world: GC pause analysis."}
+{"label": "negative", "source": "dev_corpus", "text": "Walked through the logs and found the issue."}
+{"label": "negative", "source": "dev_corpus", "text": "Archived old release branches as part of cleanup."}
+{"label": "negative", "source": "dev_corpus", "text": "Deleted the unused test fixtures."}
+{"label": "negative", "source": "dev_corpus", "text": "Looking for someone to review this PR."}
+{"label": "negative", "source": "dev_corpus", "text": "The protest demo for next week's release."}
+{"label": "negative", "source": "dev_corpus", "text": "We are tired and shipping it anyway."}
