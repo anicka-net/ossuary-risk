@@ -83,14 +83,58 @@ async def time_collect(name: str, ecosystem: str) -> tuple[float, bool, str]:
     return elapsed, data is not None, note
 
 
+def _environment_metadata() -> dict:
+    """Capture run metadata for thesis reproducibility.
+
+    GPT review (cache phase 2 pass 3) flagged that operational-scalability
+    claims are easier to defend academically when the underlying run is
+    pinned to: which DB backend (SQLite vs Postgres has very different
+    write costs), whether a GitHub token was present (anonymous limits
+    are 60/h vs 5000/h), and the methodology / collector version.
+    """
+    import os
+    import platform
+    import sys as _sys
+
+    from ossuary.db.session import DATABASE_URL
+    from ossuary.scoring import METHODOLOGY_VERSION
+    from ossuary.services.repo_cache import COLLECTOR_VERSION
+
+    backend = DATABASE_URL.split("://", 1)[0] if "://" in DATABASE_URL else DATABASE_URL
+    has_gh_token = bool(os.getenv("GITHUB_TOKEN"))
+    has_pypi_token = bool(os.getenv("PYPI_TOKEN"))
+
+    return {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z") or time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "db_backend": backend,
+        "github_token_present": has_gh_token,
+        "pypi_token_present": has_pypi_token,
+        "methodology_version": METHODOLOGY_VERSION,
+        "collector_version": COLLECTOR_VERSION,
+        "python_version": _sys.version.split()[0],
+        "platform": platform.platform(),
+    }
+
+
 async def benchmark(packages: list[tuple[str, str]], out) -> int:
     """Run the benchmark over ``packages``; write markdown to ``out``.
 
     Returns the number of successful (cold and warm both succeeded) rows.
     """
     init_db()
+    meta = _environment_metadata()
     out.write(f"# Snapshot cache benchmark — n={len(packages)} packages\n\n")
-    out.write(f"Generated: {time.strftime('%Y-%m-%dT%H:%M:%S')}\n\n")
+    out.write(f"Generated: {meta['timestamp']}\n\n")
+    out.write("## Environment\n\n")
+    out.write(f"| Field | Value |\n|---|---|\n")
+    for k in (
+        "db_backend", "github_token_present", "pypi_token_present",
+        "methodology_version", "collector_version",
+        "python_version", "platform",
+    ):
+        out.write(f"| `{k}` | {meta[k]} |\n")
+    out.write("\n")
+    out.write("## Per-package timings\n\n")
     out.write(
         "Cold = full upstream collect + write snapshot.\n"
         "Warm = deserialise snapshot from DB (no upstream calls).\n"

@@ -446,19 +446,27 @@ class RepoSnapshotCache:
         # exact active count without re-implementing the classifier in
         # SQL. Earlier versions counted *all* non-null rows as active —
         # GPT review caught the overcount.
+        #
+        # The LIKE pattern is wrapped in ``func.lower()`` for portability:
+        # SQLite's default LIKE is case-insensitive but PostgreSQL/MySQL
+        # are case-sensitive, and the stored failure text is mixed-case
+        # ("no repository URL"). Without the explicit lower() those
+        # backends would misclassify and use the wrong TTL — caught in a
+        # later GPT review pass and pinned by
+        # ``test_stats_classifies_uppercase_no_repo_url_correctly``.
         no_repo_cutoff = now - timedelta(days=NEGCACHE_TTL_NO_REPO_FIELD_DAYS)
         dead_repo_cutoff = now - timedelta(days=NEGCACHE_TTL_DEAD_REPO_DAYS)
 
         active_no_repo = self.session.query(func.count(Package.id)).filter(
             Package.last_failed_at.isnot(None),
             Package.failure_reason.isnot(None),
-            Package.failure_reason.like("%no repository url%"),
+            func.lower(Package.failure_reason).like("%no repository url%"),
             Package.last_failed_at >= no_repo_cutoff,
         ).scalar() or 0
         active_dead_repo = self.session.query(func.count(Package.id)).filter(
             Package.last_failed_at.isnot(None),
             Package.failure_reason.isnot(None),
-            ~Package.failure_reason.like("%no repository url%"),
+            ~func.lower(Package.failure_reason).like("%no repository url%"),
             Package.last_failed_at >= dead_repo_cutoff,
         ).scalar() or 0
         neg_active = active_no_repo + active_dead_repo

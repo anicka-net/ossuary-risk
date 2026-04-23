@@ -532,6 +532,34 @@ class TestStats:
         assert stats["negative_cache"]["active"] == 1
         assert stats["negative_cache"]["total_recorded"] == 2
 
+    def test_stats_classifies_uppercase_no_repo_url_correctly(self, session):
+        """The actual stored failure text is mixed-case ("no repository URL"
+        with uppercase URL). The TTL classifier in stats() must match it
+        case-insensitively — SQLite's default LIKE is case-insensitive
+        but PostgreSQL/MySQL are case-sensitive, so the SQL must wrap the
+        column in lower() for portability.
+
+        Without that wrap, this row would be miscategorised into the
+        90-day "dead repo" bucket on Postgres/MySQL and stats() would
+        again overstate active negative-cache entries — the regression
+        GPT review caught on the second pass."""
+        from datetime import timedelta
+
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("uppercase-url", "npm")
+        package.last_failed_at = datetime.utcnow() - timedelta(days=45)
+        # Note: real text uses uppercase URL — match scripts/scorer.py's
+        # actual emitted message.
+        package.failure_reason = "Package 'uppercase-url' not found on npm (no repository URL)"
+        session.commit()
+
+        stats = cache.stats()
+        # 45 days > 30-day TTL for the no-repo-URL class → inactive.
+        # If the classifier failed to recognise uppercase URL, this row
+        # would fall into the 90-day bucket and count as active.
+        assert stats["negative_cache"]["active"] == 0
+        assert stats["negative_cache"]["total_recorded"] == 1
+
     def test_stats_separates_wrong_collector_version(self, session):
         """Snapshots from an old collector schema show up under their own
         bucket so operators know to re-collect after a collector bump."""
