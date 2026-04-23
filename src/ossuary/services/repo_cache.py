@@ -50,6 +50,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from ossuary._compat import utcnow_naive
 from ossuary.db.models import Package, RepoSnapshot
 from ossuary.services.cache import normalize_package_name
 
@@ -441,7 +442,7 @@ class RepoSnapshotCache:
         )
         if cutoff_date is None:
             # Current-scoring path: enforce freshness SLA on collected_at.
-            sla_cutoff = datetime.utcnow() - timedelta(days=sla_expired_days)
+            sla_cutoff = utcnow_naive() - timedelta(days=sla_expired_days)
             query = query.filter(RepoSnapshot.collected_at >= sla_cutoff)
         else:
             # Historical-scoring path: snapshot must have been taken on
@@ -492,7 +493,7 @@ class RepoSnapshotCache:
         )
 
         if cutoff_date is None:
-            sla_cutoff = datetime.utcnow() - timedelta(days=sla_expired_days)
+            sla_cutoff = utcnow_naive() - timedelta(days=sla_expired_days)
             query = query.filter(RepoSnapshot.collected_at >= sla_cutoff)
         else:
             query = query.filter(RepoSnapshot.collected_at >= cutoff_date)
@@ -527,7 +528,7 @@ class RepoSnapshotCache:
         # failure_kind. The auto-migration backfills, so this fallback
         # is just defensive belt-and-braces.
         kind = package.failure_kind or classify_failure(package.failure_reason)
-        age = datetime.utcnow() - package.last_failed_at
+        age = utcnow_naive() - package.last_failed_at
         ttl_days = _ttl_for_kind(kind)
         if age >= timedelta(days=ttl_days):
             # TTL elapsed — caller should re-probe.
@@ -545,7 +546,7 @@ class RepoSnapshotCache:
         of fragile LIKE matching.
         """
         package = self._get_or_create_package(name, ecosystem)
-        package.last_failed_at = datetime.utcnow()
+        package.last_failed_at = utcnow_naive()
         package.failure_reason = reason
         package.failure_kind = classify_failure(reason)
 
@@ -584,7 +585,7 @@ class RepoSnapshotCache:
             .scalar() or 0
         )
 
-        now = datetime.utcnow()
+        now = utcnow_naive()
         fresh_cutoff = now - timedelta(days=SLA_FRESH_DAYS)
         expired_cutoff = now - timedelta(days=SLA_EXPIRED_DAYS)
 
@@ -686,7 +687,7 @@ class RepoSnapshotCache:
         cutoffs up to the moment of fetch.
         """
         package = self._get_or_create_package(name, ecosystem, repo_url)
-        now = collected_at or datetime.utcnow()
+        now = collected_at or utcnow_naive()
         coverage_until = _coverage_until_from_blob(blob) or now
 
         # Pull github_data.pushed_at out of the blob (if present) so the
@@ -748,5 +749,5 @@ class RepoSnapshotCache:
         ``upstream_pushed_at`` stay the same — only the freshness clock
         is reset. Idempotent.
         """
-        snapshot.collected_at = datetime.utcnow()
+        snapshot.collected_at = utcnow_naive()
         self.session.flush()

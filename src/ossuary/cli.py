@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ossuary import __version__
+from ossuary._compat import utcnow_naive
 from ossuary.db.session import init_db
 from ossuary.scoring.factors import RiskLevel
 
@@ -982,7 +983,7 @@ def trends(
         if filter_set:
             all_packages = [p for p in all_packages if (p.name, p.ecosystem) in filter_set]
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = utcnow_naive() - timedelta(days=days)
         rising = []
         falling = []
         stable_count = 0
@@ -3080,7 +3081,7 @@ async def _refresh(ecosystem_filter: Optional[str], max_age: int):
         return
 
     stale = []
-    now = datetime.utcnow()
+    now = utcnow_naive()
     for pkg in packages:
         if pkg.last_analyzed is None:
             stale.append(pkg)

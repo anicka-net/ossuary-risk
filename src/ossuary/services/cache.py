@@ -7,6 +7,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from ossuary._compat import utcnow_naive
 from ossuary.db.models import Package, Score
 
 
@@ -76,7 +77,7 @@ class ScoreCache:
         if package.last_analyzed is None:
             return False
 
-        age = datetime.utcnow() - package.last_analyzed
+        age = utcnow_naive() - package.last_analyzed
         return age < self.freshness_threshold
 
     def get_score_for_cutoff(self, package: Package, cutoff_date: datetime) -> Optional[Score]:
@@ -95,7 +96,7 @@ class ScoreCache:
         Historical month snapshots use older cutoff dates and must not satisfy
         current-cache lookups.
         """
-        fresh_cutoff = datetime.utcnow() - self.freshness_threshold
+        fresh_cutoff = utcnow_naive() - self.freshness_threshold
         return (
             self.session.query(Score)
             .filter(
@@ -152,7 +153,7 @@ class ScoreCache:
         """
         score = Score(
             package_id=package.id,
-            calculated_at=datetime.utcnow(),
+            calculated_at=utcnow_naive(),
             cutoff_date=cutoff_date,
             final_score=final_score,
             risk_level=risk_level,
@@ -172,7 +173,7 @@ class ScoreCache:
 
     def mark_analyzed(self, package: Package) -> None:
         """Update package's last_analyzed timestamp."""
-        package.last_analyzed = datetime.utcnow()
+        package.last_analyzed = utcnow_naive()
 
     def clear_scores_for_cutoffs(self, package: Package, cutoff_dates: list[datetime]) -> int:
         """Delete cached scores for a specific set of cutoff dates."""

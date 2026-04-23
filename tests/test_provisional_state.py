@@ -45,6 +45,7 @@ except ImportError:  # pragma: no cover - exercised in environments without resp
 
     respx = _RespxStub()
 
+from ossuary._compat import utcnow_naive
 from ossuary.collectors.github import GitHubCollector, GitHubData
 from ossuary.collectors.npm import NpmCollector
 from ossuary.collectors.registries import (
@@ -535,7 +536,7 @@ class TestRescoreInvalidCli:
         monkeypatch.setattr(session_module, "SessionLocal", TestSession)
 
         with TestSession() as session:
-            now = datetime.utcnow()
+            now = utcnow_naive()
             for name, eco, risk, prov in [
                 ("alpha", "pypi", "INSUFFICIENT_DATA", False),
                 ("beta", "npm", "MODERATE", True),
@@ -921,7 +922,7 @@ class TestRescoreInvalidFindsBothStates:
         SessionLocal = sessionmaker(bind=engine)
 
         with SessionLocal() as session:
-            now = datetime.utcnow()
+            now = utcnow_naive()
             for i, (eco, risk, prov) in enumerate([
                 ("pypi", "INSUFFICIENT_DATA", False),
                 ("npm", "MODERATE", True),

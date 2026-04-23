@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from ossuary._compat import utcnow_naive
 from ossuary.db.models import Base
 from ossuary.services.cache import ScoreCache, normalize_package_name
 
@@ -164,7 +165,7 @@ class TestUserFacingLookupsNormalize:
         pkg = cache.get_or_create_package("PyYAML", "pypi")
         session.add(Score(
             package_id=pkg.id,
-            calculated_at=datetime.utcnow(),
+            calculated_at=utcnow_naive(),
             cutoff_date=datetime(2026, 4, 1),
             final_score=42,
             risk_level="MODERATE",

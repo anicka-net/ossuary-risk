@@ -18,6 +18,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from ossuary._compat import utcnow_naive
+
 
 class Base(DeclarativeBase):
     """Base class for all models."""
@@ -47,7 +49,7 @@ class Package(Base):
     homepage: Mapped[Optional[str]] = mapped_column(String(500))
 
     # Tracking
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     last_analyzed: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # Negative cache: when a collection attempt fails with a *permanent*
@@ -149,7 +151,7 @@ class Score(Base):
     package_id: Mapped[int] = mapped_column(ForeignKey("packages.id", ondelete="CASCADE"))
 
     # Score calculation date and cutoff
-    calculated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     cutoff_date: Mapped[datetime] = mapped_column(DateTime)
 
     # Final score. ``NULL`` when ``risk_level == 'INSUFFICIENT_DATA'`` —
@@ -227,7 +229,7 @@ class RepoSnapshot(Base):
     package_id: Mapped[int] = mapped_column(ForeignKey("packages.id", ondelete="CASCADE"))
 
     # Server clock when this snapshot was fetched.
-    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     # Latest ``authored_date`` across the cached commits (i.e. the upper
     # bound of historical data the snapshot covers). A scoring request
@@ -302,7 +304,7 @@ class SentimentRecord(Base):
     frustration_keywords: Mapped[Optional[list]] = mapped_column(JSON)
 
     # Metadata
-    analyzed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     # Relationships
     package: Mapped["Package"] = relationship(back_populates="sentiment_records")

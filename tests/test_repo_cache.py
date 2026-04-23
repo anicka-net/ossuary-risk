@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from ossuary._compat import utcnow_naive
 from ossuary.collectors.git import CommitData
 from ossuary.collectors.github import GitHubData, IssueData
 from ossuary.db.models import Base, RepoSnapshot
@@ -236,7 +237,7 @@ class TestRepoSnapshotCache:
         blob = serialise_collected_data(data)
         cache.store_snapshot(
             "widget", "npm", "https://example", blob,
-            collected_at=datetime.utcnow(),
+            collected_at=utcnow_naive(),
         )
         session.commit()
 
@@ -256,7 +257,7 @@ class TestRepoSnapshotCache:
         blob = serialise_collected_data(data)
         cache.store_snapshot(
             "widget", "npm", "https://example", blob,
-            collected_at=datetime.utcnow() - timedelta(days=120),
+            collected_at=utcnow_naive() - timedelta(days=120),
         )
         session.commit()
 
@@ -273,7 +274,7 @@ class TestRepoSnapshotCache:
         blob = serialise_collected_data(data)
         cache.store_snapshot(
             "widget", "npm", "https://example", blob,
-            collected_at=datetime.utcnow() - timedelta(days=10),
+            collected_at=utcnow_naive() - timedelta(days=10),
         )
         session.commit()
 
@@ -303,8 +304,8 @@ class TestRepoSnapshotCache:
         session.add(
             RepoSnapshot(
                 package_id=package.id,
-                collected_at=datetime.utcnow(),
-                coverage_until=datetime.utcnow(),
+                collected_at=utcnow_naive(),
+                coverage_until=utcnow_naive(),
                 repo_url="https://example",
                 blob={},
                 fetcher_version=COLLECTOR_VERSION + 99,  # future / mismatched
@@ -361,7 +362,7 @@ class TestNegativeCache:
 
         cache = RepoSnapshotCache(session)
         package = cache._get_or_create_package("expired-pkg", "npm")
-        package.last_failed_at = datetime.utcnow() - timedelta(days=120)
+        package.last_failed_at = utcnow_naive() - timedelta(days=120)
         package.failure_reason = "Repository not found"
         session.commit()
 
@@ -374,7 +375,7 @@ class TestNegativeCache:
 
         cache = RepoSnapshotCache(session)
         package = cache._get_or_create_package("no-repo", "npm")
-        package.last_failed_at = datetime.utcnow() - timedelta(days=45)
+        package.last_failed_at = utcnow_naive() - timedelta(days=45)
         package.failure_reason = "Package 'no-repo' not found on npm (no repository URL)"
         session.commit()
 
@@ -456,7 +457,7 @@ class TestStats:
 
         cache = RepoSnapshotCache(session)
         blob = serialise_collected_data(_make_collected_data())
-        now = datetime.utcnow()
+        now = utcnow_naive()
 
         cache.store_snapshot("fresh-pkg", "npm", "https://x", blob,
                              collected_at=now - timedelta(days=10))
@@ -498,7 +499,7 @@ class TestStats:
         cache.store_negative("dead-fresh", "npm", "Repository not found")
         # Past 90-day TTL for "not found" — should be inactive.
         package = cache._get_or_create_package("dead-stale", "npm")
-        package.last_failed_at = datetime.utcnow() - timedelta(days=120)
+        package.last_failed_at = utcnow_naive() - timedelta(days=120)
         package.failure_reason = "Repository not found"
         session.commit()
 
@@ -533,7 +534,7 @@ class TestStats:
         for pkg_name in ("no-repo-stale", "dead-mid"):
             from ossuary.db.models import Package
             p = session.query(Package).filter(Package.name == pkg_name).first()
-            p.last_failed_at = datetime.utcnow() - timedelta(days=45)
+            p.last_failed_at = utcnow_naive() - timedelta(days=45)
         session.commit()
 
         stats = cache.stats()
@@ -556,7 +557,7 @@ class TestStats:
         )
         from ossuary.db.models import Package
         p = session.query(Package).filter(Package.name == "uppercase-url").first()
-        p.last_failed_at = datetime.utcnow() - timedelta(days=45)
+        p.last_failed_at = utcnow_naive() - timedelta(days=45)
         session.commit()
 
         # Verify the classifier wrote the typed kind (not just the text).
@@ -576,8 +577,8 @@ class TestStats:
         session.add(
             RepoSnapshot(
                 package_id=package.id,
-                collected_at=datetime.utcnow(),
-                coverage_until=datetime.utcnow(),
+                collected_at=utcnow_naive(),
+                coverage_until=utcnow_naive(),
                 repo_url="https://x",
                 blob={},
                 fetcher_version=COLLECTOR_VERSION + 99,
@@ -707,7 +708,7 @@ class TestSnapshotByRepoUrl:
         old_snap = cache.store_snapshot(
             name="widget-npm", ecosystem="npm",
             repo_url="https://github.com/acme/widget", blob=old_blob,
-            collected_at=datetime.utcnow() - timedelta(days=10),
+            collected_at=utcnow_naive() - timedelta(days=10),
         )
         new_snap = cache.store_snapshot(
             name="widget-pypi", ecosystem="pypi",
@@ -728,7 +729,7 @@ class TestSnapshotByRepoUrl:
         cache.store_snapshot(
             name="widget", ecosystem="npm",
             repo_url="https://github.com/acme/widget", blob=blob,
-            collected_at=datetime.utcnow() - timedelta(days=200),
+            collected_at=utcnow_naive() - timedelta(days=200),
         )
         session.commit()
 
@@ -746,8 +747,8 @@ class TestSnapshotByRepoUrl:
         session.add(
             RepoSnapshot(
                 package_id=package.id,
-                collected_at=datetime.utcnow(),
-                coverage_until=datetime.utcnow(),
+                collected_at=utcnow_naive(),
+                coverage_until=utcnow_naive(),
                 repo_url="https://github.com/acme/widget",
                 blob={},
                 fetcher_version=COLLECTOR_VERSION + 99,
@@ -775,14 +776,14 @@ class TestSnapshotByRepoUrl:
         cache.store_snapshot(
             name="target", ecosystem="npm",
             repo_url="https://github.com/acme/widget", blob=blob,
-            collected_at=datetime.utcnow() - timedelta(days=10),
+            collected_at=utcnow_naive() - timedelta(days=10),
         )
         # 51 newer snapshots for unrelated repos.
         for i in range(51):
             cache.store_snapshot(
                 name=f"unrel-{i}", ecosystem="npm",
                 repo_url=f"https://github.com/x/r{i}", blob=blob,
-                collected_at=datetime.utcnow() - timedelta(days=1),
+                collected_at=utcnow_naive() - timedelta(days=1),
             )
         session.commit()
 
@@ -910,7 +911,7 @@ class TestStoreNegativeWritesTypedKind:
         cache = RepoSnapshotCache(session)
         package = cache._get_or_create_package("legacy", "npm")
         # Simulate a row written before failure_kind existed.
-        package.last_failed_at = datetime.utcnow() - timedelta(days=10)
+        package.last_failed_at = utcnow_naive() - timedelta(days=10)
         package.failure_reason = "Package 'legacy' not found on npm (no repository URL)"
         package.failure_kind = None
         session.commit()
@@ -973,7 +974,7 @@ class TestFreshnessProbe:
         cache.store_snapshot(
             name="ancient", ecosystem="npm",
             repo_url="https://github.com/acme/ancient", blob=blob,
-            collected_at=datetime.utcnow() - timedelta(days=200),
+            collected_at=utcnow_naive() - timedelta(days=200),
         )
         session.commit()
 
@@ -996,8 +997,8 @@ class TestFreshnessProbe:
         session.add(
             RepoSnapshot(
                 package_id=package.id,
-                collected_at=datetime.utcnow(),
-                coverage_until=datetime.utcnow(),
+                collected_at=utcnow_naive(),
+                coverage_until=utcnow_naive(),
                 repo_url="https://x", blob={},
                 fetcher_version=COLLECTOR_VERSION + 99,
                 upstream_pushed_at="2026-04-01T12:00:00Z",
@@ -1054,7 +1055,7 @@ class TestFreshnessProbe:
             name="bumpable", ecosystem="npm",
             repo_url="https://github.com/acme/widget",
             blob=serialise_collected_data(data),
-            collected_at=datetime.utcnow() - timedelta(days=60),
+            collected_at=utcnow_naive() - timedelta(days=60),
         )
         session.commit()
 
@@ -1066,7 +1067,7 @@ class TestFreshnessProbe:
 
         # collected_at should be within the last few seconds; coverage,
         # pushed_at, and blob unchanged.
-        assert (datetime.utcnow() - snap.collected_at) < timedelta(minutes=1)
+        assert (utcnow_naive() - snap.collected_at) < timedelta(minutes=1)
         assert snap.coverage_until == original_coverage
         assert snap.upstream_pushed_at == original_pushed
         assert snap.blob == original_blob

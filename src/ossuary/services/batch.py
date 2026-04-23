@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from ossuary._compat import utcnow_naive
 from ossuary.services.cache import ScoreCache
 from ossuary.services.scorer import score_package, ScoringResult
 from ossuary.db.session import session_scope
@@ -427,7 +428,7 @@ def is_fresh(package_name: str, ecosystem: str, max_age_days: int = 7) -> bool:
                 return False
             if pkg.last_analyzed is None:
                 return False
-            age = (datetime.utcnow() - pkg.last_analyzed).days
+            age = (utcnow_naive() - pkg.last_analyzed).days
             return age < max_age_days
     except Exception:
         return False
