@@ -66,6 +66,14 @@ class GitHubData:
     owner: str = ""
     repo: str = ""
     owner_type: str = ""  # User or Organization
+    # GitHub's ``pushed_at`` for the repo — the timestamp of the last
+    # push to any branch. Used by the snapshot cache as a cheap
+    # freshness probe: if upstream ``pushed_at`` matches the value we
+    # recorded at snapshot time, the repo hasn't changed and the
+    # cached blob is still valid, even if it's past the SLA.
+    # Stored as ISO-8601 string to match the rest of the dataclass's
+    # date fields.
+    pushed_at: str = ""
 
     # Maintainer info
     maintainer_username: str = ""
@@ -423,6 +431,35 @@ class GitHubCollector(BaseCollector):
     async def get_repo_info(self, owner: str, repo: str) -> Optional[dict]:
         """Get repository information."""
         return await self._get(f"/repos/{owner}/{repo}")
+
+    @staticmethod
+    async def probe_pushed_at(repo_url: str) -> Optional[str]:
+        """Single-call freshness probe used by the snapshot cache.
+
+        Returns the upstream ``pushed_at`` ISO string for ``repo_url``,
+        or ``None`` if the URL doesn't parse, the repo is gone, or the
+        request errored. The caller compares the result against the
+        ``upstream_pushed_at`` recorded on the snapshot — equality
+        means the repo is unchanged and the cached blob is still
+        valid.
+
+        Owns the collector lifecycle (creates and closes a fresh
+        instance) so the cache layer doesn't need to plumb collectors
+        around. Cost is one GET /repos/{owner}/{repo}, much cheaper
+        than the full collect path it short-circuits.
+        """
+        owner, repo = GitHubCollector.parse_repo_url(repo_url)
+        if not owner or not repo:
+            return None
+        collector = GitHubCollector()
+        try:
+            info = await collector.get_repo_info(owner, repo)
+        finally:
+            await collector.close()
+        if not info:
+            return None
+        value = info.get("pushed_at")
+        return value or None
 
     async def get_cii_badge_level(self, owner: str, repo: str) -> str:
         """Detect CII/Best Practices badge presence from the repository README.

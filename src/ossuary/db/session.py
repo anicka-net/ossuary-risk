@@ -46,6 +46,19 @@ def _autoapply_simple_migrations(connection) -> None:
         # Brand-new DB — create_all() built the table with the column already.
         return
 
+    # repo_snapshots may not exist on a pre-v0.10 DB even though scores does;
+    # check before adding columns to it.
+    if "repo_snapshots" in inspector.get_table_names():
+        snap_cols = {col["name"] for col in inspector.get_columns("repo_snapshots")}
+        if "upstream_pushed_at" not in snap_cols:
+            logger.warning(
+                "Auto-migrating repo_snapshots schema: adding upstream_pushed_at "
+                "column for the v0.10.1 cheap freshness probe (phase 3 step 3)"
+            )
+            connection.execute(text(
+                "ALTER TABLE repo_snapshots ADD COLUMN upstream_pushed_at VARCHAR(50)"
+            ))
+
     existing_cols = {col["name"] for col in inspector.get_columns("scores")}
     if "is_provisional" not in existing_cols:
         logger.warning(

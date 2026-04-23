@@ -871,3 +871,120 @@ class TestStoreNegativeWritesTypedKind:
         # 10 days < 30-day TTL (no-repo-url class) → still active despite
         # NULL failure_kind, because the text classifier kicks in.
         assert cache.get_negative_cache("legacy", "npm") is not None
+
+
+# ---------------------------------------------------------------------------
+# Freshness probe (v0.10.1 — phase 3 step 3)
+# ---------------------------------------------------------------------------
+
+class TestFreshnessProbe:
+    """The probe path replaces a full re-collect (~10-100 API calls) with
+    a single GET when upstream pushed_at is unchanged. The cache layer
+    contract: store upstream_pushed_at on write, expose
+    get_latest_snapshot_any_age (because a stale snapshot misses the SLA
+    lookup but still has reusable data), and extend_snapshot_freshness
+    to bump collected_at after a successful probe."""
+
+    def test_store_snapshot_captures_pushed_at_from_blob(self, session):
+        """``store_snapshot`` extracts github_data.pushed_at into the
+        column so the probe doesn't need to rehydrate the blob to read
+        it."""
+        cache = RepoSnapshotCache(session)
+        data = _make_collected_data()
+        data.github_data.pushed_at = "2026-04-01T12:00:00Z"
+        blob = serialise_collected_data(data)
+
+        snap = cache.store_snapshot(
+            name="widget", ecosystem="npm",
+            repo_url="https://github.com/acme/widget", blob=blob,
+        )
+        session.commit()
+
+        assert snap.upstream_pushed_at == "2026-04-01T12:00:00Z"
+
+    def test_store_snapshot_handles_missing_pushed_at(self, session):
+        """A blob without github_data.pushed_at (legacy rows, github
+        ecosystem before populating) leaves the column NULL — the probe
+        path correctly skips such snapshots."""
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        # The default github_data has no pushed_at set.
+        snap = cache.store_snapshot(
+            name="legacy-shape", ecosystem="npm",
+            repo_url="https://github.com/acme/widget", blob=blob,
+        )
+        session.commit()
+        assert snap.upstream_pushed_at is None
+
+    def test_get_latest_snapshot_any_age_returns_expired(self, session):
+        """The SLA-bounded lookup misses past-90-day snapshots; the
+        any-age variant still returns them so the probe path can
+        validate them cheaply."""
+        from datetime import timedelta
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        cache.store_snapshot(
+            name="ancient", ecosystem="npm",
+            repo_url="https://github.com/acme/ancient", blob=blob,
+            collected_at=datetime.utcnow() - timedelta(days=200),
+        )
+        session.commit()
+
+        # SLA-bounded miss.
+        assert cache.get_snapshot_for_cutoff("ancient", "npm") is None
+        # Any-age hit.
+        snap = cache.get_latest_snapshot_any_age("ancient", "npm")
+        assert snap is not None
+
+    def test_get_latest_snapshot_any_age_misses_unknown_package(self, session):
+        cache = RepoSnapshotCache(session)
+        assert cache.get_latest_snapshot_any_age("ghost", "npm") is None
+
+    def test_get_latest_snapshot_any_age_filters_collector_version(self, session):
+        """An old-collector-schema snapshot can't be revalidated — only
+        re-collected — so the probe path must skip it."""
+        from ossuary.db.models import RepoSnapshot
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("vmismatch", "npm")
+        session.add(
+            RepoSnapshot(
+                package_id=package.id,
+                collected_at=datetime.utcnow(),
+                coverage_until=datetime.utcnow(),
+                repo_url="https://x", blob={},
+                fetcher_version=COLLECTOR_VERSION + 99,
+                upstream_pushed_at="2026-04-01T12:00:00Z",
+            )
+        )
+        session.commit()
+        assert cache.get_latest_snapshot_any_age("vmismatch", "npm") is None
+
+    def test_extend_snapshot_freshness_bumps_collected_at(self, session):
+        """Bump moves collected_at to now without touching the blob,
+        coverage_until, or upstream_pushed_at."""
+        from datetime import timedelta
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        original_pushed = "2026-04-01T12:00:00Z"
+        data = _make_collected_data()
+        data.github_data.pushed_at = original_pushed
+        snap = cache.store_snapshot(
+            name="bumpable", ecosystem="npm",
+            repo_url="https://github.com/acme/widget",
+            blob=serialise_collected_data(data),
+            collected_at=datetime.utcnow() - timedelta(days=60),
+        )
+        session.commit()
+
+        original_coverage = snap.coverage_until
+        original_blob = snap.blob
+
+        cache.extend_snapshot_freshness(snap)
+        session.commit()
+
+        # collected_at should be within the last few seconds; coverage,
+        # pushed_at, and blob unchanged.
+        assert (datetime.utcnow() - snap.collected_at) < timedelta(minutes=1)
+        assert snap.coverage_until == original_coverage
+        assert snap.upstream_pushed_at == original_pushed
+        assert snap.blob == original_blob

@@ -250,6 +250,15 @@ class RepoSnapshot(Base):
     # nested dataclasses gain/lose fields in a backwards-incompatible way.
     fetcher_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
+    # GitHub ``pushed_at`` for the repo at snapshot time (ISO string from
+    # the API). Used by the freshness probe (v0.10.1 phase 3 step 3): one
+    # cheap GET /repos/{owner}/{repo} compares this against current
+    # upstream pushed_at; if unchanged, the snapshot is still valid and
+    # we extend its freshness without paying for a full re-collect.
+    # Nullable for legacy rows written before the column existed — those
+    # cannot use the probe path and fall through to full re-collect.
+    upstream_pushed_at: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
     # Relationships (no back_populates intentionally — the relationship is
     # one-way; Package does not enumerate its snapshots in normal use).
 

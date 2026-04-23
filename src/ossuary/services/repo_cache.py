@@ -695,6 +695,14 @@ class RepoSnapshotCache:
         now = collected_at or datetime.utcnow()
         coverage_until = _coverage_until_from_blob(blob) or now
 
+        # Pull github_data.pushed_at out of the blob (if present) so the
+        # freshness probe can compare against it on the next refresh
+        # without rehydrating the full CollectedData.
+        upstream_pushed_at = None
+        gh = blob.get("github_data") if isinstance(blob, dict) else None
+        if isinstance(gh, dict):
+            upstream_pushed_at = gh.get("pushed_at") or None
+
         snapshot = RepoSnapshot(
             package_id=package.id,
             collected_at=now,
@@ -702,7 +710,48 @@ class RepoSnapshotCache:
             repo_url=repo_url,
             blob=blob,
             fetcher_version=COLLECTOR_VERSION,
+            upstream_pushed_at=upstream_pushed_at,
         )
         self.session.add(snapshot)
         self.session.flush()
         return snapshot
+
+    def get_latest_snapshot_any_age(
+        self, name: str, ecosystem: str
+    ) -> Optional[RepoSnapshot]:
+        """Return the most recent snapshot for a package regardless of SLA.
+
+        Used by the freshness-probe path: when ``get_snapshot_for_cutoff``
+        misses because a snapshot is past the SLA window, we still want
+        to know whether a (now-stale) snapshot exists so we can probe the
+        upstream and revalidate it cheaply if the repo hasn't changed.
+
+        Filters by ``fetcher_version`` — a snapshot from an old collector
+        schema can't be revalidated, only re-collected.
+        """
+        canonical = normalize_package_name(name, ecosystem)
+        package = (
+            self.session.query(Package)
+            .filter(Package.name == canonical, Package.ecosystem == ecosystem)
+            .first()
+        )
+        if package is None:
+            return None
+        return (
+            self.session.query(RepoSnapshot)
+            .filter(
+                RepoSnapshot.package_id == package.id,
+                RepoSnapshot.fetcher_version == COLLECTOR_VERSION,
+            )
+            .order_by(RepoSnapshot.collected_at.desc())
+            .first()
+        )
+
+    def extend_snapshot_freshness(self, snapshot: RepoSnapshot) -> None:
+        """Bump a snapshot's ``collected_at`` to ``now`` after validating
+        upstream is unchanged. The blob, ``coverage_until`` and
+        ``upstream_pushed_at`` stay the same — only the freshness clock
+        is reset. Idempotent.
+        """
+        snapshot.collected_at = datetime.utcnow()
+        self.session.flush()
