@@ -119,33 +119,90 @@ async def cached_collect(
     """
     from ossuary.services.repo_cache import (
         RepoSnapshotCache,
+        canonicalize_repo_url,
         deserialise_collected_data,
         is_permanent_failure,
         serialise_collected_data,
     )
 
+    def _hydrate(snap, *, zero_registry_fields: bool):
+        """Deserialise a snapshot blob into CollectedData, optionally zeroing
+        registry-derived fields for the github-ecosystem caller.
+
+        Returns ``(data, ok)``: ``ok=False`` signals "blob unhydratable,
+        caller should fall through" (logged at the call site)."""
+        try:
+            data = deserialise_collected_data(snap.blob, CollectedData)
+        except (TypeError, KeyError, ValueError):
+            return None, False
+        if zero_registry_fields:
+            # github-ecosystem semantics: no registry, so no download
+            # signal. The snapshot may have been written by an
+            # npm/pypi caller that recorded real download counts —
+            # those would over-credit the visibility bonus here.
+            data.weekly_downloads = 0
+        return data, True
+
     if use_cache:
         with session_scope() as session:
             cache = RepoSnapshotCache(session)
-            # Positive cache (snapshot hit).
+            # Positive cache (snapshot hit, package-keyed).
             snapshot = cache.get_snapshot_for_cutoff(
                 package_name, ecosystem, cutoff_date
             )
             if snapshot is not None:
-                try:
-                    data = deserialise_collected_data(snapshot.blob, CollectedData)
+                data, ok = _hydrate(snapshot, zero_registry_fields=False)
+                if ok:
                     return data, []
-                except (TypeError, KeyError, ValueError) as exc:
-                    # Defensive fallthrough: if the blob fails to hydrate
-                    # (collector schema drift not caught by fetcher_version),
-                    # fall through to a fresh fetch and overwrite. Logged so
-                    # we notice if this fires routinely.
-                    import logging as _logging
-                    _logging.getLogger(__name__).warning(
-                        "Snapshot for %s/%s failed to deserialise (%s); "
-                        "falling through to fresh collect",
-                        ecosystem, package_name, exc,
+                # Defensive fallthrough: blob failed to hydrate
+                # (collector schema drift not caught by fetcher_version).
+                # Log so we notice if this fires routinely.
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "Snapshot for %s/%s failed to deserialise; "
+                    "falling through to fresh collect",
+                    ecosystem, package_name,
+                )
+
+            # Repo-keyed cross-package lookup. v0.10.1 narrow-slice:
+            # only fires for the github ecosystem because that's the
+            # only path where the canonical repo URL is known with
+            # zero upstream calls. Cross-ecosystem sharing (e.g. npm
+            # ↔ pypi) needs the registry/repo blob split — see
+            # ``services/repo_cache.py`` module docstring and
+            # ``docs/data_reuse_design.md`` §4.
+            if ecosystem == "github" and snapshot is None:
+                derived_url = repo_url
+                if not derived_url:
+                    name = package_name.strip("/")
+                    derived_url = (
+                        name if name.startswith("https://")
+                        else f"https://github.com/{name}"
                     )
+                shared = cache.get_snapshot_by_repo_url(
+                    derived_url, cutoff_date
+                )
+                if shared is not None:
+                    data, ok = _hydrate(shared, zero_registry_fields=True)
+                    if ok:
+                        # Persist a snapshot row keyed to *this* package
+                        # so subsequent same-package lookups hit the
+                        # cheap package-keyed path.
+                        try:
+                            cache.store_snapshot(
+                                name=package_name,
+                                ecosystem=ecosystem,
+                                repo_url=derived_url,
+                                blob=serialise_collected_data(data),
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            import logging as _logging
+                            _logging.getLogger(__name__).warning(
+                                "Failed to persist shared-repo snapshot "
+                                "for %s/%s: %s",
+                                ecosystem, package_name, exc,
+                            )
+                        return data, []
 
             # Negative cache: skip the upstream probe entirely if a recent
             # permanent failure is recorded (404, no repo URL, etc.). The

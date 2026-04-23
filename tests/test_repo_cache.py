@@ -18,6 +18,7 @@ from ossuary.db.models import Base, RepoSnapshot
 from ossuary.services.repo_cache import (
     COLLECTOR_VERSION,
     RepoSnapshotCache,
+    canonicalize_repo_url,
     deserialise_collected_data,
     serialise_collected_data,
 )
@@ -582,3 +583,171 @@ class TestStats:
         assert stats["snapshots"]["fresh"] == 0
         assert stats["snapshots"]["stale"] == 0
         assert stats["snapshots"]["expired"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Canonical URL + repo-keyed lookup (v0.10.1 — phase 3 step 1 narrow slice)
+# ---------------------------------------------------------------------------
+
+class TestCanonicalizeRepoUrl:
+    def test_returns_none_for_empty_input(self):
+        assert canonicalize_repo_url(None) is None
+        assert canonicalize_repo_url("") is None
+        assert canonicalize_repo_url("   ") is None
+
+    def test_strips_trailing_dot_git(self):
+        assert (
+            canonicalize_repo_url("https://github.com/Acme/Widget.git")
+            == "https://github.com/acme/widget"
+        )
+
+    def test_strips_trailing_slash(self):
+        assert (
+            canonicalize_repo_url("https://github.com/acme/widget/")
+            == "https://github.com/acme/widget"
+        )
+
+    def test_lowercases_owner_and_repo(self):
+        # GitHub treats owner/repo as case-insensitive — the cache should
+        # too, otherwise ``Axios-Http/Axios`` and ``axios-http/axios``
+        # would write two separate snapshots for the same repo.
+        assert (
+            canonicalize_repo_url("https://github.com/Axios-Http/Axios")
+            == "https://github.com/axios-http/axios"
+        )
+
+    def test_promotes_http_to_https(self):
+        assert (
+            canonicalize_repo_url("http://github.com/acme/widget")
+            == "https://github.com/acme/widget"
+        )
+
+    def test_normalises_ssh_form(self):
+        assert (
+            canonicalize_repo_url("git@github.com:Acme/Widget.git")
+            == "https://github.com/acme/widget"
+        )
+
+    def test_idempotent(self):
+        once = canonicalize_repo_url("https://github.com/Acme/Widget.git/")
+        twice = canonicalize_repo_url(once)
+        assert once == twice == "https://github.com/acme/widget"
+
+
+class TestSnapshotByRepoUrl:
+    def test_finds_snapshot_written_by_different_package(self, session):
+        """The whole point of repo-keying: a snapshot written by package A
+        on npm is reachable by a github-direct lookup for the same repo."""
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        cache.store_snapshot(
+            name="widget",
+            ecosystem="npm",
+            repo_url="https://github.com/Acme/Widget",
+            blob=blob,
+        )
+        session.commit()
+
+        snap = cache.get_snapshot_by_repo_url("https://github.com/acme/widget")
+        assert snap is not None
+        assert canonicalize_repo_url(snap.repo_url) == "https://github.com/acme/widget"
+
+    def test_canonicalises_caller_url(self, session):
+        """Differently-spelled equivalent URLs all hit the same snapshot."""
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        cache.store_snapshot(
+            name="widget", ecosystem="npm",
+            repo_url="https://github.com/acme/widget", blob=blob,
+        )
+        session.commit()
+
+        for query in (
+            "https://github.com/acme/widget",
+            "https://github.com/acme/widget/",
+            "https://github.com/acme/widget.git",
+            "https://github.com/Acme/Widget",
+            "git@github.com:acme/widget.git",
+            "http://github.com/acme/widget",
+        ):
+            assert cache.get_snapshot_by_repo_url(query) is not None, query
+
+    def test_miss_when_no_match(self, session):
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        cache.store_snapshot(
+            name="widget", ecosystem="npm",
+            repo_url="https://github.com/acme/widget", blob=blob,
+        )
+        session.commit()
+        assert cache.get_snapshot_by_repo_url(
+            "https://github.com/different/repo"
+        ) is None
+
+    def test_returns_none_for_unparseable_url(self, session):
+        cache = RepoSnapshotCache(session)
+        # Empty / None input is rejected without touching the DB.
+        assert cache.get_snapshot_by_repo_url("") is None
+        assert cache.get_snapshot_by_repo_url(None) is None  # type: ignore[arg-type]
+
+    def test_picks_most_recent_when_multiple_packages_share_repo(self, session):
+        """Two packages on different ecosystems both wrote snapshots for
+        the same repo. The lookup returns the most recent one."""
+        cache = RepoSnapshotCache(session)
+        old_blob = serialise_collected_data(_make_collected_data(commit_count=1))
+        new_blob = serialise_collected_data(_make_collected_data(commit_count=5))
+
+        old_snap = cache.store_snapshot(
+            name="widget-npm", ecosystem="npm",
+            repo_url="https://github.com/acme/widget", blob=old_blob,
+            collected_at=datetime.utcnow() - timedelta(days=10),
+        )
+        new_snap = cache.store_snapshot(
+            name="widget-pypi", ecosystem="pypi",
+            repo_url="https://github.com/acme/widget", blob=new_blob,
+        )
+        session.commit()
+
+        result = cache.get_snapshot_by_repo_url("https://github.com/acme/widget")
+        assert result is not None
+        assert result.id == new_snap.id
+        assert result.id != old_snap.id
+
+    def test_respects_freshness_sla_in_current_mode(self, session):
+        """A snapshot older than SLA_EXPIRED_DAYS isn't served when
+        cutoff_date is None."""
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        cache.store_snapshot(
+            name="widget", ecosystem="npm",
+            repo_url="https://github.com/acme/widget", blob=blob,
+            collected_at=datetime.utcnow() - timedelta(days=200),
+        )
+        session.commit()
+
+        # Default sla_expired_days=90, snapshot is 200 days old → miss.
+        assert cache.get_snapshot_by_repo_url(
+            "https://github.com/acme/widget"
+        ) is None
+
+    def test_respects_collector_version(self, session):
+        """Snapshots written by an older collector schema are filtered out
+        — same invalidation contract as the package-keyed lookup."""
+        from ossuary.db.models import RepoSnapshot
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("widget", "npm")
+        session.add(
+            RepoSnapshot(
+                package_id=package.id,
+                collected_at=datetime.utcnow(),
+                coverage_until=datetime.utcnow(),
+                repo_url="https://github.com/acme/widget",
+                blob={},
+                fetcher_version=COLLECTOR_VERSION + 99,
+            )
+        )
+        session.commit()
+
+        assert cache.get_snapshot_by_repo_url(
+            "https://github.com/acme/widget"
+        ) is None

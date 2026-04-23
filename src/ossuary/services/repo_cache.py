@@ -7,10 +7,22 @@ invalidates the score cache (see ``services/cache.py::ScoreCache``) but
 *not* the snapshot cache, so re-scoring 170 validation packages after a
 methodology change is bounded by DB read time, not GitHub rate limit.
 
-See ``docs/data_reuse_design.md`` for the full design including the v0.11
-repo-keyed evolution. v0.10 is package-keyed (one snapshot per
-``(name, ecosystem)``) with the resolved repo URL recorded for the future
-re-keying.
+See ``docs/data_reuse_design.md`` for the full design. v0.10 was strictly
+package-keyed (one snapshot per ``(name, ecosystem)``). v0.10.1 adds an
+opportunistic repo-keyed lookup path: when scoring via the ``github``
+ecosystem (the only path where the canonical repo URL is known with zero
+upstream calls), a snapshot written by *any* package — across ecosystems —
+that resolved to the same canonical URL can be served. Registry-derived
+fields (currently just ``weekly_downloads``) are zeroed before return so
+the github-ecosystem score retains its "no registry data" semantics.
+
+The broader cross-ecosystem repo share — e.g. ``axios`` on npm and
+``requests`` on pypi sharing repo data when both happen to land on the
+same monorepo — requires splitting ``CollectedData`` into a
+registry-derived half and a repo-derived half so the registry data can
+stay per-package while repo data is shared. That split is the v0.11
+design (``docs/data_reuse_design.md`` §4) and is intentionally out of
+scope for the v0.10.1 slice.
 
 **Lookup semantics — current vs historical scoring.**
 
@@ -31,6 +43,7 @@ re-keying.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import asdict, fields, is_dataclass
 from datetime import datetime, timedelta
 from typing import Any, Optional
@@ -39,6 +52,70 @@ from sqlalchemy.orm import Session
 
 from ossuary.db.models import Package, RepoSnapshot
 from ossuary.services.cache import normalize_package_name
+
+
+# ---------------------------------------------------------------------------
+# Canonical repo URL
+# ---------------------------------------------------------------------------
+
+# Captures one or two leading slashes, optional ssh-form (git@host:owner/repo),
+# trailing slash, and trailing ``.git``. The intent is conservative: only
+# normalisations that demonstrably point to the same underlying repo.
+# Forks and redirects are NOT followed — that's a v0.11 question (design
+# doc §9.3); doing it wrong here would silently merge different repos.
+_GIT_SSH_RE = re.compile(r"^git@([^:]+):(.+?)(?:\.git)?/?$")
+
+
+def canonicalize_repo_url(repo_url: Optional[str]) -> Optional[str]:
+    """Normalise a repo URL to a canonical form for cache key comparison.
+
+    Rules (intentionally conservative):
+
+    - Strip surrounding whitespace.
+    - Convert ``git@host:owner/repo`` → ``https://host/owner/repo``.
+    - Strip trailing ``.git``.
+    - Strip trailing ``/``.
+    - Lowercase the host and the path (GitHub treats owner/repo as
+      case-insensitive; case-only differences across snapshots would
+      otherwise miss the cache).
+    - Force ``https://`` for ``http://`` and ssh forms.
+
+    Returns ``None`` if the input is empty or looks unparseable. We do
+    NOT chase redirects, normalise www. prefixes, or merge mirror
+    domains — those are correctness decisions for a future repo-identity
+    layer (design doc §9.3).
+    """
+    if not repo_url:
+        return None
+    url = repo_url.strip()
+    if not url:
+        return None
+
+    ssh_match = _GIT_SSH_RE.match(url)
+    if ssh_match:
+        host, path = ssh_match.group(1), ssh_match.group(2)
+        url = f"https://{host}/{path}"
+    elif url.startswith("http://"):
+        url = "https://" + url[len("http://") :]
+
+    # Strip trailing slashes first so a path like ``foo.git/`` collapses
+    # before the ``.git`` check, then strip ``.git``, then strip any
+    # residual trailing slash. Idempotent under repeated application.
+    url = url.rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    url = url.rstrip("/")
+
+    # Lowercase scheme + host + path. GitHub paths are case-insensitive
+    # for routing; lowercasing makes ``axios-http/axios`` and
+    # ``Axios-Http/Axios`` collide on the same key.
+    if "://" in url:
+        scheme, rest = url.split("://", 1)
+        url = f"{scheme.lower()}://{rest.lower()}"
+    else:
+        url = url.lower()
+
+    return url or None
 
 logger = logging.getLogger(__name__)
 
@@ -338,6 +415,61 @@ class RepoSnapshotCache:
             query = query.filter(RepoSnapshot.collected_at >= cutoff_date)
 
         return query.order_by(RepoSnapshot.collected_at.desc()).first()
+
+    def get_snapshot_by_repo_url(
+        self,
+        repo_url: str,
+        cutoff_date: Optional[datetime] = None,
+        sla_expired_days: int = SLA_EXPIRED_DAYS,
+    ) -> Optional[RepoSnapshot]:
+        """Look up the most recent snapshot for a canonical repo URL.
+
+        Unlike :meth:`get_snapshot_for_cutoff`, this is keyed on the
+        repo URL rather than the package, so a snapshot written by *any*
+        package whose ``repo_url`` canonicalises to the same value is
+        eligible. Used by ``cached_collect`` for the github-ecosystem
+        path, where the canonical URL is known before any upstream call.
+
+        Same freshness / cutoff semantics as the package-keyed lookup
+        (see that method's docstring). Filters by ``fetcher_version`` so
+        a collector schema bump invalidates older blobs.
+
+        Returns ``None`` for an unparseable / empty URL — defensive: if
+        canonicalisation fails the caller should fall through to the
+        normal collector path rather than risk a wrong-repo hit.
+        """
+        canonical = canonicalize_repo_url(repo_url)
+        if not canonical:
+            return None
+
+        query = (
+            self.session.query(RepoSnapshot)
+            .filter(
+                RepoSnapshot.fetcher_version == COLLECTOR_VERSION,
+                # Match on the snapshot's own repo_url column. Indexes
+                # on this column would speed lookups at SUSE scale; the
+                # current size doesn't justify the extra index yet.
+                RepoSnapshot.repo_url.isnot(None),
+            )
+        )
+
+        if cutoff_date is None:
+            sla_cutoff = datetime.utcnow() - timedelta(days=sla_expired_days)
+            query = query.filter(RepoSnapshot.collected_at >= sla_cutoff)
+        else:
+            query = query.filter(RepoSnapshot.collected_at >= cutoff_date)
+
+        # Pull candidates and filter in Python so the canonicalisation
+        # rules stay in one place. Volume here is bounded by snapshots
+        # newer than the SLA cutoff for a single repo's family of
+        # spellings; in practice a handful of rows.
+        candidates = (
+            query.order_by(RepoSnapshot.collected_at.desc()).limit(50).all()
+        )
+        for snap in candidates:
+            if canonicalize_repo_url(snap.repo_url) == canonical:
+                return snap
+        return None
 
     # ----- Negative cache -----
 
