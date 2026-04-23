@@ -759,6 +759,53 @@ class TestSnapshotByRepoUrl:
             "https://github.com/acme/widget"
         ) is None
 
+    def test_finds_target_among_many_unrelated_newer_snapshots(self, session):
+        """High-volume regression: GPT review reproduced a miss when 51
+        newer unrelated snapshots existed alongside one valid target.
+        The earlier implementation pulled LIMIT 50 ordered by
+        collected_at and re-canonicalised in Python, which dropped the
+        target. Fix: filter on the indexed ``repo_url_canonical``
+        column with SQL exact equality so volume doesn't affect
+        correctness."""
+        from datetime import timedelta
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+
+        # 1 target, written 10 days ago.
+        cache.store_snapshot(
+            name="target", ecosystem="npm",
+            repo_url="https://github.com/acme/widget", blob=blob,
+            collected_at=datetime.utcnow() - timedelta(days=10),
+        )
+        # 51 newer snapshots for unrelated repos.
+        for i in range(51):
+            cache.store_snapshot(
+                name=f"unrel-{i}", ecosystem="npm",
+                repo_url=f"https://github.com/x/r{i}", blob=blob,
+                collected_at=datetime.utcnow() - timedelta(days=1),
+            )
+        session.commit()
+
+        snap = cache.get_snapshot_by_repo_url("https://github.com/acme/widget")
+        assert snap is not None
+        assert snap.repo_url_canonical == "https://github.com/acme/widget"
+
+    def test_canonical_column_populated_on_write(self, session):
+        """``store_snapshot`` must canonicalise the URL into the
+        ``repo_url_canonical`` column at write time so the SQL filter
+        in :meth:`get_snapshot_by_repo_url` can use exact equality."""
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        snap = cache.store_snapshot(
+            name="x", ecosystem="npm",
+            # Mixed-case + .git + trailing slash spelling.
+            repo_url="https://github.com/Acme/Widget.git/",
+            blob=blob,
+        )
+        session.commit()
+        assert snap.repo_url == "https://github.com/Acme/Widget.git/"  # original preserved
+        assert snap.repo_url_canonical == "https://github.com/acme/widget"
+
 
 # ---------------------------------------------------------------------------
 # Typed failure classifier (v0.10.1 — phase 3 step 4)
@@ -958,6 +1005,41 @@ class TestFreshnessProbe:
         )
         session.commit()
         assert cache.get_latest_snapshot_any_age("vmismatch", "npm") is None
+
+    def test_probe_wiring_unhooked_in_cached_collect(self):
+        """GPT review caught that ``pushed_at`` only moves on git pushes
+        but the cached blob carries sponsors / orgs / CII / issues —
+        signals that change independently of pushes. A pushed_at-only
+        probe would silently extend snapshots whose auxiliary signals
+        had drifted. The probe wiring in cached_collect was therefore
+        unshipped (commit reversal) until signal-family-aware refresh
+        (GPT roadmap item 2) lands. The building blocks
+        (probe_pushed_at, get_latest_snapshot_any_age,
+        extend_snapshot_freshness, upstream_pushed_at) stay on disk
+        for that future use.
+
+        This test pins the unwiring: cached_collect's source must NOT
+        invoke probe_pushed_at; if it does, a future PR would silently
+        re-introduce the bug GPT caught."""
+        import inspect as _inspect
+        from ossuary.services import scorer
+        src = _inspect.getsource(scorer.cached_collect)
+        # The wiring would have called probe_pushed_at directly;
+        # the building blocks may still be referenced in *comments*
+        # but not in executable code.
+        executable_lines = [
+            line for line in src.splitlines()
+            if not line.strip().startswith("#")
+        ]
+        executable_src = "\n".join(executable_lines)
+        assert "probe_pushed_at(" not in executable_src, (
+            "cached_collect must not invoke probe_pushed_at — see GPT "
+            "review HIGH finding on pushed_at-only validity"
+        )
+        assert "extend_snapshot_freshness(" not in executable_src, (
+            "cached_collect must not invoke extend_snapshot_freshness "
+            "via the unsound probe path"
+        )
 
     def test_extend_snapshot_freshness_bumps_collected_at(self, session):
         """Bump moves collected_at to now without touching the blob,

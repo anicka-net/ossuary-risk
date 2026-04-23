@@ -211,48 +211,30 @@ async def cached_collect(
             if cached_failure is not None:
                 return None, [f"(cached) {cached_failure}"]
 
-    # Cheap freshness probe (v0.10.1 phase 3 step 3). Only fires for
-    # current-scoring (cutoff_date is None) and only after the standard
-    # SLA-bounded lookup missed. If a stale snapshot exists with a
-    # recorded upstream pushed_at, do one GET /repos/{owner}/{repo} and
-    # see if the repo has actually changed. Unchanged → bump the
-    # snapshot's collected_at and serve the existing blob, saving the
-    # full re-collect (O(10–100) API calls). Changed → fall through to
-    # full re-collect as today.
-    if use_cache and cutoff_date is None:
-        with session_scope() as session:
-            cache = RepoSnapshotCache(session)
-            stale = cache.get_latest_snapshot_any_age(package_name, ecosystem)
-            if (
-                stale is not None
-                and stale.upstream_pushed_at
-                and stale.repo_url
-            ):
-                try:
-                    current_pushed_at = await GitHubCollector.probe_pushed_at(
-                        stale.repo_url
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    # Probe is best-effort: if it errors (rate limit, 5xx,
-                    # network) we skip the optimisation and fall through
-                    # to full collect, which is the existing behaviour.
-                    import logging as _logging
-                    _logging.getLogger(__name__).warning(
-                        "Freshness probe failed for %s/%s: %s",
-                        ecosystem, package_name, exc,
-                    )
-                    current_pushed_at = None
-
-                if current_pushed_at and current_pushed_at == stale.upstream_pushed_at:
-                    # Repo unchanged since snapshot — extend freshness
-                    # and serve the existing blob.
-                    try:
-                        data = deserialise_collected_data(stale.blob, CollectedData)
-                    except (TypeError, KeyError, ValueError):
-                        data = None
-                    if data is not None:
-                        cache.extend_snapshot_freshness(stale)
-                        return data, []
+    # Freshness-probe wiring intentionally NOT enabled here.
+    #
+    # An earlier v0.10.1 slice (commit e9af445) wired a single
+    # ``GET /repos/{owner}/{repo}`` to compare upstream ``pushed_at``
+    # against the snapshot and extend freshness on a match. GPT review
+    # caught that ``pushed_at`` only moves on git pushes, but the
+    # cached blob also carries maintainer sponsors, org membership,
+    # org-admin status, CII badge state, and issue/comment data — none
+    # of which are guaranteed to move with ``pushed_at``. A repo with
+    # no code pushes but new burnout issues, changed org ownership, or
+    # newly enabled sponsors would have its stale snapshot freshness
+    # extended on a false signal. For an academic-methodology repo
+    # that is too strong a reuse criterion.
+    #
+    # The building blocks (``GitHubData.pushed_at``,
+    # ``RepoSnapshot.upstream_pushed_at``,
+    # ``RepoSnapshotCache.get_latest_snapshot_any_age``,
+    # ``RepoSnapshotCache.extend_snapshot_freshness``,
+    # ``GitHubCollector.probe_pushed_at``) are kept on disk because the
+    # right reactivation needs signal-family-aware refresh
+    # (``docs/data_reuse_design.md`` GPT roadmap item 2): on a probe
+    # match, refresh only the cheap auxiliary signals (sponsors, orgs,
+    # CII, issues) while reusing the cached commit history. That makes
+    # the probe path sound. Until item 2 lands the probe stays cold.
 
     data, warnings = await collect_package_data(package_name, ecosystem, repo_url)
     if data is not None:

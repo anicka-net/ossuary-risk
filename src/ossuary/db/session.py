@@ -58,6 +58,38 @@ def _autoapply_simple_migrations(connection) -> None:
             connection.execute(text(
                 "ALTER TABLE repo_snapshots ADD COLUMN upstream_pushed_at VARCHAR(50)"
             ))
+        if "repo_url_canonical" not in snap_cols:
+            # GPT review caught get_snapshot_by_repo_url misses at high
+            # snapshot volume because the LIMIT 50 fired before
+            # canonical-URL filtering. Fix: store the canonical form on
+            # the row so SQL filters with exact equality (and an index)
+            # instead of re-canonicalising every candidate in Python.
+            logger.warning(
+                "Auto-migrating repo_snapshots schema: adding "
+                "repo_url_canonical column + backfilling from repo_url"
+            )
+            connection.execute(text(
+                "ALTER TABLE repo_snapshots ADD COLUMN repo_url_canonical VARCHAR(500)"
+            ))
+            connection.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_repo_snapshot_url_canonical "
+                "ON repo_snapshots (repo_url_canonical)"
+            ))
+            from ossuary.services.repo_cache import canonicalize_repo_url
+            rows = connection.execute(text(
+                "SELECT id, repo_url FROM repo_snapshots "
+                "WHERE repo_url IS NOT NULL AND repo_url_canonical IS NULL"
+            )).fetchall()
+            for row in rows:
+                canonical = canonicalize_repo_url(row.repo_url)
+                if canonical:
+                    connection.execute(
+                        text(
+                            "UPDATE repo_snapshots SET repo_url_canonical = :u "
+                            "WHERE id = :i"
+                        ),
+                        {"u": canonical, "i": row.id},
+                    )
 
     existing_cols = {col["name"] for col in inspector.get_columns("scores")}
     if "is_provisional" not in existing_cols:

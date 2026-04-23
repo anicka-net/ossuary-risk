@@ -236,9 +236,17 @@ class RepoSnapshot(Base):
     coverage_until: Mapped[datetime] = mapped_column(DateTime)
 
     # Canonical repo URL the snapshot resolved to (or None when the
-    # package has no upstream repo). Recorded for future cross-package
-    # sharing — see class docstring.
+    # package has no upstream repo). The ``repo_url`` field stores the
+    # original spelling as provided by the registry (preserved for
+    # diagnostics); ``repo_url_canonical`` stores the normalised form
+    # (lowercase, no .git, no trailing slash, ssh→https) so SQL lookups
+    # for cross-package shared-repo hits use exact equality on an
+    # indexable column. Filtering in Python after a LIMIT-bounded read
+    # — the v0.10.1-step-1a approach — broke at high snapshot volume
+    # (GPT review: with 51 newer unrelated snapshots, the target was
+    # not returned).
     repo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    repo_url_canonical: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, index=True)
 
     # Serialised CollectedData blob: commits, github_data (incl. issues),
     # weekly_downloads, maintainer_account_created, repo_stargazers,

@@ -471,6 +471,13 @@ class RepoSnapshotCache:
         Returns ``None`` for an unparseable / empty URL — defensive: if
         canonicalisation fails the caller should fall through to the
         normal collector path rather than risk a wrong-repo hit.
+
+        Implementation: filters on ``repo_url_canonical`` (indexed) with
+        SQL exact equality. The earlier v0.10.1-step-1a version pulled
+        a LIMIT-bounded set of recent snapshots and re-canonicalised in
+        Python, which broke at high volume — GPT review reproduced a
+        miss with 51 newer unrelated snapshots. The current design is
+        O(log n) instead of O(50) and correct at any scale.
         """
         canonical = canonicalize_repo_url(repo_url)
         if not canonical:
@@ -480,10 +487,7 @@ class RepoSnapshotCache:
             self.session.query(RepoSnapshot)
             .filter(
                 RepoSnapshot.fetcher_version == COLLECTOR_VERSION,
-                # Match on the snapshot's own repo_url column. Indexes
-                # on this column would speed lookups at SUSE scale; the
-                # current size doesn't justify the extra index yet.
-                RepoSnapshot.repo_url.isnot(None),
+                RepoSnapshot.repo_url_canonical == canonical,
             )
         )
 
@@ -493,17 +497,7 @@ class RepoSnapshotCache:
         else:
             query = query.filter(RepoSnapshot.collected_at >= cutoff_date)
 
-        # Pull candidates and filter in Python so the canonicalisation
-        # rules stay in one place. Volume here is bounded by snapshots
-        # newer than the SLA cutoff for a single repo's family of
-        # spellings; in practice a handful of rows.
-        candidates = (
-            query.order_by(RepoSnapshot.collected_at.desc()).limit(50).all()
-        )
-        for snap in candidates:
-            if canonicalize_repo_url(snap.repo_url) == canonical:
-                return snap
-        return None
+        return query.order_by(RepoSnapshot.collected_at.desc()).first()
 
     # ----- Negative cache -----
 
@@ -708,6 +702,7 @@ class RepoSnapshotCache:
             collected_at=now,
             coverage_until=coverage_until,
             repo_url=repo_url,
+            repo_url_canonical=canonicalize_repo_url(repo_url),
             blob=blob,
             fetcher_version=COLLECTOR_VERSION,
             upstream_pushed_at=upstream_pushed_at,
