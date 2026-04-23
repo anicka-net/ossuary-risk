@@ -90,6 +90,98 @@ class HistoricalScore:
     contributors: int
 
 
+@dataclass
+class RegistryData:
+    """Per-package registry-derived signals separated from repo data.
+
+    Holds the cheap "stage 1" output that ``cached_collect`` uses to
+    decide whether a cross-package repo-share lookup is worth doing.
+    Specifically: ``repo_url`` is the resolved upstream the package
+    points to (the cache-share key) and ``weekly_downloads`` is the
+    per-package signal we'd overlay onto a shared snapshot. ``warnings``
+    is the user-facing list (currently empty for registry; collectors
+    surface those via ``fetch_errors``); kept for parity with
+    ``collect_package_data``'s return shape.
+
+    For ``ecosystem == "github"`` there is no registry call —
+    ``weekly_downloads`` is set to ``None`` (sentinel: "not applicable
+    on this path", distinct from "measured zero").
+    """
+
+    repo_url: Optional[str]
+    weekly_downloads: Optional[int]
+    fetch_errors: list[str]
+    warnings: list[str]
+
+
+async def _collect_registry_data(
+    package_name: str,
+    ecosystem: str,
+    repo_url: Optional[str] = None,
+) -> RegistryData:
+    """Cheap "stage 1" of :func:`collect_package_data`.
+
+    Fetches just the registry-derived signals: resolved ``repo_url``
+    and ``weekly_downloads``. Used by ``cached_collect`` to learn the
+    canonical repo URL before deciding whether a cross-package
+    repo-share lookup can short-circuit the expensive GitHub fetch.
+
+    On the github ecosystem path the URL is derived from the package
+    name with no API call and ``weekly_downloads`` is ``None`` (the
+    github-direct semantic doesn't use download data).
+
+    Single source of truth: :func:`collect_package_data` calls this
+    too (via its ``prefetched_registry`` parameter) so the per-eco
+    registry handling lives in exactly one place.
+    """
+    fetch_errors: list[str] = []
+    weekly_downloads: Optional[int] = 0  # default for non-github
+
+    if ecosystem == "github":
+        resolved = repo_url
+        if not resolved:
+            stripped = package_name.strip("/")
+            resolved = (
+                stripped if stripped.startswith("https://")
+                else f"https://github.com/{stripped}"
+            )
+        return RegistryData(
+            repo_url=resolved,
+            weekly_downloads=None,  # no registry on this path
+            fetch_errors=[],
+            warnings=[],
+        )
+
+    if ecosystem == "npm":
+        collector_cls = NpmCollector
+    elif ecosystem == "pypi":
+        collector_cls = PyPICollector
+    elif ecosystem in REGISTRY_COLLECTORS:
+        collector_cls = REGISTRY_COLLECTORS[ecosystem]
+    else:
+        return RegistryData(
+            repo_url=None, weekly_downloads=None,
+            fetch_errors=[], warnings=[f"Unsupported ecosystem: {ecosystem}"],
+        )
+
+    pkg_collector = collector_cls()
+    try:
+        pkg_data = await pkg_collector.collect(package_name)
+        if not repo_url:
+            repo_url = pkg_data.repository_url
+        weekly_downloads = pkg_data.weekly_downloads
+        fetch_errors = list(pkg_data.fetch_errors)
+    finally:
+        await pkg_collector.close()
+
+    return RegistryData(
+        repo_url=repo_url,
+        weekly_downloads=weekly_downloads,
+        fetch_errors=fetch_errors,
+        warnings=[],
+    )
+
+
 async def cached_collect(
     package_name: str,
     ecosystem: str,
@@ -164,13 +256,11 @@ async def cached_collect(
                     ecosystem, package_name,
                 )
 
-            # Repo-keyed cross-package lookup. v0.10.1 narrow-slice:
-            # only fires for the github ecosystem because that's the
-            # only path where the canonical repo URL is known with
-            # zero upstream calls. Cross-ecosystem sharing (e.g. npm
-            # ↔ pypi) needs the registry/repo blob split — see
-            # ``services/repo_cache.py`` module docstring and
-            # ``docs/data_reuse_design.md`` §4.
+            # Repo-keyed cross-package lookup — github narrow path
+            # (no API call needed). The non-github cross-package /
+            # cross-ecosystem path lives outside this session block
+            # because it needs to await ``_collect_registry_data``
+            # (a network call) before deciding whether to look up.
             if ecosystem == "github" and snapshot is None:
                 derived_url = repo_url
                 if not derived_url:
@@ -211,6 +301,82 @@ async def cached_collect(
             if cached_failure is not None:
                 return None, [f"(cached) {cached_failure}"]
 
+    # Cross-package / cross-ecosystem repo-share lookup (v0.10.1 step 1b).
+    #
+    # If a snapshot for *any* package mapping to the same canonical
+    # repo URL exists, we can short-circuit the expensive GitHub fetch
+    # and just overlay this caller's per-package registry data. The
+    # cheap registry probe (one HTTP call) gives us the canonical URL.
+    #
+    # Only fires for non-github ecosystems — for github the same
+    # short-circuit ran inside the session block above with zero API
+    # calls. For npm/pypi/etc. we do pay the cheap registry probe;
+    # the win is that we save the O(10–100)-call GitHub fetch on a
+    # repo-share hit. On a miss we pass the prefetched registry
+    # through to ``collect_package_data`` so the registry call isn't
+    # duplicated.
+    prefetched_registry: Optional[RegistryData] = None
+    if use_cache and ecosystem != "github":
+        prefetched_registry = await _collect_registry_data(
+            package_name, ecosystem, repo_url
+        )
+        # Gate: only attempt the share if registry probe was clean.
+        # A failed probe (rate limit, no-repo-URL, etc.) needs to flow
+        # through the full collect path so the standard
+        # INSUFFICIENT_DATA / negative-cache machinery fires correctly.
+        if (
+            prefetched_registry.repo_url
+            and not prefetched_registry.fetch_errors
+            and not prefetched_registry.warnings
+        ):
+            with session_scope() as session:
+                cache = RepoSnapshotCache(session)
+                shared = cache.get_snapshot_by_repo_url(
+                    prefetched_registry.repo_url, cutoff_date
+                )
+                if shared is not None:
+                    try:
+                        data = deserialise_collected_data(
+                            shared.blob, CollectedData
+                        )
+                    except (TypeError, KeyError, ValueError):
+                        data = None
+                    if data is not None:
+                        # Overlay this caller's per-package registry data
+                        # onto the shared repo-derived blob.
+                        # ``weekly_downloads`` is the only per-package
+                        # field overlaid here; commit history and
+                        # GitHub data come from the shared snapshot.
+                        # ``repo_url`` is set to this caller's resolved
+                        # value (canonicalises to the same thing as the
+                        # source's, but using the caller's spelling
+                        # keeps diagnostics aligned).
+                        data.weekly_downloads = (
+                            prefetched_registry.weekly_downloads or 0
+                        )
+                        data.repo_url = prefetched_registry.repo_url
+                        # Persist a snapshot keyed to this package so
+                        # subsequent same-package lookups hit the cheap
+                        # package-keyed path (and so this package gets
+                        # its own row with its own per-package registry
+                        # state, distinct from the source package).
+                        try:
+                            cache.store_snapshot(
+                                name=package_name,
+                                ecosystem=ecosystem,
+                                repo_url=prefetched_registry.repo_url,
+                                blob=serialise_collected_data(data),
+                            )
+                            cache.clear_negative(package_name, ecosystem)
+                        except Exception as exc:  # noqa: BLE001
+                            import logging as _logging
+                            _logging.getLogger(__name__).warning(
+                                "Failed to persist shared-repo snapshot "
+                                "(non-github) for %s/%s: %s",
+                                ecosystem, package_name, exc,
+                            )
+                        return data, []
+
     # Freshness-probe wiring intentionally NOT enabled here.
     #
     # An earlier v0.10.1 slice (commit e9af445) wired a single
@@ -236,7 +402,10 @@ async def cached_collect(
     # CII, issues) while reusing the cached commit history. That makes
     # the probe path sound. Until item 2 lands the probe stays cold.
 
-    data, warnings = await collect_package_data(package_name, ecosystem, repo_url)
+    data, warnings = await collect_package_data(
+        package_name, ecosystem, repo_url,
+        prefetched_registry=prefetched_registry,
+    )
     if data is not None:
         try:
             with session_scope() as session:
@@ -279,63 +448,38 @@ async def collect_package_data(
     package_name: str,
     ecosystem: str,
     repo_url: Optional[str] = None,
+    prefetched_registry: Optional[RegistryData] = None,
 ) -> tuple[Optional[CollectedData], list[str]]:
     """
     Collect all data for a package (single pass).
 
     Returns tuple of (CollectedData or None, list of warnings).
+
+    ``prefetched_registry``: when ``cached_collect`` has already done
+    the cheap registry probe to look up the canonical repo URL, it
+    passes the result here so we don't redo the registry call. The
+    cache-hit path uses pre-fetched registry data to overlay onto a
+    shared snapshot; the cache-miss path passes it through to avoid
+    duplicate calls. ``None`` means "no prefetch — collect now".
     """
-    warnings = []
-    fetch_errors: list[str] = []
-    # Use Optional sentinel for downloads so the engine can distinguish a
-    # genuine zero from a fetch failure (the latter populates fetch_errors
-    # and triggers RiskLevel.INSUFFICIENT_DATA).
-    weekly_downloads: Optional[int] = 0
+    warnings: list[str] = []
     repo_stargazers = 0
 
-    # 1. Get package registry info (or construct repo URL for github ecosystem)
-    if ecosystem == "github":
-        # Direct GitHub repo - package_name is owner/repo
-        if not repo_url:
-            name = package_name.strip("/")
-            if not name.startswith("https://"):
-                repo_url = f"https://github.com/{name}"
-            else:
-                repo_url = name
-        # No download data for github-only; we'll use stars as proxy below
-    elif ecosystem == "npm":
-        pkg_collector = NpmCollector()
-        try:
-            pkg_data = await pkg_collector.collect(package_name)
-            if not repo_url:
-                repo_url = pkg_data.repository_url
-            weekly_downloads = pkg_data.weekly_downloads
-            fetch_errors.extend(pkg_data.fetch_errors)
-        finally:
-            await pkg_collector.close()
-    elif ecosystem == "pypi":
-        pkg_collector = PyPICollector()
-        try:
-            pkg_data = await pkg_collector.collect(package_name)
-            if not repo_url:
-                repo_url = pkg_data.repository_url
-            weekly_downloads = pkg_data.weekly_downloads
-            fetch_errors.extend(pkg_data.fetch_errors)
-        finally:
-            await pkg_collector.close()
-    elif ecosystem in REGISTRY_COLLECTORS:
-        collector_cls = REGISTRY_COLLECTORS[ecosystem]
-        pkg_collector = collector_cls()
-        try:
-            pkg_data = await pkg_collector.collect(package_name)
-            if not repo_url:
-                repo_url = pkg_data.repository_url
-            weekly_downloads = pkg_data.weekly_downloads
-            fetch_errors.extend(pkg_data.fetch_errors)
-        finally:
-            await pkg_collector.close()
-    else:
-        return None, [f"Unsupported ecosystem: {ecosystem}"]
+    # 1. Resolve repo URL + per-package registry signals (or skip the
+    #    registry call if the caller pre-fetched it).
+    registry = prefetched_registry or await _collect_registry_data(
+        package_name, ecosystem, repo_url
+    )
+    if registry.warnings:
+        return None, registry.warnings
+    repo_url = registry.repo_url
+    # weekly_downloads None on the github path means "not measured here";
+    # convert to 0 for the dataclass which expects Optional[int] but
+    # uses 0 for "no registry call". Keep None semantics out of the blob.
+    weekly_downloads: Optional[int] = (
+        registry.weekly_downloads if registry.weekly_downloads is not None else 0
+    )
+    fetch_errors: list[str] = list(registry.fetch_errors)
 
     if not repo_url:
         return None, [f"Package '{package_name}' not found on {ecosystem} (no repository URL)"]

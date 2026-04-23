@@ -1070,3 +1070,266 @@ class TestFreshnessProbe:
         assert snap.coverage_until == original_coverage
         assert snap.upstream_pushed_at == original_pushed
         assert snap.blob == original_blob
+
+
+# ---------------------------------------------------------------------------
+# Cross-ecosystem repo-share via cached_collect (v0.10.1 — phase 3 step 1b)
+# ---------------------------------------------------------------------------
+
+class TestCrossEcosystemRepoShare:
+    """Item 1b: when a snapshot for any package mapping to the same
+    canonical repo URL exists, a non-github-ecosystem caller should
+    reuse the repo-derived data and overlay its own per-package
+    registry signals (currently just ``weekly_downloads``). The
+    expensive GitHub fetch is short-circuited; the cheap registry
+    probe still runs because that's how we learn the canonical URL."""
+
+    @staticmethod
+    def _seed_source(weekly_downloads_at_source: int = 11111):
+        """Seed a snapshot in the live DB for ``source-pkg`` on npm
+        pointing at ``https://github.com/example/shared``. Returns the
+        seed CollectedData for assertion comparisons."""
+        import asyncio
+        from ossuary.db.session import init_db, session_scope
+        from ossuary.db.models import Package, RepoSnapshot
+        from ossuary.services.repo_cache import RepoSnapshotCache
+        from ossuary.services.scorer import CollectedData
+        from ossuary.collectors.git import CommitData
+        from ossuary.collectors.github import GitHubData
+
+        init_db()
+        with session_scope() as s:
+            for name in ("source-pkg", "target-pkg-pypi", "target-pkg-cargo"):
+                for pkg in s.query(Package).filter(Package.name == name).all():
+                    s.query(RepoSnapshot).filter(
+                        RepoSnapshot.package_id == pkg.id
+                    ).delete()
+                    s.delete(pkg)
+
+        seed = CollectedData(
+            repo_url="https://github.com/example/shared",
+            all_commits=[CommitData(
+                sha="a" * 40, author_name="X", author_email="x@e.com",
+                authored_date=datetime(2026, 4, 1),
+                committer_name="X", committer_email="x@e.com",
+                committed_date=datetime(2026, 4, 1), message="m",
+            )],
+            github_data=GitHubData(
+                owner="example", repo="shared", owner_type="Organization",
+                maintainer_username="x",
+                maintainer_account_created="2020-01-01T00:00:00Z",
+                maintainer_repos=[], is_org_owned=True, issues=[],
+            ),
+            weekly_downloads=weekly_downloads_at_source,
+            maintainer_account_created=datetime(2020, 1, 1),
+            repo_stargazers=42,
+        )
+        with session_scope() as s:
+            cache = RepoSnapshotCache(s)
+            cache.store_snapshot(
+                name="source-pkg", ecosystem="npm",
+                repo_url="https://github.com/example/shared",
+                blob=serialise_collected_data(seed),
+            )
+        return seed
+
+    def test_pypi_caller_hits_npm_seeded_snapshot(self):
+        """Cross-ecosystem: pypi caller for a different package name
+        but resolving to the same canonical repo URL pulls the cached
+        repo data and overlays its own weekly_downloads."""
+        import asyncio
+        from unittest.mock import patch
+        from ossuary.services.scorer import (
+            RegistryData, cached_collect,
+        )
+
+        self._seed_source(weekly_downloads_at_source=11111)
+
+        async def fake_registry(name, ecosystem, repo_url=None):
+            return RegistryData(
+                # Different spelling of the same repo (with .git, mixed case).
+                repo_url="https://github.com/Example/Shared.git",
+                weekly_downloads=99999,
+                fetch_errors=[], warnings=[],
+            )
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            new=fake_registry,
+        ):
+            data, warnings = asyncio.run(
+                cached_collect("target-pkg-pypi", "pypi")
+            )
+
+        assert data is not None
+        assert warnings == []
+        # Per-package overlay: target's weekly_downloads, NOT source's.
+        assert data.weekly_downloads == 99999
+        # Repo-derived fields: from the source's snapshot.
+        assert len(data.all_commits) == 1
+        assert data.repo_stargazers == 42
+        assert data.github_data.owner == "example"
+        # repo_url uses target's spelling for diagnostics, not source's.
+        assert data.repo_url == "https://github.com/Example/Shared.git"
+
+    def test_cross_eco_hit_persists_per_package_snapshot(self):
+        """After a cross-eco share hit, the new package gets its own
+        snapshot row so the next same-package call hits the cheap
+        package-keyed path instead of doing the registry probe again."""
+        import asyncio
+        from unittest.mock import patch
+        from ossuary.db.session import session_scope
+        from ossuary.db.models import Package, RepoSnapshot
+        from ossuary.services.repo_cache import RepoSnapshotCache
+        from ossuary.services.scorer import RegistryData, cached_collect
+
+        self._seed_source()
+
+        async def fake_registry(name, ecosystem, repo_url=None):
+            return RegistryData(
+                repo_url="https://github.com/example/shared",
+                weekly_downloads=42424,
+                fetch_errors=[], warnings=[],
+            )
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            new=fake_registry,
+        ):
+            asyncio.run(cached_collect("target-pkg-cargo", "cargo"))
+
+        with session_scope() as s:
+            cache = RepoSnapshotCache(s)
+            snap = cache.get_snapshot_for_cutoff("target-pkg-cargo", "cargo")
+            assert snap is not None, (
+                "expected a per-package snapshot row for the new caller"
+            )
+            assert snap.repo_url_canonical == "https://github.com/example/shared"
+
+    def test_failed_registry_probe_falls_through_to_full_collect(self):
+        """If the registry probe errors, the cross-eco share path must
+        be skipped so the standard INSUFFICIENT_DATA / negative-cache
+        machinery fires correctly via the full collect path."""
+        import asyncio
+        from unittest.mock import patch, AsyncMock
+        from ossuary.services.scorer import RegistryData, cached_collect
+
+        self._seed_source()
+
+        # Registry probe surfaces a fetch_error. The cross-eco share
+        # gate must reject it and fall through to full collect.
+        async def failing_registry(name, ecosystem, repo_url=None):
+            return RegistryData(
+                repo_url=None,  # registry returned no URL
+                weekly_downloads=0,
+                fetch_errors=["pypi.json: HTTP 503"],
+                warnings=[],
+            )
+
+        # Mock collect_package_data so the test doesn't hit the real
+        # network. We just need to assert the share path didn't fire.
+        async def fake_full_collect(*args, **kwargs):
+            return None, ["INSUFFICIENT_DATA: registry failed"]
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            new=failing_registry,
+        ), patch(
+            "ossuary.services.scorer.collect_package_data",
+            new=fake_full_collect,
+        ):
+            data, warnings = asyncio.run(
+                cached_collect("target-pkg-pypi", "pypi")
+            )
+
+        assert data is None, (
+            "share path must not return a hit when registry probe failed"
+        )
+        assert any("INSUFFICIENT_DATA" in w for w in warnings), (
+            "expected fall-through to full collect path"
+        )
+
+    def test_no_repo_url_from_registry_falls_through(self):
+        """A registry probe that returns successfully but with no
+        repo URL (npm/pypi has no repository field) must skip the
+        share path and let collect_package_data emit the standard
+        no-repo-URL warning that the negative cache classifies."""
+        import asyncio
+        from unittest.mock import patch
+        from ossuary.services.scorer import RegistryData, cached_collect
+
+        self._seed_source()
+
+        async def no_url_registry(name, ecosystem, repo_url=None):
+            return RegistryData(
+                repo_url=None,  # registry has no repository field
+                weekly_downloads=0,
+                fetch_errors=[], warnings=[],
+            )
+
+        async def fake_full_collect(*args, **kwargs):
+            return None, [
+                "Package 'target-pkg-pypi' not found on pypi (no repository URL)"
+            ]
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            new=no_url_registry,
+        ), patch(
+            "ossuary.services.scorer.collect_package_data",
+            new=fake_full_collect,
+        ):
+            data, warnings = asyncio.run(
+                cached_collect("target-pkg-pypi", "pypi")
+            )
+
+        assert data is None
+        assert any("no repository URL" in w for w in warnings)
+
+    def test_github_eco_does_not_call_registry_probe(self):
+        """The github-ecosystem path is handled by the in-session 1a
+        shortcut and must NOT fall into the non-github cross-eco
+        block (which would do an unnecessary registry call). This
+        test pins the gate."""
+        import asyncio
+        from unittest.mock import patch, MagicMock
+        from ossuary.services.scorer import RegistryData, cached_collect
+
+        # No prior snapshot — force a miss path.
+        from ossuary.db.session import init_db, session_scope
+        from ossuary.db.models import Package, RepoSnapshot
+        init_db()
+        with session_scope() as s:
+            for pkg in s.query(Package).filter(
+                Package.name == "no-such-gh-target"
+            ).all():
+                s.query(RepoSnapshot).filter(
+                    RepoSnapshot.package_id == pkg.id
+                ).delete()
+                s.delete(pkg)
+
+        registry_probe_called = []
+
+        async def tracking_registry(name, ecosystem, repo_url=None):
+            registry_probe_called.append((name, ecosystem))
+            return RegistryData(
+                repo_url=None, weekly_downloads=0,
+                fetch_errors=[], warnings=[],
+            )
+
+        async def fake_full_collect(*args, **kwargs):
+            return None, ["Repository not found: ..."]
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            new=tracking_registry,
+        ), patch(
+            "ossuary.services.scorer.collect_package_data",
+            new=fake_full_collect,
+        ):
+            asyncio.run(cached_collect("no-such-gh-target", "github"))
+
+        assert registry_probe_called == [], (
+            "github ecosystem path must not invoke _collect_registry_data "
+            "from the cross-eco block — that branch is gated on ecosystem != 'github'"
+        )
