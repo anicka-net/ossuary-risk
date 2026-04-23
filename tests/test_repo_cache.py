@@ -1200,6 +1200,187 @@ class TestFreshnessProbe:
         assert len(data.all_commits) == 1
         assert data.all_commits[0].sha.startswith("cached")
 
+    def test_probe_match_with_fetch_errors_falls_through_to_full_collect(self):
+        """GPT review #4 HIGH regression: a snapshot that was written
+        during a transient essential failure carries non-empty
+        ``fetch_errors``. The aux-refresh shortcut cannot clear those
+        (registry-derived essentials and github.repo_info aren't in
+        the aux-refresh set), so without this gate the package would
+        stay locked in INSUFFICIENT_DATA forever — every subsequent
+        probe-match would reuse the failed blob.
+
+        Fix: if the hydrated blob has any fetch_errors, refuse the
+        aux-refresh shortcut and fall through to full collect (which
+        retries everything and can actually clear the transient).
+        """
+        import asyncio
+        from unittest.mock import patch
+        from ossuary.db.session import init_db, session_scope
+        from ossuary.db.models import Package, RepoSnapshot
+        from ossuary.services.repo_cache import RepoSnapshotCache
+        from ossuary.services.scorer import (
+            CollectedData, RegistryData, cached_collect,
+        )
+        from ossuary.collectors.git import CommitData
+        from ossuary.collectors.github import GitHubData
+
+        init_db()
+        with session_scope() as s:
+            for pkg in s.query(Package).filter(
+                Package.name == "stuck-pkg"
+            ).all():
+                s.query(RepoSnapshot).filter(
+                    RepoSnapshot.package_id == pkg.id
+                ).delete()
+                s.delete(pkg)
+
+        stuck_pushed = "2026-04-01T12:00:00Z"
+        # Snapshot has a registry-essential failure baked in.
+        seed = CollectedData(
+            repo_url="https://github.com/example/stuck",
+            all_commits=[CommitData(
+                sha="x" * 40, author_name="X", author_email="x@e.com",
+                authored_date=datetime(2026, 3, 1),
+                committer_name="X", committer_email="x@e.com",
+                committed_date=datetime(2026, 3, 1), message="m",
+            )],
+            github_data=GitHubData(
+                owner="example", repo="stuck", owner_type="User",
+                maintainer_username="alice", issues=[],
+                pushed_at=stuck_pushed,
+            ),
+            weekly_downloads=0,
+            maintainer_account_created=datetime(2018, 1, 1),
+            fetch_errors=["pypi.weekly_downloads: HTTP 503 (transient)"],
+        )
+        with session_scope() as s:
+            cache = RepoSnapshotCache(s)
+            cache.store_snapshot(
+                name="stuck-pkg", ecosystem="pypi",
+                repo_url="https://github.com/example/stuck",
+                blob=serialise_collected_data(seed),
+                collected_at=utcnow_naive() - timedelta(days=120),
+            )
+
+        calls = {"probe": 0, "aux_refresh": 0, "full_collect": 0}
+
+        async def fake_probe(repo_url):
+            calls["probe"] += 1
+            return stuck_pushed  # MATCH
+
+        async def fake_aux_refresh(repo_url, github_data):
+            calls["aux_refresh"] += 1
+
+        async def fake_full_collect(*args, **kwargs):
+            calls["full_collect"] += 1
+            # Recovery path: registry now succeeds.
+            return CollectedData(
+                repo_url="https://github.com/example/stuck",
+                all_commits=seed.all_commits,
+                github_data=seed.github_data,
+                weekly_downloads=12345,  # registry recovered
+                maintainer_account_created=datetime(2018, 1, 1),
+                fetch_errors=[],  # cleared
+            ), []
+
+        async def no_registry(name, ecosystem, repo_url=None):
+            return RegistryData(
+                repo_url=None, weekly_downloads=0,
+                fetch_errors=[], warnings=[],
+            )
+
+        with patch(
+            "ossuary.collectors.github.GitHubCollector.probe_pushed_at",
+            new=fake_probe,
+        ), patch(
+            "ossuary.services.scorer._refresh_auxiliary_families",
+            new=fake_aux_refresh,
+        ), patch(
+            "ossuary.services.scorer.collect_package_data",
+            new=fake_full_collect,
+        ), patch(
+            "ossuary.services.scorer._collect_registry_data",
+            new=no_registry,
+        ):
+            data, warnings = asyncio.run(cached_collect("stuck-pkg", "pypi"))
+
+        assert calls["probe"] == 1, "probe still fires to detect match"
+        assert calls["aux_refresh"] == 0, (
+            "aux-refresh must NOT run when the cached blob has "
+            "fetch_errors — it cannot clear them and would lock the "
+            "package into stale INSUFFICIENT_DATA"
+        )
+        assert calls["full_collect"] == 1, (
+            "fall-through to full collect is the only recovery path"
+        )
+        assert data is not None
+        assert data.fetch_errors == [], "recovery cleared the transient"
+        assert data.weekly_downloads == 12345
+
+    def test_aux_refresh_clears_stale_provisional_reasons(self):
+        """The collector's ``_record_failure`` is append-only, so
+        without explicit clearing a stale provisional reason from a
+        prior aux-family fetch (e.g. ``github.sponsors_status: HTTP
+        503``) would survive a successful re-fetch and be re-persisted
+        forever. ``_refresh_auxiliary_families`` strips entries from
+        the families it's about to re-run before invoking them."""
+        import asyncio
+        from unittest.mock import patch
+        from ossuary.collectors.github import GitHubData
+        from ossuary.services.scorer import _refresh_auxiliary_families
+
+        gh = GitHubData(
+            owner="acme", repo="widget", owner_type="User",
+            maintainer_username="alice", issues=[],
+            provisional_reasons=[
+                # In-scope (will be cleared, then potentially re-added):
+                "github.user_profile: stale (HTTP 503)",
+                "github.sponsors_status: stale (HTTP 503)",
+                "github.cii_badge: stale (HTTP 502)",
+                "github.issues: stale (HTTP 504)",
+                # Out of aux-refresh scope (should be preserved):
+                "github.contributors: HTTP 502",
+                "github.repo_stargazers: HTTP 503",
+            ],
+        )
+
+        # Mock all aux-family methods to no-op (success — no new errors).
+        async def noop(self, *args, **kwargs):
+            return None
+
+        with patch(
+            "ossuary.collectors.github.GitHubCollector.collect_maintainer_profile",
+            new=noop,
+        ), patch(
+            "ossuary.collectors.github.GitHubCollector.collect_org_admins_family",
+            new=noop,
+        ), patch(
+            "ossuary.collectors.github.GitHubCollector.collect_cii_family",
+            new=noop,
+        ), patch(
+            "ossuary.collectors.github.GitHubCollector.collect_issues_family",
+            new=noop,
+        ):
+            asyncio.run(_refresh_auxiliary_families(
+                "https://github.com/acme/widget", gh,
+            ))
+
+        # Stale entries from in-scope families cleared.
+        for stale_label in ("user_profile", "sponsors_status", "cii_badge", "issues"):
+            assert not any(
+                r.startswith(f"github.{stale_label}:")
+                for r in gh.provisional_reasons
+            ), f"stale {stale_label} provisional reason should be cleared"
+        # Out-of-scope provisional reasons preserved.
+        assert any(
+            r.startswith("github.contributors:")
+            for r in gh.provisional_reasons
+        ), "contributors provisional reason should be preserved (not in aux-refresh scope)"
+        assert any(
+            r.startswith("github.repo_stargazers:")
+            for r in gh.provisional_reasons
+        ), "repo_stargazers provisional reason should be preserved"
+
     def test_probe_mismatch_falls_through_to_full_collect(self):
         """If upstream pushed_at differs from the snapshot's recorded
         value, the repo has actually changed → full re-collect path,

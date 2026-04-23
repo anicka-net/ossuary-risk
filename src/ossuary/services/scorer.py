@@ -114,6 +114,28 @@ class RegistryData:
     warnings: list[str]
 
 
+# Auxiliary GitHub families that ``_refresh_auxiliary_families`` re-runs.
+# Provisional-reason entries with these family labels (format:
+# ``github.<label>: <message>``) get cleared before refresh so a
+# successful re-fetch produces a clean state instead of carrying the
+# stale message forward (collector ``_record_failure`` is append-only).
+# Families NOT in this set (``contributors`` from resolve_maintainer,
+# ``repo_stargazers`` from the scorer's separate get_repo_info call,
+# essential ``repo_info``) are preserved as-is.
+_AUX_REFRESH_FAMILY_LABELS = (
+    "user_profile", "user_repos",
+    "sponsors_status", "sponsor_count", "user_orgs",
+    "org_admins", "cii_badge", "issues",
+)
+
+
+def _is_aux_provisional_entry(entry: str) -> bool:
+    return any(
+        entry.startswith(f"github.{label}:")
+        for label in _AUX_REFRESH_FAMILY_LABELS
+    )
+
+
 async def _refresh_auxiliary_families(
     repo_url: str,
     github_data: GitHubData,
@@ -129,14 +151,30 @@ async def _refresh_auxiliary_families(
     just those families via the per-family methods landed in step 2a so
     the cached commit history survives the refresh.
 
-    Mutates ``github_data`` in place. Failure flags from each family
-    method (provisional reasons, fetch errors) are appended to the
-    existing lists — the auxiliary-only refresh inherits the same
-    INSUFFICIENT_DATA / provisional contract as a full collect.
+    Mutates ``github_data`` in place. Stale provisional reasons from the
+    families being re-refreshed are stripped first so a successful
+    refresh actually clears the old message (the collector's
+    ``_record_failure`` is append-only, so without this the old
+    transient flag would survive the recovery). Provisional reasons
+    from families NOT in scope of aux-refresh (``contributors``,
+    ``repo_stargazers``) are preserved.
+
+    Failure flags from each family method are appended to the existing
+    lists — the auxiliary-only refresh inherits the same provisional
+    contract as a full collect for these families.
     """
     owner, repo = GitHubCollector.parse_repo_url(repo_url)
     if not owner or not repo:
         return
+
+    # Strip stale provisional reasons from the families we're about to
+    # refresh so a successful re-fetch produces a clean state. Without
+    # this, the snapshot would persist stale messages indefinitely
+    # because GitHubCollector._record_failure only ever appends.
+    github_data.provisional_reasons = [
+        r for r in github_data.provisional_reasons
+        if not _is_aux_provisional_entry(r)
+    ]
 
     collector = GitHubCollector()
     try:
@@ -469,6 +507,23 @@ async def cached_collect(
                             stale.blob, CollectedData
                         )
                     except (TypeError, KeyError, ValueError):
+                        data = None
+                    # GPT review #4 HIGH: refuse the aux-refresh
+                    # shortcut if the cached blob carries any
+                    # essential ``fetch_errors``. Aux-refresh only
+                    # touches non-essential GitHub families — it
+                    # cannot clear registry-derived essentials
+                    # (weekly_downloads) or the github.repo_info
+                    # essential failure. Without this gate, a
+                    # snapshot written during a transient essential
+                    # failure would lock the package into stale
+                    # INSUFFICIENT_DATA forever, because every
+                    # subsequent probe-match would reuse the failed
+                    # blob and prevent the full collect that would
+                    # have retried the registry call. Falling
+                    # through to full collect is the only way to
+                    # actually clear an essential failure.
+                    if data is not None and data.fetch_errors:
                         data = None
                     if data is not None:
                         # Refresh auxiliary families in place. Failure
