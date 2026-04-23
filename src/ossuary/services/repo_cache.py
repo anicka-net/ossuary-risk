@@ -435,8 +435,35 @@ class RepoSnapshotCache:
             RepoSnapshot.fetcher_version != COLLECTOR_VERSION,
         ).scalar() or 0
 
-        # Negative cache: packages with a current (non-expired) failure record.
-        neg_total = self.session.query(func.count(Package.id)).filter(
+        # Negative cache: split into "active" (still within TTL — what
+        # ``get_negative_cache`` would actually serve) and "total" (every
+        # row with a recorded failure, including expired ones still
+        # taking up disk).
+        #
+        # TTL is per failure-class: ``no repository url`` uses
+        # NEGCACHE_TTL_NO_REPO_FIELD_DAYS, everything else uses
+        # NEGCACHE_TTL_DEAD_REPO_DAYS. Two filtered queries give the
+        # exact active count without re-implementing the classifier in
+        # SQL. Earlier versions counted *all* non-null rows as active —
+        # GPT review caught the overcount.
+        no_repo_cutoff = now - timedelta(days=NEGCACHE_TTL_NO_REPO_FIELD_DAYS)
+        dead_repo_cutoff = now - timedelta(days=NEGCACHE_TTL_DEAD_REPO_DAYS)
+
+        active_no_repo = self.session.query(func.count(Package.id)).filter(
+            Package.last_failed_at.isnot(None),
+            Package.failure_reason.isnot(None),
+            Package.failure_reason.like("%no repository url%"),
+            Package.last_failed_at >= no_repo_cutoff,
+        ).scalar() or 0
+        active_dead_repo = self.session.query(func.count(Package.id)).filter(
+            Package.last_failed_at.isnot(None),
+            Package.failure_reason.isnot(None),
+            ~Package.failure_reason.like("%no repository url%"),
+            Package.last_failed_at >= dead_repo_cutoff,
+        ).scalar() or 0
+        neg_active = active_no_repo + active_dead_repo
+
+        neg_total_recorded = self.session.query(func.count(Package.id)).filter(
             Package.last_failed_at.isnot(None),
             Package.failure_reason.isnot(None),
         ).scalar() or 0
@@ -451,11 +478,19 @@ class RepoSnapshotCache:
                 "wrong_collector_version": wrong_version,
             },
             "negative_cache": {
-                "total": neg_total,
+                # Currently being served by get_negative_cache — what
+                # actually skips upstream probes today.
+                "active": neg_active,
+                # Every row with a recorded failure, including expired
+                # ones taking up disk. Useful for capacity planning;
+                # not what affects cache-hit behaviour.
+                "total_recorded": neg_total_recorded,
             },
             "sla": {
                 "fresh_days": SLA_FRESH_DAYS,
                 "expired_days": SLA_EXPIRED_DAYS,
+                "negcache_no_repo_days": NEGCACHE_TTL_NO_REPO_FIELD_DAYS,
+                "negcache_dead_repo_days": NEGCACHE_TTL_DEAD_REPO_DAYS,
             },
             "collector_version": COLLECTOR_VERSION,
         }

@@ -136,8 +136,10 @@ def cache_stats(
         f"{snap['unique_packages']} packages[/dim]"
     )
     console.print(
-        f"[dim]Negative cache: {neg['total']} packages with "
-        f"recorded permanent failures[/dim]"
+        f"[dim]Negative cache: {neg['active']} active "
+        f"(within TTL — actually skip upstream); "
+        f"{neg['total_recorded']} total recorded "
+        f"(includes expired)[/dim]"
     )
 
 

@@ -445,7 +445,8 @@ class TestStats:
 
         assert stats["snapshots"]["total"] == 0
         assert stats["snapshots"]["unique_packages"] == 0
-        assert stats["negative_cache"]["total"] == 0
+        assert stats["negative_cache"]["active"] == 0
+        assert stats["negative_cache"]["total_recorded"] == 0
         assert stats["sla"]["fresh_days"] == 30
         assert stats["sla"]["expired_days"] == 90
 
@@ -477,7 +478,59 @@ class TestStats:
         session.commit()
 
         stats = cache.stats()
-        assert stats["negative_cache"]["total"] == 2
+        # Both within their respective TTLs — both active.
+        assert stats["negative_cache"]["active"] == 2
+        assert stats["negative_cache"]["total_recorded"] == 2
+
+    def test_stats_excludes_expired_negative_from_active(self, session):
+        """Regression for the GPT-flagged stats overcount: an expired
+        negative-cache row should NOT appear in the 'active' count, only
+        in 'total_recorded'.
+
+        The earlier impl counted every non-null failure row as active, so
+        operators would see ``cache-stats`` overstate how many packages
+        the cache was actually skipping."""
+        from datetime import timedelta
+
+        cache = RepoSnapshotCache(session)
+        # Within TTL
+        cache.store_negative("dead-fresh", "npm", "Repository not found")
+        # Past 90-day TTL for "not found" — should be inactive.
+        package = cache._get_or_create_package("dead-stale", "npm")
+        package.last_failed_at = datetime.utcnow() - timedelta(days=120)
+        package.failure_reason = "Repository not found"
+        session.commit()
+
+        stats = cache.stats()
+        assert stats["negative_cache"]["active"] == 1, (
+            "Expired negative-cache rows must not be counted as active. "
+            "Regression of the GPT-flagged overcount."
+        )
+        assert stats["negative_cache"]["total_recorded"] == 2
+
+        # And the inactive row indeed doesn't get served.
+        assert cache.get_negative_cache("dead-stale", "npm") is None
+        assert cache.get_negative_cache("dead-fresh", "npm") is not None
+
+    def test_stats_per_class_ttls_apply_correctly(self, session):
+        """The 'no repo URL' class uses 30-day TTL; the 'not found' class
+        uses 90-day. Stats must split-apply these to active counts."""
+        from datetime import timedelta
+
+        cache = RepoSnapshotCache(session)
+        # 'no repo URL' at 45 days — past its 30-day TTL → inactive.
+        package = cache._get_or_create_package("no-repo-stale", "npm")
+        package.last_failed_at = datetime.utcnow() - timedelta(days=45)
+        package.failure_reason = "Package 'no-repo-stale' not found on npm (no repository URL)"
+        # 'not found' (repo) at 45 days — within its 90-day TTL → active.
+        package2 = cache._get_or_create_package("dead-mid", "npm")
+        package2.last_failed_at = datetime.utcnow() - timedelta(days=45)
+        package2.failure_reason = "Repository not found: https://example"
+        session.commit()
+
+        stats = cache.stats()
+        assert stats["negative_cache"]["active"] == 1
+        assert stats["negative_cache"]["total_recorded"] == 2
 
     def test_stats_separates_wrong_collector_version(self, session):
         """Snapshots from an old collector schema show up under their own
