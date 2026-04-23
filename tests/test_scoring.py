@@ -150,7 +150,7 @@ class TestRiskScorer:
         score_with = self.scorer.calculate("test", "npm", metrics_with)
 
         assert score_with.final_score > score_without.final_score
-        assert score_with.protective_factors.frustration_score == 20
+        assert score_with.protective_factors.frustration_score == 15
 
     def test_score_clamping(self):
         """Test that scores are clamped to 0-100 range."""
@@ -308,40 +308,18 @@ class TestHistoricalScoring:
             "pkg", "github", data, datetime(2024, 12, 31)
         )
 
-        assert current.protective_factors.frustration_score == 20
+        assert current.protective_factors.frustration_score == 15
         assert historical.protective_factors.frustration_score == 0
         assert historical.protective_factors.sentiment_score == 0
         assert historical.factor_availability["issue_sentiment"] == "disabled_historical_partial_snapshot"
         assert any("issue/comment sentiment" in warning for warning in historical.warnings)
 
-    def test_calculate_score_for_date_weights_sentiment_by_sample_count(self):
-        """Commit sentiment should not be diluted just because there are no issues."""
-        commits = [
-            CommitData(
-                sha=str(i),
-                author_name="maintainer",
-                author_email="maintainer@example.com",
-                authored_date=datetime(2024, 1, i + 1),
-                committer_name="maintainer",
-                committer_email="maintainer@example.com",
-                committed_date=datetime(2024, 1, i + 1),
-                message="terrible awful broken release",
-            )
-            for i in range(4)
-        ]
-        data = CollectedData(
-            repo_url="https://github.com/example/pkg",
-            all_commits=commits,
-            github_data=GitHubData(issues=[]),
-            weekly_downloads=0,
-            maintainer_account_created=None,
-        )
-
-        breakdown = calculate_score_for_date(
-            "pkg", "github", data, datetime(2024, 12, 31)
-        )
-
-        assert breakdown.protective_factors.sentiment_score == 10
+    # Removed in v6.3: sentiment_score is structurally 0 in the scoring
+    # formula (see ProtectiveFactors.sentiment_score docstring). The
+    # commit-vs-issue sample-count weighting that this test exercised is
+    # now a sentiment-analyzer-layer concern; if it needs coverage it
+    # belongs in test_sentiment.py against the analyzer's own output, not
+    # against the scoring engine's protective-factor breakdown.
 
     def test_calculate_score_for_date_passes_through_cii_badge(self):
         """CII badge data from the collector should affect scoring."""

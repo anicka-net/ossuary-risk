@@ -166,10 +166,81 @@ class Score(Base):
     # Reasons live in ``breakdown['provisional_reasons']``.
     is_provisional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # When the underlying CollectedData snapshot was fetched. Distinct
+    # from ``calculated_at`` (when the formula was run): a methodology
+    # bump can produce a fresh ``calculated_at`` against an older
+    # ``data_snapshot_at``. Drives the freshness SLA bands surfaced in
+    # CLI / API output (see ``docs/methodology.md`` Operational SLA).
+    # Nullable for legacy rows that pre-date the snapshot cache.
+    data_snapshot_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # Relationships
     package: Mapped["Package"] = relationship(back_populates="scores")
 
     __table_args__ = (Index("ix_score_calculated_at", "calculated_at"),)
+
+
+class RepoSnapshot(Base):
+    """Cached raw collected data for a package, point-in-time.
+
+    Stores the full ``CollectedData`` blob (commits, GitHub data, registry
+    metadata, downloads) as JSON so that repeat scoring of the same package
+    can skip redundant upstream calls. Append-only — each refresh writes a
+    new row rather than mutating the previous one, so a query for any
+    historical cutoff resolves to the earliest snapshot whose
+    ``coverage_until`` is on or after that cutoff.
+
+    **Cache key in v0.10:** keyed on ``package_id`` (i.e. ``(name,
+    ecosystem)``). The repo URL the snapshot resolved to is recorded in
+    ``repo_url`` so that a future refactor can re-key on canonical repo URL
+    and share snapshots between ecosystem packages and the GitHub-side
+    counterpart of the same project. See ``docs/data_reuse_design.md`` for
+    the target architecture.
+
+    **Methodology vs collector versioning:** ``fetcher_version`` invalidates
+    snapshots when the collector schema changes (a new field on
+    ``CollectedData`` means old blobs cannot be deserialised back).
+    Methodology version bumps deliberately do *not* invalidate snapshots —
+    the formula reads the same raw data, so iteration on the formula does
+    not cost API calls.
+    """
+
+    __tablename__ = "repo_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    package_id: Mapped[int] = mapped_column(ForeignKey("packages.id", ondelete="CASCADE"))
+
+    # Server clock when this snapshot was fetched.
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Latest ``authored_date`` across the cached commits (i.e. the upper
+    # bound of historical data the snapshot covers). A scoring request
+    # for ``cutoff_date <= coverage_until`` can use this snapshot;
+    # anything later requires a refresh.
+    coverage_until: Mapped[datetime] = mapped_column(DateTime)
+
+    # Canonical repo URL the snapshot resolved to (or None when the
+    # package has no upstream repo). Recorded for future cross-package
+    # sharing — see class docstring.
+    repo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Serialised CollectedData blob: commits, github_data (incl. issues),
+    # weekly_downloads, maintainer_account_created, repo_stargazers,
+    # fetch_errors, provisional_reasons. Datetimes are ISO strings.
+    blob: Mapped[dict] = mapped_column(JSON)
+
+    # Snapshot is invalidated when the on-disk collector schema no longer
+    # matches what serialised the blob — bumped when CollectedData or its
+    # nested dataclasses gain/lose fields in a backwards-incompatible way.
+    fetcher_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    # Relationships (no back_populates intentionally — the relationship is
+    # one-way; Package does not enumerate its snapshots in normal use).
+
+    __table_args__ = (
+        Index("ix_repo_snapshot_package_collected", "package_id", "collected_at"),
+        Index("ix_repo_snapshot_coverage_until", "coverage_until"),
+    )
 
 
 class SentimentRecord(Base):

@@ -90,6 +90,83 @@ class HistoricalScore:
     contributors: int
 
 
+async def cached_collect(
+    package_name: str,
+    ecosystem: str,
+    repo_url: Optional[str] = None,
+    cutoff_date: Optional[datetime] = None,
+    use_cache: bool = True,
+) -> tuple[Optional[CollectedData], list[str]]:
+    """
+    Wrapper around :func:`collect_package_data` that consults the snapshot cache.
+
+    On a cache hit (most-recent snapshot has ``coverage_until >= cutoff_date``
+    and matching ``fetcher_version``), the cached blob is deserialised back
+    into a ``CollectedData`` instance and returned without any upstream
+    fetches. On a miss, the underlying collector runs and the result is
+    persisted before being returned.
+
+    The collector schema is versioned via
+    ``ossuary.services.repo_cache.COLLECTOR_VERSION`` — bumping that constant
+    invalidates older snapshots automatically. **Methodology version bumps do
+    not invalidate snapshots**: the formula reads the same raw data, so
+    re-scoring after a methodology change costs DB read time, not API calls.
+
+    Set ``use_cache=False`` to bypass the cache entirely (writes still happen
+    on miss; this only forces the read miss). The wrapper preserves the
+    ``(CollectedData | None, warnings)`` tuple shape of the underlying
+    collector so callers can swap it in transparently.
+    """
+    from ossuary.services.repo_cache import (
+        RepoSnapshotCache,
+        deserialise_collected_data,
+        serialise_collected_data,
+    )
+
+    if use_cache:
+        with session_scope() as session:
+            cache = RepoSnapshotCache(session)
+            snapshot = cache.get_snapshot_for_cutoff(
+                package_name, ecosystem, cutoff_date
+            )
+            if snapshot is not None:
+                try:
+                    data = deserialise_collected_data(snapshot.blob, CollectedData)
+                    return data, []
+                except (TypeError, KeyError, ValueError) as exc:
+                    # Defensive fallthrough: if the blob fails to hydrate
+                    # (collector schema drift not caught by fetcher_version),
+                    # fall through to a fresh fetch and overwrite. Logged so
+                    # we notice if this fires routinely.
+                    import logging as _logging
+                    _logging.getLogger(__name__).warning(
+                        "Snapshot for %s/%s failed to deserialise (%s); "
+                        "falling through to fresh collect",
+                        ecosystem, package_name, exc,
+                    )
+
+    data, warnings = await collect_package_data(package_name, ecosystem, repo_url)
+    if data is not None:
+        try:
+            with session_scope() as session:
+                cache = RepoSnapshotCache(session)
+                cache.store_snapshot(
+                    name=package_name,
+                    ecosystem=ecosystem,
+                    repo_url=data.repo_url,
+                    blob=serialise_collected_data(data),
+                )
+        except Exception as exc:  # noqa: BLE001
+            # Snapshot persistence is best-effort; never let a cache write
+            # failure block the score path. Log so we can investigate.
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "Failed to persist snapshot for %s/%s: %s",
+                ecosystem, package_name, exc,
+            )
+    return data, warnings
+
+
 async def collect_package_data(
     package_name: str,
     ecosystem: str,
@@ -614,8 +691,19 @@ async def score_package(
                 if breakdown:
                     return ScoringResult(success=True, breakdown=breakdown)
 
-    # Collect data
-    collected_data, warnings = await collect_package_data(package_name, ecosystem, repo_url)
+    # Collect data — cached_collect short-circuits to the snapshot cache
+    # when a usable prior snapshot exists. Pass through the *original*
+    # ``cutoff_date`` parameter (None for current scoring) rather than the
+    # derived ``cutoff = datetime.now()``: current scoring needs the
+    # freshness SLA path on the cache (≤ 90 days), not the historical
+    # ``snapshot.collected_at >= cutoff`` constraint that ``datetime.now()``
+    # would impose. See ``docs/data_reuse_design.md`` and
+    # ``services/repo_cache.py::get_snapshot_for_cutoff`` for the dispatch.
+    collected_data, warnings = await cached_collect(
+        package_name, ecosystem, repo_url,
+        cutoff_date=cutoff_date,  # original Optional, NOT the derived `cutoff`
+        use_cache=use_cache,
+    )
     if collected_data is None:
         return ScoringResult(success=False, error=warnings[0] if warnings else "Unknown error")
 
@@ -630,13 +718,26 @@ async def score_package(
     # row itself documents the attempt and is what `rescore-invalid`
     # finds and retries.
     if use_cache:
+        from ossuary.services.repo_cache import RepoSnapshotCache
+
         is_invalid = breakdown.risk_level == RiskLevel.INSUFFICIENT_DATA
         with session_scope() as session:
             cache = ScoreCache(session, freshness_days=freshness_days or ScoreCache(session).freshness_threshold.days)
             package = cache.get_or_create_package(
                 package_name, ecosystem, collected_data.repo_url
             )
-            cache.store_score(
+            # Look up the snapshot we (or a prior run) just used, so the
+            # Score row can record when its underlying upstream data was
+            # fetched. Drives the freshness SLA in §4.-0 of methodology.
+            # Same dispatch as the cached_collect call above: the original
+            # ``cutoff_date`` (Optional) selects current vs historical
+            # mode in the cache.
+            snapshot_cache = RepoSnapshotCache(session)
+            snapshot = snapshot_cache.get_snapshot_for_cutoff(
+                package_name, ecosystem, cutoff_date
+            )
+            data_snapshot_at = snapshot.collected_at if snapshot else None
+            score = cache.store_score(
                 package=package,
                 cutoff_date=cutoff,
                 final_score=None if is_invalid else breakdown.final_score,
@@ -651,6 +752,7 @@ async def score_package(
                 weekly_downloads=None if is_invalid else breakdown.weekly_downloads,
                 is_provisional=breakdown.is_provisional,
             )
+            score.data_snapshot_at = data_snapshot_at
             cache.mark_analyzed(package)
 
     return ScoringResult(success=True, breakdown=breakdown, warnings=warnings)

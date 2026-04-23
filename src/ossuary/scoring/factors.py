@@ -71,8 +71,20 @@ class ProtectiveFactors:
     community_score: int = 0  # -10 for >20 contributors
     cii_score: int = 0  # -10 for CII badge
     frustration_score: int = 0  # +20 for detected frustration
-    sentiment_score: int = 0  # -10 to +20 based on sentiment analysis
-    maturity_score: int = 0  # -15 for mature/stable projects
+    sentiment_score: int = 0
+    """Structurally always 0 as of v6.3. Retained for cached-score
+    deserialization compatibility. The §5.10 ablation found that the VADER
+    sentiment-magnitude signal never crossed the ±0.3 threshold on the
+    167-package validation set, so it contributed nothing detectable. The
+    rule-based frustration layer captures the detectable emotional signal;
+    sentiment may earn its place back when the deferred layer-3 embedding
+    work (§6.5) ships."""
+    maturity_score: int = 0
+    """Structurally always 0. Retained only so ``maturity_evidence`` has a
+    natural home on ``ProtectiveFactors``. The real maturity contribution is
+    in ``RiskScorer.calculate()``: it suppresses the activity penalty and
+    swaps in lifetime concentration for mature-but-quiet projects. See the
+    thesis §5.10 ablation note."""
     takeover_risk_score: int = 0  # +20 for newcomer takeover signal
 
     # Evidence for each factor

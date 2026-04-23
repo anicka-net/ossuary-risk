@@ -56,6 +56,14 @@ def _autoapply_simple_migrations(connection) -> None:
             "ALTER TABLE scores ADD COLUMN is_provisional "
             "BOOLEAN NOT NULL DEFAULT 0"
         ))
+    if "data_snapshot_at" not in existing_cols:
+        logger.warning(
+            "Auto-migrating scores schema: adding data_snapshot_at column "
+            "for the v0.10 repo-snapshot cache freshness SLA"
+        )
+        connection.execute(text(
+            "ALTER TABLE scores ADD COLUMN data_snapshot_at DATETIME"
+        ))
 
 
 def init_db() -> None:

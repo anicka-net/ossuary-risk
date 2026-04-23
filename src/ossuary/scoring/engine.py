@@ -239,25 +239,31 @@ class RiskScorer:
         if metrics.cii_badge_level in ("gold", "silver", "passing"):
             pf.cii_score = -10
 
-        # Factor 8: Economic Frustration (+20)
+        # Factor 8: Economic Frustration (+15)
+        # Weight lowered from +20 in v6.3 after the §5.10 ablation: at +20 the
+        # floor leaked one residual FP (rayon, cargo) without earning recall;
+        # at +15 the same rule-set is precision-positive and the bounded
+        # instrument frame is preserved.
         if metrics.frustration_detected:
-            pf.frustration_score = 20
+            pf.frustration_score = 15
             pf.frustration_evidence = metrics.frustration_evidence
 
-        # Factor 9: Sentiment Analysis (-10 to +10)
-        # Negative sentiment (< -0.3) increases risk
-        # Positive sentiment (> 0.3) slightly reduces risk
-        if metrics.average_sentiment < -0.3:
-            pf.sentiment_score = 10
-            pf.sentiment_evidence = ["Negative sentiment detected in communications"]
-        elif metrics.average_sentiment > 0.3:
-            pf.sentiment_score = -5
+        # Factor 9: Sentiment Analysis — no score contribution as of v6.3.
+        # The §5.10 ablation found 0/167 packages cross the ±0.3 threshold,
+        # so the VADER magnitude signal never participated in the score on
+        # the validation set. The rule-based frustration layer captures the
+        # detectable emotional signal; the deferred layer-3 embedding work
+        # (§6.5) is what would make a sentiment factor earn its place again.
+        # Field retained on ProtectiveFactors as structurally 0 to keep
+        # cached-score deserialization stable.
 
-        # Factor 10: Project Maturity (informational)
-        # The main maturity benefit is activity-penalty suppression and
-        # lifetime-concentration fallback (in calculate()), not a score bonus.
+        # Factor 10: Project Maturity — evidence only, not a score contribution.
+        # maturity_score is structurally 0 (see ProtectiveFactors docstring);
+        # the actual maturity mechanism is in calculate(): activity-penalty
+        # suppression and lifetime-concentration fallback. We populate evidence
+        # here so the explanation / dashboard can surface that a project was
+        # treated as mature without pretending a protective-factor score fired.
         if metrics.is_mature:
-            pf.maturity_score = 0
             pf.maturity_evidence = (
                 f"Stable project: {metrics.total_commits} commits over "
                 f"{metrics.repo_age_years:.0f} years, "
@@ -375,10 +381,14 @@ class RiskScorer:
         if breakdown.protective_factors.takeover_risk_score > 0:
             recs.insert(0, "ALERT: New contributor dominates recent commits on mature project — review carefully (xz-utils pattern)")
 
-        # Mature project recommendations
-        if breakdown.protective_factors.maturity_score < 0:
-            if breakdown.final_score < 40:
-                recs.append("Stable mature project — standard monitoring sufficient")
+        # Mature project recommendation — triggered by the evidence string,
+        # not by a (structurally zero) maturity_score.
+        if (
+            breakdown.protective_factors.maturity_evidence
+            and breakdown.final_score is not None
+            and breakdown.final_score < 40
+        ):
+            recs.append("Stable mature project — standard monitoring sufficient")
 
         return recs
 

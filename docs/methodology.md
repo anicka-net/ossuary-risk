@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 167 packages across 8 ecosystems using a scoped evaluation framework, the methodology achieved **96.0% precision** (1 false positive) and **77.4% in-scope recall** (F1 0.857) — Scope B numbers are unchanged from v3.1 because the only methodology change since (the `TOP_PACKAGES` reputation expansion) reclassified exactly one package (sidekiq, FP→TN). Incidents are classified by detectability tier — only those where governance weakness was observable before the attack count toward recall. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
+**Key Finding**: In validation testing against 170 packages across 8 ecosystems using the §5.5 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.3 methodology achieves **96.0% precision** (1 false positive: rxjs) and **75.0% in-scope recall** (F1 0.842) on n = 152 in-scope cases. The dataset was extended in April 2026 with the TeamPCP campaign (`xinference`, `litellm` as T4 EXPECTED FN; `telnyx` as a T3 near-miss FN at score 55, two points below threshold — see §5.7.1). Recall moved from 77.4 % to 75.0 % through composition alone (one new in-scope incident added, no offsetting TP); precision and FP count are unchanged. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives. v6.3 itself was driven by the §5.10.1 factor ablation: the frustration weight was lowered from +20 to +15 (rayon flipped FP→TN, no TPs lost) and the sentiment scoring branch was removed (0/170 fires on the validation set); see §6.3 and §6.4.1.
 
-**Version**: 6.2 (April 2026)
-**Validation Dataset**: 167 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
+**Version**: 6.3 (April 2026)
+**Validation Dataset**: 170 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
 
@@ -319,6 +319,56 @@ complete-data run would. The split decides whether the engine should
 publish that number at all (`INSUFFICIENT_DATA`) or publish it with a
 conservative-bias flag (`is_provisional`).
 
+### 4.-0 Operational SLA — snapshot freshness
+
+Ossuary scores reflect repository data **as of the most recent
+snapshot** for the package's canonical repo. Governance signals (bus
+factor, concentration, contributor attrition, organisational backing)
+are structural and move on the timescale of weeks to quarters, not
+hours — the freshness bands reflect that:
+
+| Band | Snapshot age | Meaning |
+|---|---|---|
+| **Fresh** | ≤ 30 days | Suitable for routine audit-time evidence; aligned with typical release-boundary review cadence under CRA Art. 13(5). |
+| **Stale** | 30–90 days | Still defensible for point-in-time judgments but warns the operator. Re-score recommended before formal sign-off. |
+| **Expired** | > 90 days | Score is informational only; refresh required before relying on it for an attestation. |
+
+Scores never silently use data older than 90 days for the "current"
+view. Historical-cutoff scores (T-1 analyses, validation runs against
+past incidents) are exempt from the freshness contract by definition
+— their cutoff date sets the relevant horizon.
+
+**First-fetch carve-out.** A package with no prior snapshot is always
+fetched on demand — the SLA bands apply to *refresh latency*, not to
+first-time scoring of an unfamiliar dependency. An operator pasting a
+new package into the CLI gets a Fresh score immediately; the bands
+govern the cache hit path.
+
+**Why these bands and not tighter.** Two reasons:
+
+1. **Governance signals are structural.** A bus factor of 1 doesn't
+   become a bus factor of 4 overnight; an organisation doesn't
+   appear or disappear in days. Scoring on data ≤ 30 days old
+   captures every meaningful change in the underlying signal class.
+2. **Tight bands invite flapping.** Day-to-day rescore noise
+   (paginated API result ordering, transient signal failures
+   degrading to provisional, sentiment analyser variance) becomes
+   indistinguishable from real change at sub-week SLAs. A monthly
+   floor enforces that any score change between two refreshes
+   reflects a real shift in the project, not a measurement
+   artefact. If two refreshes 30 days apart give different scores
+   on the same underlying state, that's a *bug to investigate*, not
+   noise the SLA should tolerate.
+
+**Implementation note.** Each `Score` row carries
+``data_snapshot_at`` (when the underlying CollectedData was fetched)
+alongside ``calculated_at`` (when the formula ran on it). The
+distinction matters because a methodology version bump produces a
+new ``calculated_at`` against an older ``data_snapshot_at`` —
+formula iteration does not invalidate the snapshot cache (see
+`docs/data_reuse_design.md`). The freshness band shown to the user
+is computed from ``data_snapshot_at``, not ``calculated_at``.
+
 ### 4.0 Two-Track Scoring (Mature vs. Non-Mature Projects)
 
 A critical insight from validating against real-world package inventories: the original scoring model conflated "stable/finished" with "abandoned." A project like argon2 or dosfstools — quietly maintained for 15 years with occasional small edits — would score identically to a package whose maintainer disappeared. Both show high concentration and low recent activity, but the risk profiles are fundamentally different.
@@ -595,13 +645,20 @@ advantage of`, `resentment`. All matching is case-insensitive and
 deterministic — same input always produces the same labels in the
 same order.
 
-### 6.3 Sentiment Scoring
+### 6.3 Sentiment Scoring (removed from formula in v6.3)
 
-| Compound Score | Effect |
-|----------------|--------|
-| < -0.3 | +10 risk points |
-| > 0.3 | -5 risk points |
-| Otherwise | Neutral |
+Through v6.2.1 the VADER compound score contributed protective-factor
+points (+10 risk for compound < −0.3, −5 risk for compound > +0.3).
+The §5.10.1 ablation found that 0 of 167 packages in the validation
+set crossed the ±0.3 threshold, so the factor never participated in
+a final score. v6.3 removes the scoring branch and documents
+`sentiment_score` as structurally 0 on `ProtectiveFactors`. The
+underlying VADER computation is still performed and its average is
+exposed as evidence; only the score weight was removed.
+
+The deferred layer-3 embedding work (§6.6) is what would make a
+sentiment factor earn its place back. Until then, the rule-based
+frustration layer (§6.2) carries the detectable emotional signal.
 
 ### 6.4 Validation: corpus-driven coverage
 
@@ -638,9 +695,11 @@ the global bar).
 
 #### 6.4.1 Precision-over-recall on lifecycle text
 
-The +20 frustration factor is the heaviest single contribution
-in the protective-factors aggregation. A false-positive on
-healthy lifecycle text (orderly maintainer succession, planned
+The frustration factor (+15 in v6.3, lowered from +20 in v6.2.1
+after the §5.10.1 ablation showed the +20 floor was leaking one
+residual FP without earning recall) is one of the heaviest single
+contributions in the protective-factors aggregation. A false-positive
+on healthy lifecycle text (orderly maintainer succession, planned
 deprecation, EOL announcements) materially overstates risk for a
 project that is doing exactly what good OSS governance looks like.
 
@@ -682,9 +741,9 @@ hits in the issue tracker, all written by *users* about Marak's
 behaviour after the sabotage. With v6.2 author attribution applied,
 zero hits were attributed to the maintainer, because his actual
 rant was never posted in the repo. The community-mood signal is
-preserved through VADER (the same user comments scored -0.8 to
--0.89, feeding the ±10 sentiment factor) — but the maintainer-side
-frustration signal is genuinely absent.
+still computed (the same user comments scored -0.8 to -0.89 through
+VADER) — but as of v6.3 it no longer contributes to the score (see
+§6.3); the maintainer-side frustration signal is genuinely absent.
 
 This gap is not solved by the deferred embedding layer (§6.6)
 either: any classifier is bounded by the text it can see. The

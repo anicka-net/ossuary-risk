@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-from ossuary.services.scorer import collect_package_data, calculate_score_for_date
+from ossuary.services.scorer import cached_collect, calculate_score_for_date
 
 
 @dataclass
@@ -53,6 +53,17 @@ class ValidationCase:
     ecosystem: str  # npm or pypi
     expected_outcome: str  # "incident" or "safe"
     attack_type: Optional[str] = None  # governance, account_compromise, sabotage, etc.
+    # Detectability tier per the §5.5 framework. T1/T2/T3/T_risk are
+    # in-scope (the methodology is expected to detect them); T4 and T5
+    # are out-of-scope (well-governed projects compromised via
+    # credential theft / CI-CD exploit). None for controls.
+    #   T1     governance decay → exploited
+    #   T2     protestware / sabotage by active maintainer
+    #   T3     weak-governance + account compromise
+    #   T_risk no incident yet, governance signal present
+    #   T4     strong-governance + account compromise (OOS)
+    #   T5     CI/CD pipeline exploit (OOS)
+    tier: Optional[str] = None
     incident_date: Optional[str] = None  # YYYY-MM-DD
     cutoff_date: Optional[str] = None  # For T-1 analysis (day before incident)
     notes: str = ""
@@ -129,6 +140,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_failure",
+        tier="T1",
         incident_date="2018-09-16",
         cutoff_date="2018-09-01",
         notes="Abandoned package, malicious maintainer gained access via social engineering",
@@ -146,6 +158,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="maintainer_sabotage",
+        tier="T2",
         incident_date="2022-01-08",
         cutoff_date="2022-01-01",
         notes="Marak sabotaged as protest. Detected due to governance weakness.",
@@ -157,6 +170,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="maintainer_sabotage",
+        tier="T2",
         incident_date="2022-01-08",
         cutoff_date="2022-01-01",
         notes="EXPECTED FN: Community fork has good governance now - original incident not detectable.",
@@ -169,6 +183,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="maintainer_sabotage",
+        tier="T2",
         incident_date="2022-03-15",
         cutoff_date="2022-03-01",
         notes="EXPECTED FN: Active maintainer sabotage - governance metrics won't catch active projects.",
@@ -184,6 +199,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2021-10-22",
         cutoff_date="2021-10-01",
         notes="EXPECTED FN: Account compromise via email hijacking. Active project - governance metrics won't catch this.",
@@ -195,6 +211,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T3",
         incident_date="2021-11-04",
         cutoff_date="2021-11-01",
         notes="Account compromise, but scored HIGH due to underlying governance weakness.",
@@ -206,6 +223,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T3",
         incident_date="2021-11-04",
         cutoff_date="2021-11-01",
         notes="Account compromise, but scored HIGH due to underlying governance weakness.",
@@ -220,6 +238,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2018-07-12",
         cutoff_date="2018-07-01",
         notes="EXPECTED FN: Account compromise on org-owned project. Protective factors correctly reduce score.",
@@ -232,6 +251,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_failure",
+        tier="T1",
         incident_date="2016-03-22",
         cutoff_date="2016-03-01",
         notes="Maintainer unpublished all packages in protest. Single maintainer, no governance.",
@@ -245,6 +265,7 @@ VALIDATION_CASES = [
         ecosystem="rubygems",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T3",
         incident_date="2019-03-26",
         cutoff_date="2019-03-01",
         notes="RubyGems account compromised via weak password. Org-owned (twbs) - may have protective factors.",
@@ -257,6 +278,7 @@ VALIDATION_CASES = [
         ecosystem="rubygems",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T3",
         incident_date="2019-08-14",
         cutoff_date="2019-08-01",
         notes="Password reuse led to malicious code. Governance weakness present.",
@@ -269,6 +291,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="governance_failure",
+        tier="T1",
         incident_date="2024-03-29",
         cutoff_date="2024-03-01",
         notes="Sole maintainer, attacker 'JiaT75' gained trust over 2 years. Classic governance failure.",
@@ -281,6 +304,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2024-10-30",
         cutoff_date="2024-10-01",
         notes="EXPECTED FN: Account compromise on org-owned project (LottieFiles). Org protective factors.",
@@ -293,6 +317,7 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Maintainer archived repo. Single maintainer, no activity since 2021.",
     ),
 
@@ -320,6 +345,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Mature utility, minimal activity pattern.",
     ),
 
@@ -329,6 +355,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Trivial package, high concentration.",
     ),
 
@@ -338,6 +365,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Old utility, minimal maintenance.",
     ),
 
@@ -520,6 +548,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Officially deprecated/maintenance mode since 2020. Correctly flagged.",
     ),
 
@@ -569,6 +598,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Mature utility, minimal recent activity, high concentration.",
     ),
 
@@ -846,6 +876,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Security-critical package with single maintainer, low recent activity. 65 HIGH is a valid concern.",
     ),
 
@@ -1083,6 +1114,7 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Single maintainer (ijl), 100% concentration, bus factor of 1 despite popularity.",
     ),
 
@@ -1162,6 +1194,7 @@ VALIDATION_CASES = [
         ecosystem="rubygems",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Critical Rails auth library, original creator (José Valim) moved on. Single active maintainer (Carlos da Silva) at 81% concentration, 42 commits/yr.",
         repo_url="https://github.com/heartcombo/devise",
     ),
@@ -1302,6 +1335,7 @@ VALIDATION_CASES = [
         ecosystem="go",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: Microservices toolkit in maintenance mode. 80 CRITICAL - correctly flagged as abandoned.",
     ),
 
@@ -1356,6 +1390,7 @@ VALIDATION_CASES = [
         ecosystem="rubygems",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T3",
         incident_date="2019-07-01",
         cutoff_date="2019-06-15",
         notes="RubyGems account compromise. Single maintainer, small package.",
@@ -1368,6 +1403,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2026-02-17",
         cutoff_date="2026-02-16",
         notes="EXPECTED FN: Account compromise via clinebotorg npm account. Malicious postinstall "
@@ -1389,6 +1425,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="governance_failure",
+        tier="T1",
         incident_date="2024-06-25",
         cutoff_date="2024-02-01",
         notes="Domain/project sold to Funnull CDN who injected malicious JS into 100K+ sites. "
@@ -1404,6 +1441,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T5",
         incident_date="2025-03-11",
         cutoff_date="2025-03-01",
         notes="EXPECTED FN: CI/CD access policy exploit — contributors had automatic write access. "
@@ -1421,6 +1459,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2024-12-03",
         cutoff_date="2024-12-01",
         notes="EXPECTED FN: Maintainer spear-phished via fake npm site. "
@@ -1436,6 +1475,7 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T5",
         incident_date="2024-12-05",
         cutoff_date="2024-12-01",
         notes="EXPECTED FN: GitHub Actions workflow vulnerability allowed malicious PR branch name "
@@ -1451,6 +1491,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T5",
         incident_date="2021-04-01",
         cutoff_date="2021-03-01",
         notes="EXPECTED FN: Build infra compromise — HMAC keys extracted from Docker image "
@@ -1466,6 +1507,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T5",
         incident_date="2024-12-19",
         cutoff_date="2024-12-01",
         notes="EXPECTED FN: CI/CD misconfiguration — 'Release Canary' workflow ran attacker code "
@@ -1481,6 +1523,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2025-09-08",
         cutoff_date="2025-09-01",
         notes="EXPECTED FN: Qix account phished via fake npmjs.help domain. "
@@ -1501,6 +1544,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="governance_failure",
+        tier="T1",
         incident_date="2022-05-14",
         cutoff_date="2022-01-01",
         notes="Attacker purchased expired domain figlief.com, used PyPI password reset "
@@ -1516,6 +1560,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Archived since 2018, single maintainer. Succeeded by etcd-io/bbolt. "
               "The abandonment enabled a typosquat (boltdb-go/bolt) that persisted 3+ years "
               "in Go Module Mirror cache. Classic governance risk: abandoned but still depended on.",
@@ -1531,6 +1576,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T3",
         incident_date="2025-07-19",
         cutoff_date="2025-07-01",
         notes="Old inactive maintainer's account phished, still had publish access. "
@@ -1548,6 +1594,7 @@ VALIDATION_CASES = [
         ecosystem="pypi",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2025-07-28",
         cutoff_date="2025-07-01",
         notes="EXPECTED FN: Org-backed (savoirfairelinux), 15% concentration, 20 commits/yr. "
@@ -1564,6 +1611,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T5",
         incident_date="2025-03-14",
         cutoff_date="2025-03-01",
         notes="EXPECTED FN: Multi-stage CI/CD cascade: SpotBugs pull_request_target vuln → "
@@ -1579,6 +1627,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2025-07-17",
         cutoff_date="2025-07-01",
         notes="EXPECTED FN: Maintainer JounQin phished via npnjs.com (typosquatted npm domain). "
@@ -1594,6 +1643,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T5",
         incident_date="2025-08-26",
         cutoff_date="2025-08-01",
         notes="EXPECTED FN: Exploited pull_request_target workflow on old branch. "
@@ -1618,6 +1668,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_risk",
+        tier="T_risk",
         notes="Governance risk: sole maintainer (zloirock), 92% concentration. "
               "Was imprisoned Jan-Oct 2020 (7-month release gap). No malicious release occurred. "
               "Currently active (1174 commits/yr) so moderate score is defensible, but "
@@ -1634,6 +1685,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="maintainer_sabotage",
+        tier="T2",
         incident_date="2022-03-07",
         cutoff_date="2022-03-01",
         notes="Protestware: maintainer (medikoo) added postinstall script showing anti-war "
@@ -1649,6 +1701,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="maintainer_sabotage",
+        tier="T2",
         incident_date="2022-03-17",
         cutoff_date="2022-03-01",
         notes="Protestware: maintainer (Yaffle) added runtime anti-war message for Russian users. "
@@ -1665,6 +1718,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="governance_failure",
+        tier="T1",
         incident_date="2019-07-05",
         cutoff_date="2019-07-01",
         notes="Maintainer shinnn sabotaged dependency packages (load-from-cwd-or-npm, rate-map) "
@@ -1683,6 +1737,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="maintainer_sabotage",
+        tier="T2",
         incident_date="2020-04-25",
         cutoff_date="2020-04-01",
         notes="Non-malicious: sole maintainer published broken ESM migration (missing ./ in exports). "
@@ -1700,6 +1755,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="governance_failure",
+        tier="T1",
         incident_date="2018-02-01",
         cutoff_date="2018-01-15",
         notes="Username recycling: original author deleted GitHub account, attacker "
@@ -1721,6 +1777,7 @@ VALIDATION_CASES = [
         ecosystem="npm",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T4",
         incident_date="2026-03-31",
         cutoff_date="2026-03-30",
         notes="EXPECTED FN: Account compromise via long-lived npm token. "
@@ -1737,6 +1794,7 @@ VALIDATION_CASES = [
         ecosystem="github",
         expected_outcome="incident",
         attack_type="account_compromise",
+        tier="T5",
         incident_date="2026-03-19",
         cutoff_date="2026-03-18",
         notes="EXPECTED FN: CI/CD compromise via stolen credential with write access. "
@@ -1759,6 +1817,88 @@ VALIDATION_CASES = [
               "Well-governed despite org concentration.",
         repo_url="https://github.com/aquasecurity/trivy",
     ),
+
+    # =========================================================================
+    # NEW INCIDENTS — Added 2026-04-23 (TeamPCP campaign continuation)
+    # =========================================================================
+    # The TeamPCP cluster (Trivy → Checkmarx KICS → LiteLLM → Telnyx → xinference)
+    # is a chained CI/CD credential-theft campaign running March–April 2026. The
+    # three additions below are the named PyPI victims that fit the governance
+    # framework. trivy-action (2026-03-19) is already captured as T5 above; the
+    # Checkmarx KICS GitHub Action (2026-03-23) is the same attack pattern as
+    # trivy-action and was deliberately not duplicated. Two impersonation
+    # campaigns running in the same window (Asurion typosquats, 36 strapi-plugin
+    # sock-puppets) are excluded — typosquats have no real package to score and
+    # fall outside the governance framework entirely.
+
+    # litellm (pypi) — TeamPCP campaign, 2026-03-24
+    # PYPI_PUBLISH token exfiltrated via compromised Trivy CI step.
+    # Healthy Ossuary governance: 21% conc, ~16K commits/yr, 1016 contributors,
+    # bus factor 4, BerriAI org. Score 0 (VERY_LOW). Pure credential theft.
+    ValidationCase(
+        name="litellm",
+        ecosystem="pypi",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T4",
+        incident_date="2026-03-24",
+        cutoff_date="2026-03-23",
+        notes="EXPECTED FN: TeamPCP campaign — PYPI_PUBLISH token exfiltrated "
+              "via compromised Trivy CI step. Malicious versions 1.82.7/1.82.8 "
+              "deployed litellm_init.pth that runs on every Python startup, "
+              "K8s privileged pods, systemd backdoor. Healthy Ossuary governance "
+              "(21% conc, ~16K commits/yr, 1016 contributors, bf=4, BerriAI org). "
+              "Underlying weakness (unpinned CI deps, broad publish tokens) is "
+              "a CI hygiene issue Ossuary does not measure.",
+        repo_url="https://github.com/BerriAI/litellm",
+    ),
+
+    # telnyx (pypi) — TeamPCP campaign, 2026-03-27
+    # Maintainer-account compromise; payload steganographically hidden in WAV file.
+    # Borderline T3: governance weakness present (bf=1, 97% conc, 78% attrition)
+    # but org backing (-15) softens score from ~70 to 55, two points below the
+    # threshold of 60. Near-miss FN that illustrates the vendor-backed-solo edge.
+    ValidationCase(
+        name="telnyx",
+        ecosystem="pypi",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-03-27",
+        cutoff_date="2026-03-26",
+        notes="NEAR-MISS FN at 55 (threshold 60). TeamPCP campaign — "
+              "maintainer-account compromise, payload steganographically hidden "
+              "in WAV file (matched the SDK's voice-AI use case). Versions "
+              "4.87.1/4.87.2. Governance weakness present (bus factor 1, 97% "
+              "concentration, 78% attrition) but org backing (-15) softens score "
+              "below threshold. Illustrates the boundary: vendor-backed solo "
+              "projects sit at the edge of what concentration+activity scoring "
+              "can flag.",
+        repo_url="https://github.com/team-telnyx/telnyx-python",
+    ),
+
+    # xinference (pypi) — TeamPCP-style campaign, 2026-04-22
+    # Versions 2.6.0–2.6.2 shipped Base64 second-stage credential collector.
+    # Marker "# hacked by teampcp" in payload (TeamPCP claimed copycat).
+    # Healthy Ossuary governance (19% conc, 596 commits/yr, 51 contributors,
+    # bf=4, Xprobe org). Score 0 (VERY_LOW). Same T4 profile as axios.
+    ValidationCase(
+        name="xinference",
+        ecosystem="pypi",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T4",
+        incident_date="2026-04-22",
+        cutoff_date="2026-04-21",
+        notes="EXPECTED FN: TeamPCP-style supply-chain attack. Malicious "
+              "versions 2.6.0–2.6.2 shipped Base64 second-stage collector "
+              "harvesting browser-extension wallets (MetaMask, Phantom), local "
+              "crypto wallets, npm tokens. Marker '# hacked by teampcp' in "
+              "decoded payload (TeamPCP claimed copycat). Healthy governance "
+              "(19% conc, 596 commits/yr, 51 contributors, bf=4, Xprobe org). "
+              "Score 0 (VERY_LOW). Same T4 profile as axios.",
+        repo_url="https://github.com/xorbitsai/inference",
+    ),
 ]
 
 
@@ -1775,14 +1915,26 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
     result = ValidationResult(case=case)
 
     try:
-        # Parse cutoff date
-        cutoff = datetime.now()
-        if case.cutoff_date:
-            cutoff = datetime.strptime(case.cutoff_date, "%Y-%m-%d")
+        # Parse cutoff date. ``cutoff_for_collect`` is None for controls
+        # (current scoring → cache uses freshness SLA on collected_at),
+        # explicit datetime for incidents (historical scoring → cache
+        # requires snapshot.collected_at >= cutoff). ``cutoff_for_score``
+        # is always concrete because ``calculate_score_for_date`` needs a
+        # datetime.
+        cutoff_for_collect = (
+            datetime.strptime(case.cutoff_date, "%Y-%m-%d")
+            if case.cutoff_date else None
+        )
+        cutoff = cutoff_for_collect or datetime.now()
 
-        # Collect data via services layer (handles all 8 ecosystems)
-        collected_data, warnings = await collect_package_data(
+        # Collect data via services layer (handles all 8 ecosystems).
+        # Snapshot cache reuses prior runs' upstream data when available
+        # — re-running validation after a methodology bump or for ablation
+        # work is then bounded by DB read time, not GitHub rate limits.
+        # See ``docs/data_reuse_design.md``.
+        collected_data, warnings = await cached_collect(
             case.name, case.ecosystem, case.repo_url,
+            cutoff_date=cutoff_for_collect,
         )
 
         if collected_data is None:
