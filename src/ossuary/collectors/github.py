@@ -588,6 +588,195 @@ class GitHubCollector(BaseCollector):
         bucket = data.fetch_errors if essential else data.provisional_reasons
         bucket.append(f"github.{label}: {err}")
 
+    # ------------------------------------------------------------------
+    # Per-signal-family collection (v0.10.1 phase 3 step 2)
+    # ------------------------------------------------------------------
+    #
+    # ``collect()`` orchestrates these helpers; each is independently
+    # callable so a future cache layer can refresh just one family on
+    # its own cadence (the v0.11 design — see
+    # ``docs/data_reuse_design.md`` §4 and the GPT-roadmap rationale
+    # for un-shipping the freshness probe at commit 7093f36).
+    #
+    # Each family method takes the in-flight ``GitHubData`` and mutates
+    # it with the family's signals plus any failure records. They DO
+    # NOT compose family-to-family dependencies internally — the
+    # orchestrator threads the canonical ``(owner, repo)`` and resolved
+    # maintainer username between them — so per-family refresh in a
+    # future cache layer doesn't have to know the dependency order.
+
+    async def collect_repo_meta(
+        self, owner: str, repo: str, data: GitHubData,
+    ) -> tuple[str, str, Optional[dict]]:
+        """Fetch repo metadata: owner type + canonical owner/repo names.
+
+        Returns ``(canonical_owner, canonical_repo, repo_info_dict)``.
+        The dict is returned so the orchestrator can use it for
+        last-resort maintainer resolution on org repos without paying
+        a second ``get_repo_info`` call. Mutates ``data`` with the
+        owner type and canonical names, and records the essential
+        failure flag if the repo info is unavailable transiently.
+        """
+        repo_info = await self.get_repo_info(owner, repo)
+        if repo_info is None:
+            self._record_failure(data, "repo_info", essential=True)
+            return owner, repo, None
+
+        data.owner_type = repo_info.get("owner", {}).get("type", "")
+        canonical_owner = repo_info.get("owner", {}).get("login") or owner
+        canonical_repo = repo_info.get("name") or repo
+        if canonical_owner != owner or canonical_repo != repo:
+            logger.info(
+                f"Repo redirected: {owner}/{repo} -> "
+                f"{canonical_owner}/{canonical_repo}"
+            )
+        data.owner = canonical_owner
+        data.repo = canonical_repo
+        return canonical_owner, canonical_repo, repo_info
+
+    async def resolve_maintainer(
+        self,
+        owner: str,
+        repo: str,
+        data: GitHubData,
+        top_contributor_username: Optional[str],
+        top_contributor_email: Optional[str],
+        repo_info: Optional[dict],
+    ) -> str:
+        """Decide which GitHub username represents the project's
+        maintainer, in priority order:
+
+        1. ``top_contributor_username`` (from git commit history)
+        2. For orgs: top contributor returned by GitHub API
+        3. Email-based GitHub user search
+        4. Repo owner (only if not an organization)
+        5. Last-resort fallback to the org's login from repo_info
+
+        Returns the resolved username and stores it on ``data``.
+        """
+        maintainer_username: Optional[str] = None
+
+        if top_contributor_username:
+            maintainer_username = top_contributor_username
+            logger.info(f"Using provided top contributor: {maintainer_username}")
+
+        if not maintainer_username and data.owner_type == "Organization":
+            logger.info(f"Repo is org-owned, finding top contributor...")
+            contributors = await self.get_repo_contributors(owner, repo, limit=1)
+            if not contributors:
+                self._record_failure(data, "contributors", essential=False)
+            if contributors:
+                maintainer_username = contributors[0].get("login")
+                logger.info(f"Top contributor from GitHub API: {maintainer_username}")
+
+        if not maintainer_username and top_contributor_email:
+            logger.info(
+                f"Searching GitHub for user with email: {top_contributor_email}"
+            )
+            maintainer_username = await self.search_user_by_email(top_contributor_email)
+            # email search is best-effort; failures silently fine.
+            if maintainer_username:
+                logger.info(f"Found user by email: {maintainer_username}")
+
+        if not maintainer_username:
+            if data.owner_type != "Organization":
+                maintainer_username = owner
+                logger.info(f"Using repo owner as maintainer: {maintainer_username}")
+            else:
+                maintainer_username = (
+                    repo_info.get("owner", {}).get("login", owner)
+                    if repo_info else owner
+                )
+                logger.warning(
+                    f"Could not determine maintainer for org repo, "
+                    f"using: {maintainer_username}"
+                )
+
+        data.maintainer_username = maintainer_username
+        logger.info(f"Final maintainer: {data.maintainer_username}")
+        return maintainer_username
+
+    async def collect_maintainer_profile(
+        self, username: str, data: GitHubData,
+    ) -> None:
+        """Fetch the maintainer's GitHub profile, public repo list,
+        sponsorship state, and org memberships. All non-essential —
+        each failure leaves a protective factor at 0 and raises the
+        score conservatively (see class docstring)."""
+        # Account age + public repo count.
+        user_profile = await self.get_user(username)
+        if user_profile is None:
+            self._record_failure(data, "user_profile", essential=False)
+        if user_profile:
+            data.maintainer_account_created = user_profile.get("created_at", "")
+            data.maintainer_public_repos = user_profile.get("public_repos", 0)
+
+        # Repo list for reputation scoring.
+        logger.info(f"Fetching repos for {username}...")
+        repos = await self.get_user_repos(username)
+        if not repos:
+            self._record_failure(data, "user_repos", essential=False)
+        data.maintainer_repos = repos
+        data.maintainer_total_stars = sum(
+            r.get("stargazers_count", 0) for r in repos
+        )
+
+        # Sponsorship.
+        if username and "[bot]" not in username:
+            logger.info(f"Checking sponsors for {username}...")
+            data.has_github_sponsors = await self.get_sponsors_status(username)
+            if self.last_error:
+                self._record_failure(data, "sponsors_status", essential=False)
+            if data.has_github_sponsors:
+                data.maintainer_sponsor_count = await self.get_sponsor_count(username)
+                if self.last_error:
+                    self._record_failure(data, "sponsor_count", essential=False)
+
+        # Org memberships (different from "repo is org-owned").
+        logger.info(f"Fetching orgs for {username}...")
+        data.maintainer_orgs = await self.get_user_orgs(username)
+        if not data.maintainer_orgs and self.last_error:
+            self._record_failure(data, "user_orgs", essential=False)
+
+        # Legacy tier-1 derivation; ReputationScorer now does the work
+        # but the field still exists for back-compat with older blobs.
+        data.is_tier1_maintainer = (
+            data.maintainer_public_repos > self.TIER1_REPOS
+            or data.maintainer_total_stars > self.TIER1_STARS
+        )
+
+    async def collect_org_admins_family(
+        self, owner: str, repo: str, data: GitHubData,
+    ) -> None:
+        """Determine whether the repo is owned by a GitHub organisation
+        and, if so, estimate the admin count. Non-essential."""
+        logger.info(f"Checking organization status for {owner}/{repo}...")
+        org_info = await self.get_org_admins(owner, repo)
+        if self.last_error:
+            self._record_failure(data, "org_admins", essential=False)
+        data.is_org_owned = org_info["is_org"]
+        data.org_admin_count = org_info["admin_count"]
+
+    async def collect_cii_family(
+        self, owner: str, repo: str, data: GitHubData,
+    ) -> None:
+        """Detect CII / Best Practices badge presence. Non-essential."""
+        logger.info(f"Checking CII badge for {owner}/{repo}...")
+        data.cii_badge_level = await self.get_cii_badge_level(owner, repo)
+        if data.cii_badge_level == "none" and self.last_error:
+            self._record_failure(data, "cii_badge", essential=False)
+
+    async def collect_issues_family(
+        self, owner: str, repo: str, data: GitHubData,
+    ) -> None:
+        """Fetch recent issues + comments for sentiment analysis.
+        Non-essential — missing issues disables the frustration /
+        sentiment layers but leaves the rest of the score intact."""
+        logger.info(f"Fetching issues for {owner}/{repo}...")
+        data.issues = await self.get_issues(owner, repo)
+        if not data.issues and self.last_error:
+            self._record_failure(data, "issues", essential=False)
+
     async def collect(
         self,
         repo_url: str,
@@ -597,7 +786,8 @@ class GitHubCollector(BaseCollector):
         """
         Collect all GitHub data for a repository.
 
-        Failure classification (see ``GitHubData`` docstring):
+        Composes the per-signal-family methods declared above. Failure
+        classification (see ``GitHubData`` docstring):
         - repo_info transient failure: ESSENTIAL — without it we don't
           know owner type, can't find the canonical name, can't run
           the org-admin check. Marked ``fetch_errors`` →
@@ -623,130 +813,23 @@ class GitHubCollector(BaseCollector):
 
         data = GitHubData(owner=owner, repo=repo)
 
-        # Get repo info (follows 301 redirects for renamed/transferred repos)
-        repo_info = await self.get_repo_info(owner, repo)
-        # repo_info is essential — without it we don't have an owner type
-        # for downstream branching. A 404 here is fine (repo doesn't
-        # exist; caller treats that as a hard error). Transient failures
-        # propagate as fetch_errors → INSUFFICIENT_DATA.
-        if repo_info is None:
-            self._record_failure(data, "repo_info", essential=True)
-        if repo_info:
-            data.owner_type = repo_info.get("owner", {}).get("type", "")
-            # Update owner/repo to canonical name (handles renames/transfers)
-            canonical_owner = repo_info.get("owner", {}).get("login")
-            canonical_repo = repo_info.get("name")
-            if canonical_owner and canonical_repo:
-                if canonical_owner != owner or canonical_repo != repo:
-                    logger.info(f"Repo redirected: {owner}/{repo} -> {canonical_owner}/{canonical_repo}")
-                owner = canonical_owner
-                repo = canonical_repo
-                data.owner = owner
-                data.repo = repo
+        # Family 1: repo metadata. Resolves canonical owner/repo + owner type.
+        owner, repo, repo_info = await self.collect_repo_meta(owner, repo, data)
 
-        # Determine the actual maintainer username
-        maintainer_username = None
-
-        # Priority 1: Provided username
-        if top_contributor_username:
-            maintainer_username = top_contributor_username
-            logger.info(f"Using provided top contributor: {maintainer_username}")
-
-        # Priority 2: For orgs, get top contributor from GitHub API
-        if not maintainer_username and data.owner_type == "Organization":
-            logger.info(f"Repo is org-owned, finding top contributor...")
-            contributors = await self.get_repo_contributors(owner, repo, limit=1)
-            if not contributors:
-                self._record_failure(data, "contributors", essential=False)
-            if contributors:
-                maintainer_username = contributors[0].get("login")
-                logger.info(f"Top contributor from GitHub API: {maintainer_username}")
-
-        # Priority 3: Search by email
-        if not maintainer_username and top_contributor_email:
-            logger.info(f"Searching GitHub for user with email: {top_contributor_email}")
-            maintainer_username = await self.search_user_by_email(top_contributor_email)
-            # email search is best-effort; failures are silently fine
-            if maintainer_username:
-                logger.info(f"Found user by email: {maintainer_username}")
-
-        # Priority 4: Fall back to repo owner (if it's a user, not org)
-        if not maintainer_username:
-            if data.owner_type != "Organization":
-                maintainer_username = owner
-                logger.info(f"Using repo owner as maintainer: {maintainer_username}")
-            else:
-                # Last resort for orgs: try to get from repo info
-                maintainer_username = repo_info.get("owner", {}).get("login", owner) if repo_info else owner
-                logger.warning(f"Could not determine maintainer for org repo, using: {maintainer_username}")
-
-        data.maintainer_username = maintainer_username
-        logger.info(f"Final maintainer: {data.maintainer_username}")
-
-        # Get user profile (for account age) — non-essential; missing
-        # account_age zeroes the reputation tenure component (already
-        # covered by the bigger reputation calc).
-        user_profile = await self.get_user(data.maintainer_username)
-        if user_profile is None:
-            self._record_failure(data, "user_profile", essential=False)
-        if user_profile:
-            data.maintainer_account_created = user_profile.get("created_at", "")
-            data.maintainer_public_repos = user_profile.get("public_repos", 0)
-
-        # Get full repo list for reputation scoring — non-essential.
-        # Empty list zeroes the reputation factor (no top-N contribution).
-        logger.info(f"Fetching repos for {data.maintainer_username}...")
-        repos = await self.get_user_repos(data.maintainer_username)
-        if not repos:
-            self._record_failure(data, "user_repos", essential=False)
-        data.maintainer_repos = repos
-        data.maintainer_total_stars = sum(r.get("stargazers_count", 0) for r in repos)
-
-        # Check sponsors status and count — non-essential. Missing
-        # sponsors zeroes the funding protective factor (-15), which
-        # *raises* the final score conservatively.
-        if data.maintainer_username and "[bot]" not in data.maintainer_username:
-            logger.info(f"Checking sponsors for {data.maintainer_username}...")
-            data.has_github_sponsors = await self.get_sponsors_status(data.maintainer_username)
-            if self.last_error:
-                self._record_failure(data, "sponsors_status", essential=False)
-            if data.has_github_sponsors:
-                data.maintainer_sponsor_count = await self.get_sponsor_count(data.maintainer_username)
-                if self.last_error:
-                    self._record_failure(data, "sponsor_count", essential=False)
-
-        # Get user's organizations — non-essential.
-        logger.info(f"Fetching orgs for {data.maintainer_username}...")
-        data.maintainer_orgs = await self.get_user_orgs(data.maintainer_username)
-        if not data.maintainer_orgs and self.last_error:
-            self._record_failure(data, "user_orgs", essential=False)
-
-        # Legacy tier-1 check (deprecated, use ReputationScorer instead)
-        data.is_tier1_maintainer = (
-            data.maintainer_public_repos > self.TIER1_REPOS
-            or data.maintainer_total_stars > self.TIER1_STARS
+        # Family 2a: maintainer identity. Depends on family 1 (owner_type).
+        maintainer = await self.resolve_maintainer(
+            owner, repo, data,
+            top_contributor_username, top_contributor_email, repo_info,
         )
 
-        # Check organization ownership of repo — non-essential.
-        # Missing zeros the org protective factor (-15).
-        logger.info(f"Checking organization status for {owner}/{repo}...")
-        org_info = await self.get_org_admins(owner, repo)
-        if self.last_error:
-            self._record_failure(data, "org_admins", essential=False)
-        data.is_org_owned = org_info["is_org"]
-        data.org_admin_count = org_info["admin_count"]
+        # Family 2b: maintainer profile signals.
+        await self.collect_maintainer_profile(maintainer, data)
 
-        logger.info(f"Checking CII badge for {owner}/{repo}...")
-        data.cii_badge_level = await self.get_cii_badge_level(owner, repo)
-        if data.cii_badge_level == "none" and self.last_error:
-            self._record_failure(data, "cii_badge", essential=False)
-
-        # Get issues — non-essential. Missing issues disables sentiment
-        # analysis but leaves the rest of the score intact.
-        logger.info(f"Fetching issues for {owner}/{repo}...")
-        data.issues = await self.get_issues(owner, repo)
-        if not data.issues and self.last_error:
-            self._record_failure(data, "issues", essential=False)
+        # Family 3-5: independent of maintainer; can refresh on their
+        # own cadence in a future per-family cache layer.
+        await self.collect_org_admins_family(owner, repo, data)
+        await self.collect_cii_family(owner, repo, data)
+        await self.collect_issues_family(owner, repo, data)
 
         return data
 
