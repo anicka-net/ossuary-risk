@@ -1007,39 +1007,302 @@ class TestFreshnessProbe:
         session.commit()
         assert cache.get_latest_snapshot_any_age("vmismatch", "npm") is None
 
-    def test_probe_wiring_unhooked_in_cached_collect(self):
-        """GPT review caught that ``pushed_at`` only moves on git pushes
-        but the cached blob carries sponsors / orgs / CII / issues —
-        signals that change independently of pushes. A pushed_at-only
-        probe would silently extend snapshots whose auxiliary signals
-        had drifted. The probe wiring in cached_collect was therefore
-        unshipped (commit reversal) until signal-family-aware refresh
-        (GPT roadmap item 2) lands. The building blocks
-        (probe_pushed_at, get_latest_snapshot_any_age,
-        extend_snapshot_freshness, upstream_pushed_at) stay on disk
-        for that future use.
+    def test_probe_wiring_pairs_probe_with_aux_refresh(self):
+        """Pins the GPT-HIGH-finding fix structurally: cached_collect
+        may call ``probe_pushed_at`` ONLY in conjunction with
+        ``_refresh_auxiliary_families``. Calling probe alone is the
+        unsound pattern that earlier shipped (commit e9af445) and got
+        unhooked (commit 7093f36).
 
-        This test pins the unwiring: cached_collect's source must NOT
-        invoke probe_pushed_at; if it does, a future PR would silently
-        re-introduce the bug GPT caught."""
+        The contract: any source-level reference to
+        ``probe_pushed_at(`` in cached_collect must coexist with a
+        reference to ``_refresh_auxiliary_families(``. If a future PR
+        deletes the auxiliary-refresh half (e.g. accidentally during a
+        cleanup) without removing the probe, this test fails — the
+        unsound pattern can no longer slip through."""
         import inspect as _inspect
         from ossuary.services import scorer
         src = _inspect.getsource(scorer.cached_collect)
-        # The wiring would have called probe_pushed_at directly;
-        # the building blocks may still be referenced in *comments*
-        # but not in executable code.
         executable_lines = [
             line for line in src.splitlines()
             if not line.strip().startswith("#")
         ]
         executable_src = "\n".join(executable_lines)
-        assert "probe_pushed_at(" not in executable_src, (
-            "cached_collect must not invoke probe_pushed_at — see GPT "
-            "review HIGH finding on pushed_at-only validity"
+
+        probe_calls = executable_src.count("probe_pushed_at(")
+        aux_refresh_calls = executable_src.count("_refresh_auxiliary_families(")
+
+        if probe_calls > 0:
+            assert aux_refresh_calls > 0, (
+                "cached_collect calls probe_pushed_at without a paired "
+                "call to _refresh_auxiliary_families. This is the "
+                "GPT-HIGH unsoundness pattern — a pushed_at match must "
+                "trigger auxiliary-family refresh, not just freshness "
+                "extension."
+            )
+        # extend_snapshot_freshness is reserved for the probe path; if
+        # used at all it must be in the same auxiliary-aware context.
+        if "extend_snapshot_freshness(" in executable_src:
+            assert aux_refresh_calls > 0, (
+                "extend_snapshot_freshness may only run alongside the "
+                "auxiliary-family refresh path."
+            )
+
+    def test_probe_match_refreshes_aux_families_keeps_commits(self):
+        """End-to-end probe-and-selective-refresh flow (v0.10.1 phase
+        3 step 2b). When the upstream pushed_at matches the cached
+        snapshot's recorded pushed_at, ``cached_collect`` must:
+
+        1. NOT do a full re-collect (no GitHub history fetch).
+        2. Refresh the auxiliary families (sponsors / orgs / CII /
+           issues / maintainer profile) by calling the per-family
+           methods directly.
+        3. Persist the refreshed data as a new snapshot row.
+        4. Return the merged data with refreshed aux fields and the
+           cached commit history intact.
+
+        This is the contract that re-enabled the freshness probe
+        safely after the GPT-HIGH unhook (commit 7093f36)."""
+        import asyncio
+        from unittest.mock import patch
+        from ossuary.db.session import init_db, session_scope
+        from ossuary.db.models import Package, RepoSnapshot
+        from ossuary.services.repo_cache import RepoSnapshotCache
+        from ossuary.services.scorer import (
+            CollectedData, cached_collect, RegistryData,
         )
-        assert "extend_snapshot_freshness(" not in executable_src, (
-            "cached_collect must not invoke extend_snapshot_freshness "
-            "via the unsound probe path"
+        from ossuary.collectors.git import CommitData
+        from ossuary.collectors.github import GitHubData
+
+        init_db()
+        with session_scope() as s:
+            for pkg in s.query(Package).filter(
+                Package.name == "probe-target"
+            ).all():
+                s.query(RepoSnapshot).filter(
+                    RepoSnapshot.package_id == pkg.id
+                ).delete()
+                s.delete(pkg)
+
+        # Seed a stale snapshot with old aux data + recorded pushed_at.
+        stale_pushed = "2026-04-01T12:00:00Z"
+        seed = CollectedData(
+            repo_url="https://github.com/example/probe",
+            all_commits=[CommitData(
+                sha="cached" + "0" * 34,
+                author_name="Cached", author_email="c@e.com",
+                authored_date=datetime(2026, 3, 15),
+                committer_name="Cached", committer_email="c@e.com",
+                committed_date=datetime(2026, 3, 15),
+                message="cached commit",
+            )],
+            github_data=GitHubData(
+                owner="example", repo="probe", owner_type="Organization",
+                maintainer_username="alice",
+                maintainer_account_created="2018-01-01T00:00:00Z",
+                maintainer_repos=[], is_org_owned=True, issues=[],
+                has_github_sponsors=False,  # stale aux data
+                cii_badge_level="none",
+                pushed_at=stale_pushed,
+            ),
+            weekly_downloads=1000,
+            maintainer_account_created=datetime(2018, 1, 1),
+            repo_stargazers=10,
+        )
+        # Backdate so it's beyond SLA_EXPIRED_DAYS — forces the
+        # standard-lookup miss that triggers the probe path.
+        with session_scope() as s:
+            cache = RepoSnapshotCache(s)
+            cache.store_snapshot(
+                name="probe-target", ecosystem="npm",
+                repo_url="https://github.com/example/probe",
+                blob=serialise_collected_data(seed),
+                collected_at=utcnow_naive() - timedelta(days=120),
+            )
+
+        # Track which methods got called: probe should fire, family
+        # methods should fire, but NOT collect_package_data (full path).
+        calls = {
+            "probe": 0, "maintainer_profile": 0, "org_admins": 0,
+            "cii": 0, "issues": 0, "full_collect": 0,
+        }
+
+        async def fake_probe(repo_url):
+            calls["probe"] += 1
+            return stale_pushed  # MATCH — repo unchanged
+
+        async def fake_maintainer(self, username, data):
+            calls["maintainer_profile"] += 1
+            data.has_github_sponsors = True  # was False; now refreshed
+
+        async def fake_org_admins(self, owner, repo, data):
+            calls["org_admins"] += 1
+            data.org_admin_count = 7
+
+        async def fake_cii(self, owner, repo, data):
+            calls["cii"] += 1
+            data.cii_badge_level = "passing"  # newly granted
+
+        async def fake_issues(self, owner, repo, data):
+            calls["issues"] += 1
+            # issue list newly populated; was [] in the seed
+            from ossuary.collectors.github import IssueData
+            data.issues = [IssueData(
+                number=1, title="new", body="b", state="open",
+                is_pull_request=False, author_login="x",
+                created_at="2026-04-20", updated_at="2026-04-20",
+                closed_at=None, comments=[],
+            )]
+
+        async def fake_full_collect(*args, **kwargs):
+            calls["full_collect"] += 1
+            return None, ["should not be reached"]
+
+        with patch(
+            "ossuary.collectors.github.GitHubCollector.probe_pushed_at",
+            new=fake_probe,
+        ), patch(
+            "ossuary.collectors.github.GitHubCollector.collect_maintainer_profile",
+            new=fake_maintainer,
+        ), patch(
+            "ossuary.collectors.github.GitHubCollector.collect_org_admins_family",
+            new=fake_org_admins,
+        ), patch(
+            "ossuary.collectors.github.GitHubCollector.collect_cii_family",
+            new=fake_cii,
+        ), patch(
+            "ossuary.collectors.github.GitHubCollector.collect_issues_family",
+            new=fake_issues,
+        ), patch(
+            "ossuary.services.scorer.collect_package_data",
+            new=fake_full_collect,
+        ):
+            data, warnings = asyncio.run(cached_collect("probe-target", "npm"))
+
+        assert data is not None
+        assert warnings == []
+        # Probe fired exactly once; full collect did NOT fire.
+        assert calls["probe"] == 1
+        assert calls["full_collect"] == 0, (
+            "full re-collect must be skipped when pushed_at matches"
+        )
+        # Each auxiliary family refreshed.
+        assert calls["maintainer_profile"] == 1
+        assert calls["org_admins"] == 1
+        assert calls["cii"] == 1
+        assert calls["issues"] == 1
+        # Refreshed aux fields land on the returned data.
+        assert data.github_data.has_github_sponsors is True
+        assert data.github_data.org_admin_count == 7
+        assert data.github_data.cii_badge_level == "passing"
+        assert len(data.github_data.issues) == 1
+        # Cached commit history survives the refresh.
+        assert len(data.all_commits) == 1
+        assert data.all_commits[0].sha.startswith("cached")
+
+    def test_probe_mismatch_falls_through_to_full_collect(self):
+        """If upstream pushed_at differs from the snapshot's recorded
+        value, the repo has actually changed → full re-collect path,
+        no aux-only refresh."""
+        import asyncio
+        from unittest.mock import patch
+        from ossuary.db.session import init_db, session_scope
+        from ossuary.db.models import Package, RepoSnapshot
+        from ossuary.services.repo_cache import RepoSnapshotCache
+        from ossuary.services.scorer import (
+            CollectedData, cached_collect,
+        )
+        from ossuary.collectors.git import CommitData
+        from ossuary.collectors.github import GitHubData
+
+        init_db()
+        with session_scope() as s:
+            for pkg in s.query(Package).filter(
+                Package.name == "mismatch-target"
+            ).all():
+                s.query(RepoSnapshot).filter(
+                    RepoSnapshot.package_id == pkg.id
+                ).delete()
+                s.delete(pkg)
+
+        seed = CollectedData(
+            repo_url="https://github.com/example/mismatch",
+            all_commits=[CommitData(
+                sha="x" * 40, author_name="X", author_email="x@e.com",
+                authored_date=datetime(2026, 3, 1),
+                committer_name="X", committer_email="x@e.com",
+                committed_date=datetime(2026, 3, 1), message="m",
+            )],
+            github_data=GitHubData(
+                owner="example", repo="mismatch", owner_type="User",
+                maintainer_username="bob",
+                maintainer_account_created="2019-01-01T00:00:00Z",
+                maintainer_repos=[], issues=[],
+                pushed_at="2026-04-01T12:00:00Z",
+            ),
+            weekly_downloads=500,
+            maintainer_account_created=datetime(2019, 1, 1),
+        )
+        with session_scope() as s:
+            cache = RepoSnapshotCache(s)
+            cache.store_snapshot(
+                name="mismatch-target", ecosystem="npm",
+                repo_url="https://github.com/example/mismatch",
+                blob=serialise_collected_data(seed),
+                collected_at=utcnow_naive() - timedelta(days=120),
+            )
+
+        calls = {"probe": 0, "aux_refresh": 0, "full_collect": 0}
+
+        async def fake_probe(repo_url):
+            calls["probe"] += 1
+            return "2026-05-15T12:00:00Z"  # CHANGED — different pushed_at
+
+        async def fake_aux_refresh(repo_url, github_data):
+            calls["aux_refresh"] += 1
+
+        async def fake_full_collect(*args, **kwargs):
+            calls["full_collect"] += 1
+            # Return a legitimate-looking minimal CollectedData so the
+            # caller's snapshot-write path executes.
+            return CollectedData(
+                repo_url="https://github.com/example/mismatch",
+                all_commits=seed.all_commits,
+                github_data=seed.github_data,
+                weekly_downloads=500,
+                maintainer_account_created=datetime(2019, 1, 1),
+            ), []
+
+        async def no_registry(name, ecosystem, repo_url=None):
+            from ossuary.services.scorer import RegistryData
+            return RegistryData(
+                repo_url=None,  # forces 1b cross-eco gate to skip
+                weekly_downloads=0,
+                fetch_errors=[], warnings=[],
+            )
+
+        with patch(
+            "ossuary.collectors.github.GitHubCollector.probe_pushed_at",
+            new=fake_probe,
+        ), patch(
+            "ossuary.services.scorer._refresh_auxiliary_families",
+            new=fake_aux_refresh,
+        ), patch(
+            "ossuary.services.scorer.collect_package_data",
+            new=fake_full_collect,
+        ), patch(
+            "ossuary.services.scorer._collect_registry_data",
+            new=no_registry,
+        ):
+            asyncio.run(cached_collect("mismatch-target", "npm"))
+
+        assert calls["probe"] == 1, "probe must fire to detect mismatch"
+        assert calls["aux_refresh"] == 0, (
+            "auxiliary refresh must NOT fire on pushed_at mismatch — "
+            "the repo has actually changed"
+        )
+        assert calls["full_collect"] == 1, (
+            "mismatch must fall through to full re-collect"
         )
 
     def test_extend_snapshot_freshness_bumps_collected_at(self, session):

@@ -114,6 +114,50 @@ class RegistryData:
     warnings: list[str]
 
 
+async def _refresh_auxiliary_families(
+    repo_url: str,
+    github_data: GitHubData,
+) -> None:
+    """Refresh the non-commit signal families on an existing GitHubData.
+
+    Used by the freshness-probe path in :func:`cached_collect` (v0.10.1
+    phase 3 step 2b): when the upstream ``pushed_at`` matches the value
+    recorded at snapshot time, the commit history and reputation-derived
+    signals are still valid, but the auxiliary signals can have moved
+    independently — sponsors enabled / disabled, org membership added /
+    removed, CII badge granted, issues opened or commented. We refresh
+    just those families via the per-family methods landed in step 2a so
+    the cached commit history survives the refresh.
+
+    Mutates ``github_data`` in place. Failure flags from each family
+    method (provisional reasons, fetch errors) are appended to the
+    existing lists — the auxiliary-only refresh inherits the same
+    INSUFFICIENT_DATA / provisional contract as a full collect.
+    """
+    owner, repo = GitHubCollector.parse_repo_url(repo_url)
+    if not owner or not repo:
+        return
+
+    collector = GitHubCollector()
+    try:
+        # Maintainer profile depends on a resolved username. We trust
+        # the username on the cached data — pushed_at is unchanged so
+        # the maintainer pick from the prior collection is still valid
+        # (the priority chain in resolve_maintainer is push-coupled
+        # through get_repo_contributors).
+        if github_data.maintainer_username:
+            await collector.collect_maintainer_profile(
+                github_data.maintainer_username, github_data,
+            )
+        # Auxiliary repo-level families — independent of pushed_at,
+        # cheap to refetch, can move without a push.
+        await collector.collect_org_admins_family(owner, repo, github_data)
+        await collector.collect_cii_family(owner, repo, github_data)
+        await collector.collect_issues_family(owner, repo, github_data)
+    finally:
+        await collector.close()
+
+
 async def _collect_registry_data(
     package_name: str,
     ecosystem: str,
@@ -377,30 +421,91 @@ async def cached_collect(
                             )
                         return data, []
 
-    # Freshness-probe wiring intentionally NOT enabled here.
+    # Freshness probe + selective refresh (v0.10.1 phase 3 step 2b).
     #
-    # An earlier v0.10.1 slice (commit e9af445) wired a single
-    # ``GET /repos/{owner}/{repo}`` to compare upstream ``pushed_at``
-    # against the snapshot and extend freshness on a match. GPT review
-    # caught that ``pushed_at`` only moves on git pushes, but the
-    # cached blob also carries maintainer sponsors, org membership,
-    # org-admin status, CII badge state, and issue/comment data — none
-    # of which are guaranteed to move with ``pushed_at``. A repo with
-    # no code pushes but new burnout issues, changed org ownership, or
-    # newly enabled sponsors would have its stale snapshot freshness
-    # extended on a false signal. For an academic-methodology repo
-    # that is too strong a reuse criterion.
+    # The original probe slice (commit e9af445) extended snapshot
+    # freshness purely on a ``pushed_at`` match. GPT review caught
+    # that ``pushed_at`` only moves on git pushes, but the cached
+    # blob also carries sponsors / org membership / CII badge /
+    # issues — signals that change without a push. The fix
+    # (commit 7093f36) unhooked the probe entirely.
     #
-    # The building blocks (``GitHubData.pushed_at``,
-    # ``RepoSnapshot.upstream_pushed_at``,
-    # ``RepoSnapshotCache.get_latest_snapshot_any_age``,
-    # ``RepoSnapshotCache.extend_snapshot_freshness``,
-    # ``GitHubCollector.probe_pushed_at``) are kept on disk because the
-    # right reactivation needs signal-family-aware refresh
-    # (``docs/data_reuse_design.md`` GPT roadmap item 2): on a probe
-    # match, refresh only the cheap auxiliary signals (sponsors, orgs,
-    # CII, issues) while reusing the cached commit history. That makes
-    # the probe path sound. Until item 2 lands the probe stays cold.
+    # Now that step 2a has split GitHubCollector into per-family
+    # methods, the probe can be re-enabled SOUNDLY: on a
+    # ``pushed_at`` match the commit history and reputation signals
+    # are still valid, so we refresh just the auxiliary families
+    # (sponsors / orgs / CII / issues / maintainer profile) while
+    # reusing the cached commit history. Cost: ~5 cheap API calls
+    # vs ~10–100 for a full re-collect. On a ``pushed_at`` mismatch
+    # the repo has actually changed → fall through to full collect.
+    if use_cache and cutoff_date is None:
+        with session_scope() as session:
+            cache = RepoSnapshotCache(session)
+            stale = cache.get_latest_snapshot_any_age(package_name, ecosystem)
+            if (
+                stale is not None
+                and stale.upstream_pushed_at
+                and stale.repo_url
+            ):
+                try:
+                    current_pushed_at = await GitHubCollector.probe_pushed_at(
+                        stale.repo_url
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    import logging as _logging
+                    _logging.getLogger(__name__).warning(
+                        "Freshness probe failed for %s/%s: %s — falling "
+                        "through to full collect",
+                        ecosystem, package_name, exc,
+                    )
+                    current_pushed_at = None
+
+                if (
+                    current_pushed_at
+                    and current_pushed_at == stale.upstream_pushed_at
+                ):
+                    try:
+                        data = deserialise_collected_data(
+                            stale.blob, CollectedData
+                        )
+                    except (TypeError, KeyError, ValueError):
+                        data = None
+                    if data is not None:
+                        # Refresh auxiliary families in place. Failure
+                        # flags from each family are appended to
+                        # data.fetch_errors / data.provisional_reasons
+                        # so the INSUFFICIENT_DATA / provisional
+                        # semantics inherit naturally.
+                        try:
+                            await _refresh_auxiliary_families(
+                                stale.repo_url, data.github_data,
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            import logging as _logging
+                            _logging.getLogger(__name__).warning(
+                                "Auxiliary refresh failed for %s/%s: %s "
+                                "— falling through to full collect",
+                                ecosystem, package_name, exc,
+                            )
+                        else:
+                            # Persist the refreshed data as a new
+                            # snapshot row. Append-only — the old
+                            # snapshot stays for audit.
+                            try:
+                                cache.store_snapshot(
+                                    name=package_name,
+                                    ecosystem=ecosystem,
+                                    repo_url=stale.repo_url,
+                                    blob=serialise_collected_data(data),
+                                )
+                            except Exception as exc:  # noqa: BLE001
+                                import logging as _logging
+                                _logging.getLogger(__name__).warning(
+                                    "Failed to persist probe-refreshed "
+                                    "snapshot for %s/%s: %s",
+                                    ecosystem, package_name, exc,
+                                )
+                            return data, []
 
     data, warnings = await collect_package_data(
         package_name, ecosystem, repo_url,
