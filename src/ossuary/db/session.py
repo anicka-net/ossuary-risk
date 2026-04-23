@@ -79,6 +79,35 @@ def _autoapply_simple_migrations(connection) -> None:
             connection.execute(text(
                 "ALTER TABLE packages ADD COLUMN failure_reason VARCHAR(500)"
             ))
+        if "failure_kind" not in package_cols:
+            # GPT review #3 priority 4: typed failure classifier replaces
+            # free-text LIKE matching in stats() and TTL lookups. The
+            # column starts NULL on existing rows; the backfill below
+            # populates it from each row's prior failure_reason text.
+            logger.warning(
+                "Auto-migrating packages schema: adding failure_kind + "
+                "backfilling typed classifications from prior failure_reason"
+            )
+            connection.execute(text(
+                "ALTER TABLE packages ADD COLUMN failure_kind VARCHAR(50)"
+            ))
+            # Backfill in Python so the classifier stays in one place
+            # (services/repo_cache.classify_failure) rather than being
+            # duplicated as portable SQL CASE expressions across backends.
+            from ossuary.services.repo_cache import classify_failure
+            rows = connection.execute(text(
+                "SELECT id, failure_reason FROM packages "
+                "WHERE failure_reason IS NOT NULL AND failure_kind IS NULL"
+            )).fetchall()
+            for row in rows:
+                kind = classify_failure(row.failure_reason)
+                if kind is not None:
+                    connection.execute(
+                        text(
+                            "UPDATE packages SET failure_kind = :k WHERE id = :i"
+                        ),
+                        {"k": kind, "i": row.id},
+                    )
 
 
 def init_db() -> None:

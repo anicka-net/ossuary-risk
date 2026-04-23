@@ -520,13 +520,20 @@ class TestStats:
 
         cache = RepoSnapshotCache(session)
         # 'no repo URL' at 45 days — past its 30-day TTL → inactive.
-        package = cache._get_or_create_package("no-repo-stale", "npm")
-        package.last_failed_at = datetime.utcnow() - timedelta(days=45)
-        package.failure_reason = "Package 'no-repo-stale' not found on npm (no repository URL)"
+        cache.store_negative(
+            "no-repo-stale", "npm",
+            "Package 'no-repo-stale' not found on npm (no repository URL)",
+        )
         # 'not found' (repo) at 45 days — within its 90-day TTL → active.
-        package2 = cache._get_or_create_package("dead-mid", "npm")
-        package2.last_failed_at = datetime.utcnow() - timedelta(days=45)
-        package2.failure_reason = "Repository not found: https://example"
+        cache.store_negative(
+            "dead-mid", "npm",
+            "Repository not found: https://example",
+        )
+        # Backdate both to 45 days ago so the active/inactive split fires.
+        for pkg_name in ("no-repo-stale", "dead-mid"):
+            from ossuary.db.models import Package
+            p = session.query(Package).filter(Package.name == pkg_name).first()
+            p.last_failed_at = datetime.utcnow() - timedelta(days=45)
         session.commit()
 
         stats = cache.stats()
@@ -534,30 +541,30 @@ class TestStats:
         assert stats["negative_cache"]["total_recorded"] == 2
 
     def test_stats_classifies_uppercase_no_repo_url_correctly(self, session):
-        """The actual stored failure text is mixed-case ("no repository URL"
-        with uppercase URL). The TTL classifier in stats() must match it
-        case-insensitively — SQLite's default LIKE is case-insensitive
-        but PostgreSQL/MySQL are case-sensitive, so the SQL must wrap the
-        column in lower() for portability.
-
-        Without that wrap, this row would be miscategorised into the
-        90-day "dead repo" bucket on Postgres/MySQL and stats() would
-        again overstate active negative-cache entries — the regression
-        GPT review caught on the second pass."""
+        """The collector's actual emitted text is mixed-case
+        ("no repository URL" with uppercase URL). With the typed
+        failure_kind column the case-folding happens once at write time
+        in ``classify_failure``, so SQL stays a clean equality filter
+        instead of needing func.lower() / LIKE for portability — the
+        v0.10 GPT-review regression class can no longer recur."""
         from datetime import timedelta
 
         cache = RepoSnapshotCache(session)
-        package = cache._get_or_create_package("uppercase-url", "npm")
-        package.last_failed_at = datetime.utcnow() - timedelta(days=45)
-        # Note: real text uses uppercase URL — match scripts/scorer.py's
-        # actual emitted message.
-        package.failure_reason = "Package 'uppercase-url' not found on npm (no repository URL)"
+        cache.store_negative(
+            "uppercase-url", "npm",
+            "Package 'uppercase-url' not found on npm (no repository URL)",
+        )
+        from ossuary.db.models import Package
+        p = session.query(Package).filter(Package.name == "uppercase-url").first()
+        p.last_failed_at = datetime.utcnow() - timedelta(days=45)
         session.commit()
 
+        # Verify the classifier wrote the typed kind (not just the text).
+        from ossuary.services.repo_cache import FailureKind
+        assert p.failure_kind == FailureKind.NO_REPO_URL
+
         stats = cache.stats()
-        # 45 days > 30-day TTL for the no-repo-URL class → inactive.
-        # If the classifier failed to recognise uppercase URL, this row
-        # would fall into the 90-day bucket and count as active.
+        # 45 days > 30-day TTL for NO_REPO_URL → inactive.
         assert stats["negative_cache"]["active"] == 0
         assert stats["negative_cache"]["total_recorded"] == 1
 
@@ -751,3 +758,116 @@ class TestSnapshotByRepoUrl:
         assert cache.get_snapshot_by_repo_url(
             "https://github.com/acme/widget"
         ) is None
+
+
+# ---------------------------------------------------------------------------
+# Typed failure classifier (v0.10.1 — phase 3 step 4)
+# ---------------------------------------------------------------------------
+
+class TestClassifyFailure:
+    """The typed classifier is the contract that lets the SQL filters in
+    stats() use exact equality instead of LIKE/lower. Each warning shape
+    must map to the right ``FailureKind`` (or to ``None`` for transient)."""
+
+    def test_no_repository_url_classifies_as_no_repo_url(self):
+        from ossuary.services.repo_cache import FailureKind, classify_failure
+        # Mixed case "URL" — the v0.10 regression — must still hit.
+        assert classify_failure(
+            "Package 'x' not found on npm (no repository URL)"
+        ) == FailureKind.NO_REPO_URL
+        assert classify_failure(
+            "Package 'x' not found on npm (no repository url)"
+        ) == FailureKind.NO_REPO_URL
+
+    def test_repository_not_found_classifies_as_repo_not_found(self):
+        from ossuary.services.repo_cache import FailureKind, classify_failure
+        assert classify_failure(
+            "Repository not found: https://github.com/foo/bar"
+        ) == FailureKind.REPO_NOT_FOUND
+
+    def test_unsupported_ecosystem_classifies_correctly(self):
+        from ossuary.services.repo_cache import FailureKind, classify_failure
+        assert classify_failure(
+            "Unsupported ecosystem: cool-new-thing"
+        ) == FailureKind.UNSUPPORTED_ECOSYSTEM
+
+    def test_no_repo_url_wins_over_not_found(self):
+        """The ``not found`` substring is also present in the no-repo-URL
+        message; classifier must check the more specific phrase first
+        otherwise no-repo-URL would land in the repo-not-found bucket
+        and use the wrong (90-day) TTL."""
+        from ossuary.services.repo_cache import FailureKind, classify_failure
+        # The actual collector message contains both "not found" and
+        # "no repository URL".
+        assert classify_failure(
+            "Package 'x' not found on npm (no repository URL)"
+        ) == FailureKind.NO_REPO_URL
+
+    def test_transient_failures_return_none(self):
+        from ossuary.services.repo_cache import classify_failure
+        for warning in (
+            "pypi.weekly_downloads: HTTP 429 (rate limited)",
+            "github.com returned 503 service unavailable",
+            "INSUFFICIENT_DATA: pypi.weekly_downloads: HTTP 429",
+            "transport error",
+            "request timeout",
+        ):
+            assert classify_failure(warning) is None, warning
+
+    def test_unknown_warning_returns_none(self):
+        """Default to NOT cacheing — a misclassification that caches a
+        transient is much worse than re-probing once on the next run."""
+        from ossuary.services.repo_cache import classify_failure
+        assert classify_failure("something weird happened") is None
+        assert classify_failure("") is None
+        assert classify_failure(None) is None  # type: ignore[arg-type]
+
+
+class TestStoreNegativeWritesTypedKind:
+    """``store_negative`` must populate both ``failure_reason`` (for
+    operators) and ``failure_kind`` (for SQL). Without this the typed
+    column would stay NULL and stats() would mis-bucket new rows."""
+
+    def test_store_writes_typed_kind(self, session):
+        from ossuary.db.models import Package
+        from ossuary.services.repo_cache import FailureKind
+        cache = RepoSnapshotCache(session)
+        cache.store_negative(
+            "x", "npm",
+            "Package 'x' not found on npm (no repository URL)",
+        )
+        session.commit()
+        package = session.query(Package).filter(Package.name == "x").first()
+        assert package.failure_kind == FailureKind.NO_REPO_URL
+        assert "no repository URL" in package.failure_reason
+
+    def test_clear_negative_clears_typed_kind(self, session):
+        from ossuary.db.models import Package
+        cache = RepoSnapshotCache(session)
+        cache.store_negative("x", "npm", "Repository not found: https://x")
+        session.commit()
+        cache.clear_negative("x", "npm")
+        session.commit()
+        package = session.query(Package).filter(Package.name == "x").first()
+        assert package.failure_kind is None
+        assert package.failure_reason is None
+        assert package.last_failed_at is None
+
+    def test_legacy_row_falls_back_to_text_classifier(self, session):
+        """A pre-v0.10.1 row has failure_reason set but failure_kind NULL.
+        ``get_negative_cache`` must still look up the right TTL by
+        re-classifying the text — defensive belt-and-braces during the
+        migration window."""
+        from ossuary.db.models import Package
+        from datetime import timedelta
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("legacy", "npm")
+        # Simulate a row written before failure_kind existed.
+        package.last_failed_at = datetime.utcnow() - timedelta(days=10)
+        package.failure_reason = "Package 'legacy' not found on npm (no repository URL)"
+        package.failure_kind = None
+        session.commit()
+
+        # 10 days < 30-day TTL (no-repo-url class) → still active despite
+        # NULL failure_kind, because the text classifier kicks in.
+        assert cache.get_negative_cache("legacy", "npm") is not None

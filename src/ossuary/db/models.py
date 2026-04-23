@@ -59,6 +59,12 @@ class Package(Base):
     # ``services/repo_cache.py::is_permanent_failure``.
     last_failed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     failure_reason: Mapped[Optional[str]] = mapped_column(String(500))
+    # Typed classification of the failure (no_repo_url, repo_not_found,
+    # unsupported_ecosystem). Lets ``stats()`` and TTL lookups use exact
+    # equality instead of free-text LIKE matching — see GPT review #3
+    # priority 4. ``failure_reason`` stays around as the operator-readable
+    # message; ``failure_kind`` is the SQL-friendly identifier.
+    failure_kind: Mapped[Optional[str]] = mapped_column(String(50))
 
     # Relationships
     commits: Mapped[list["Commit"]] = relationship(back_populates="package", cascade="all, delete-orphan")

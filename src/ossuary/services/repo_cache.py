@@ -143,40 +143,74 @@ NEGCACHE_TTL_DEAD_REPO_DAYS = 90
 NEGCACHE_TTL_NO_REPO_FIELD_DAYS = 30
 
 
-def is_permanent_failure(warning: str) -> bool:
-    """Decide whether a collection failure should be negative-cached.
+# Typed failure classifier (GPT review #3 priority 4). String constants
+# rather than a Python ``Enum`` so SQLAlchemy can store them as a plain
+# ``String`` column without backend-specific enum types — keeps the
+# Postgres / SQLite story uniform. Stored on ``Package.failure_kind``
+# alongside the human-readable ``failure_reason``.
+class FailureKind:
+    NO_REPO_URL = "no_repo_url"          # registry has no repository URL field
+    REPO_NOT_FOUND = "repo_not_found"    # 404 on the resolved repo URL
+    UNSUPPORTED_ECOSYSTEM = "unsupported_ecosystem"  # caller asked for an eco we don't collect
 
-    Permanent failures (404, no repository URL on the registry, unsupported
-    ecosystem) are cacheable — re-probing on every run is pure waste.
-    Transient failures (rate limit, 5xx, network, INSUFFICIENT_DATA) are
-    *not* cached because they can recover and the standard retry path
-    (``rescore-invalid``) covers them.
+    ALL = (NO_REPO_URL, REPO_NOT_FOUND, UNSUPPORTED_ECOSYSTEM)
+
+
+# Per-kind TTL. Looking up by typed key replaces the v0.10 free-text
+# matching that needed ``func.lower(...).like(...)`` to be portable.
+_TTL_BY_KIND = {
+    FailureKind.NO_REPO_URL: NEGCACHE_TTL_NO_REPO_FIELD_DAYS,
+    FailureKind.REPO_NOT_FOUND: NEGCACHE_TTL_DEAD_REPO_DAYS,
+    FailureKind.UNSUPPORTED_ECOSYSTEM: NEGCACHE_TTL_DEAD_REPO_DAYS,
+}
+
+
+def classify_failure(warning: str) -> Optional[str]:
+    """Map a collector warning string to a ``FailureKind`` constant.
+
+    Returns ``None`` for transient failures (rate limit, 5xx, network,
+    INSUFFICIENT_DATA) and for warnings that don't match any known
+    permanent class — both cases mean "don't negative-cache this; let
+    the standard retry path handle it".
+
+    The text-matching layer is preserved here because collectors return
+    free-form warning strings from heterogeneous sources (npm 404 vs
+    PyPI "not found" vs git clone exit 128). The result is a typed
+    constant the rest of the cache layer uses for TTL and SQL filters.
     """
     if not warning:
-        return False
+        return None
     text = warning.lower()
     # Transient — never negative-cache.
     if any(token in text for token in (
         "rate limit", "rate-limit", "429", "500", "502", "503", "504",
         "timeout", "transport", "insufficient_data",
     )):
-        return False
-    # Permanent — negative-cache.
-    if any(token in text for token in (
-        "not found", "no repository url", "unsupported ecosystem",
-    )):
-        return True
-    return False
-
-
-def _ttl_for_reason(reason: str) -> int:
-    """Days to wait before re-probing this failure class."""
-    if not reason:
-        return NEGCACHE_TTL_NO_REPO_FIELD_DAYS
-    text = reason.lower()
+        return None
     if "no repository url" in text:
-        return NEGCACHE_TTL_NO_REPO_FIELD_DAYS
-    return NEGCACHE_TTL_DEAD_REPO_DAYS
+        return FailureKind.NO_REPO_URL
+    if "unsupported ecosystem" in text:
+        return FailureKind.UNSUPPORTED_ECOSYSTEM
+    if "not found" in text:
+        # 404, missing repo, registry-says-no-such-package, etc. The
+        # ``not found`` check is intentionally last so the more
+        # specific phrases above win.
+        return FailureKind.REPO_NOT_FOUND
+    return None
+
+
+def is_permanent_failure(warning: str) -> bool:
+    """Backwards-compatible boolean wrapper around :func:`classify_failure`."""
+    return classify_failure(warning) is not None
+
+
+def _ttl_for_kind(kind: Optional[str]) -> int:
+    """Days to wait before re-probing this failure class.
+
+    Falls back to the dead-repo TTL for unknown / legacy rows (cautious:
+    longer TTL so we don't hammer upstream re-probing something we can't
+    classify)."""
+    return _TTL_BY_KIND.get(kind or "", NEGCACHE_TTL_DEAD_REPO_DAYS)
 
 
 # ---------------------------------------------------------------------------
@@ -494,8 +528,13 @@ class RepoSnapshotCache:
         if package is None or package.last_failed_at is None or not package.failure_reason:
             return None
 
+        # Prefer the typed kind; fall back to re-classifying the legacy
+        # text for rows written by pre-v0.10.1 code that didn't populate
+        # failure_kind. The auto-migration backfills, so this fallback
+        # is just defensive belt-and-braces.
+        kind = package.failure_kind or classify_failure(package.failure_reason)
         age = datetime.utcnow() - package.last_failed_at
-        ttl_days = _ttl_for_reason(package.failure_reason)
+        ttl_days = _ttl_for_kind(kind)
         if age >= timedelta(days=ttl_days):
             # TTL elapsed — caller should re-probe.
             return None
@@ -506,11 +545,15 @@ class RepoSnapshotCache:
         """Record a permanent failure on the package row.
 
         Idempotent: replaces any prior failure on the same package. A later
-        successful collection should clear this via ``clear_negative``.
+        successful collection should clear this via ``clear_negative``. The
+        free-text ``reason`` is classified into a typed ``failure_kind`` so
+        TTL lookups and ``stats()`` queries can use exact equality instead
+        of fragile LIKE matching.
         """
         package = self._get_or_create_package(name, ecosystem)
         package.last_failed_at = datetime.utcnow()
         package.failure_reason = reason
+        package.failure_kind = classify_failure(reason)
 
     def clear_negative(self, name: str, ecosystem: str) -> None:
         """Clear any negative-cache state for a package.
@@ -528,6 +571,7 @@ class RepoSnapshotCache:
         if package is not None:
             package.last_failed_at = None
             package.failure_reason = None
+            package.failure_kind = None
 
     # ----- Statistics / introspection -----
 
@@ -572,33 +616,28 @@ class RepoSnapshotCache:
         # row with a recorded failure, including expired ones still
         # taking up disk).
         #
-        # TTL is per failure-class: ``no repository url`` uses
-        # NEGCACHE_TTL_NO_REPO_FIELD_DAYS, everything else uses
-        # NEGCACHE_TTL_DEAD_REPO_DAYS. Two filtered queries give the
-        # exact active count without re-implementing the classifier in
-        # SQL. Earlier versions counted *all* non-null rows as active —
-        # GPT review caught the overcount.
-        #
-        # The LIKE pattern is wrapped in ``func.lower()`` for portability:
-        # SQLite's default LIKE is case-insensitive but PostgreSQL/MySQL
-        # are case-sensitive, and the stored failure text is mixed-case
-        # ("no repository URL"). Without the explicit lower() those
-        # backends would misclassify and use the wrong TTL — caught in a
-        # later GPT review pass and pinned by
-        # ``test_stats_classifies_uppercase_no_repo_url_correctly``.
+        # TTL is per failure-class. Lookup uses exact equality on the
+        # typed ``failure_kind`` column — no LIKE / func.lower required.
+        # The pre-v0.10.1 version had to ``func.lower(...).like(...)``
+        # the free-text ``failure_reason`` and got bitten by case
+        # sensitivity on PostgreSQL / MySQL. Now the classifier runs
+        # once at write time and the SQL stays a clean equality filter.
+        # Legacy rows (``failure_kind IS NULL``) are bucketed under the
+        # longer dead-repo TTL — same fallback as ``_ttl_for_kind``.
         no_repo_cutoff = now - timedelta(days=NEGCACHE_TTL_NO_REPO_FIELD_DAYS)
         dead_repo_cutoff = now - timedelta(days=NEGCACHE_TTL_DEAD_REPO_DAYS)
 
         active_no_repo = self.session.query(func.count(Package.id)).filter(
             Package.last_failed_at.isnot(None),
             Package.failure_reason.isnot(None),
-            func.lower(Package.failure_reason).like("%no repository url%"),
+            Package.failure_kind == FailureKind.NO_REPO_URL,
             Package.last_failed_at >= no_repo_cutoff,
         ).scalar() or 0
         active_dead_repo = self.session.query(func.count(Package.id)).filter(
             Package.last_failed_at.isnot(None),
             Package.failure_reason.isnot(None),
-            ~func.lower(Package.failure_reason).like("%no repository url%"),
+            (Package.failure_kind != FailureKind.NO_REPO_URL)
+            | (Package.failure_kind.is_(None)),
             Package.last_failed_at >= dead_repo_cutoff,
         ).scalar() or 0
         neg_active = active_no_repo + active_dead_repo
