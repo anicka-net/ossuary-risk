@@ -3249,6 +3249,14 @@ def seed_custom(
     concurrent: int = typer.Option(3, "--concurrent", "-c", help="Parallel scoring workers"),
     skip_fresh: bool = typer.Option(True, "--skip-fresh/--no-skip-fresh", help="Skip recently scored packages"),
     fresh_days: int = typer.Option(7, "--fresh-days", help="Days before a score is stale"),
+    repo_aware: bool = typer.Option(
+        False, "--repo-aware/--no-repo-aware",
+        help="Group packages by canonical repo URL and serialise within each "
+             "group so the snapshot cache is warmed once per repo before "
+             "shared packages hit it. Saves real upstream calls when many "
+             "packages map to the same repo (vendor monorepos, "
+             "cross-ecosystem libraries).",
+    ),
 ):
     """Score packages from a custom YAML seed file.
 
@@ -3262,11 +3270,12 @@ def seed_custom(
 
     GitHub packages require a 'repo' URL. For npm/pypi, 'repo' is optional.
     """
-    asyncio.run(_seed_custom(file, limit, concurrent, skip_fresh, fresh_days))
+    asyncio.run(_seed_custom(file, limit, concurrent, skip_fresh, fresh_days, repo_aware))
 
 
 async def _seed_custom(
-    file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int
+    file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int,
+    repo_aware: bool = False,
 ):
     """Score packages from a custom YAML seed file."""
     from ossuary.services.batch import load_custom_seed, batch_score
@@ -3316,12 +3325,19 @@ async def _seed_custom(
         skip_fresh=skip_fresh,
         fresh_days=fresh_days,
         progress_callback=on_progress,
+        repo_aware=repo_aware,
     )
 
     console.print(f"\n[bold green]Done![/bold green]")
     console.print(f"  Scored: {result.scored}")
     console.print(f"  Skipped (fresh): {result.skipped}")
     console.print(f"  Errors: {result.errors}")
+    if repo_aware:
+        console.print(
+            f"  Repo plan: {result.unique_repos} unique repos / "
+            f"{result.shared_repo_packages} shared-repo packages / "
+            f"{result.unplanable} unplanable"
+        )
 
     if result.errors > 0 and result.error_details:
         console.print(f"\n[bold yellow]Error summary (first 20):[/bold yellow]")
@@ -3336,13 +3352,21 @@ def seed_suse(
     concurrent: int = typer.Option(3, "--concurrent", "-c", help="Parallel scoring workers"),
     skip_fresh: bool = typer.Option(True, "--skip-fresh/--no-skip-fresh", help="Skip recently scored packages"),
     fresh_days: int = typer.Option(7, "--fresh-days", help="Days before a score is stale"),
+    repo_aware: bool = typer.Option(
+        False, "--repo-aware/--no-repo-aware",
+        help="Group packages by canonical repo URL and serialise within each "
+             "group so the snapshot cache is warmed once per repo before "
+             "shared packages hit it. SUSE pipeline benefit: a 5000-dep "
+             "manifest with ~30%% repo overlap saves ~1500 GitHub fetches.",
+    ),
 ):
     """Score all discovered SUSE packages from a discovery JSON file."""
-    asyncio.run(_seed_suse(file, limit, concurrent, skip_fresh, fresh_days))
+    asyncio.run(_seed_suse(file, limit, concurrent, skip_fresh, fresh_days, repo_aware))
 
 
 async def _seed_suse(
-    file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int
+    file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int,
+    repo_aware: bool = False,
 ):
     """Batch-score SUSE packages."""
     from ossuary.services.batch import load_discovery_file, batch_score
@@ -3389,12 +3413,19 @@ async def _seed_suse(
         skip_fresh=skip_fresh,
         fresh_days=fresh_days,
         progress_callback=on_progress,
+        repo_aware=repo_aware,
     )
 
     console.print(f"\n[bold green]Done![/bold green]")
     console.print(f"  Scored: {result.scored}")
     console.print(f"  Skipped (fresh): {result.skipped}")
     console.print(f"  Errors: {result.errors}")
+    if repo_aware:
+        console.print(
+            f"  Repo plan: {result.unique_repos} unique repos / "
+            f"{result.shared_repo_packages} shared-repo packages / "
+            f"{result.unplanable} unplanable"
+        )
 
     if result.errors > 0 and result.error_details:
         console.print(f"\n[bold yellow]Error summary (first 20):[/bold yellow]")

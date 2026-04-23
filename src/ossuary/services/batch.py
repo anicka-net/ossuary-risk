@@ -30,6 +30,31 @@ class BatchResult:
     skipped: int = 0
     errors: int = 0
     error_details: list[str] = field(default_factory=list)
+    # Repo-aware planning telemetry (populated when batch_score is called
+    # with repo_aware=True). ``unique_repos`` counts how many distinct
+    # canonical repo URLs the planable subset resolved to;
+    # ``shared_repo_packages`` counts package entries that landed in a
+    # multi-package repo group (i.e. the ones that benefit from the
+    # cache-warm sequencing). ``unplanable`` counts entries we couldn't
+    # pre-resolve (non-github eco without an explicit repo URL — they
+    # flow through the standard parallel path).
+    unique_repos: int = 0
+    shared_repo_packages: int = 0
+    unplanable: int = 0
+
+
+@dataclass
+class _RepoPlan:
+    """Internal output of :func:`_build_repo_plan`.
+
+    ``groups`` maps canonical repo URL → list of entries known up-front
+    to resolve to that repo. ``unplanable`` is the residue that cannot
+    be pre-grouped (non-github with no explicit ``repo_url``); these
+    flow through the standard batch path.
+    """
+
+    groups: dict[str, list["PackageEntry"]] = field(default_factory=dict)
+    unplanable: list["PackageEntry"] = field(default_factory=list)
 
 
 @dataclass
@@ -434,6 +459,54 @@ def is_fresh(package_name: str, ecosystem: str, max_age_days: int = 7) -> bool:
         return False
 
 
+def _entry_repo_url(entry: "PackageEntry") -> Optional[str]:
+    """Return a usable repo URL for an entry without doing any API call.
+
+    For github ecosystem the URL is derivable from the package name. For
+    any ecosystem with an explicit ``repo_url`` set on the entry, that
+    URL is used directly. For npm/pypi/etc. entries that lack an
+    explicit URL, returns ``None`` — the caller cannot pre-group such
+    entries without paying a registry probe.
+    """
+    if entry.repo_url:
+        return entry.repo_url
+    if entry.ecosystem == "github":
+        if entry.github_owner and entry.github_repo:
+            return f"https://github.com/{entry.github_owner}/{entry.github_repo}"
+    return None
+
+
+def _build_repo_plan(packages: list["PackageEntry"]) -> _RepoPlan:
+    """Pre-group entries by canonical repo URL when knowable up-front.
+
+    The "knowable up-front" set is everything the cache will dedupe at
+    runtime via 1a (github eco URL derivation) or 1b (cross-ecosystem
+    canonical-URL match): entries with an explicit ``repo_url`` plus
+    github-ecosystem entries with derivable URLs. For non-github
+    entries lacking an explicit URL we'd need a registry probe to learn
+    the canonical URL; rather than paying that cost upfront, we leave
+    them in ``unplanable`` and let them flow through the standard
+    batch path (where their first cache miss does the registry probe
+    just-in-time).
+
+    Returns groups keyed by canonical URL plus the unplanable residue.
+    """
+    from ossuary.services.repo_cache import canonicalize_repo_url
+
+    plan = _RepoPlan()
+    for entry in packages:
+        url = _entry_repo_url(entry)
+        if not url:
+            plan.unplanable.append(entry)
+            continue
+        canonical = canonicalize_repo_url(url)
+        if not canonical:
+            plan.unplanable.append(entry)
+            continue
+        plan.groups.setdefault(canonical, []).append(entry)
+    return plan
+
+
 async def batch_score(
     packages: list[PackageEntry],
     max_concurrent: int = 3,
@@ -441,6 +514,7 @@ async def batch_score(
     skip_fresh: bool = True,
     fresh_days: int = 7,
     progress_callback: Optional[callable] = None,
+    repo_aware: bool = False,
 ) -> BatchResult:
     """
     Score a batch of packages with concurrency control.
@@ -452,9 +526,24 @@ async def batch_score(
         skip_fresh: Skip packages scored within fresh_days
         fresh_days: Number of days before a score is considered stale
         progress_callback: Optional callback(current, total, pkg_name, status)
+        repo_aware: When True, group entries by canonical repo URL up
+            front and serialise scoring within each group so the first
+            entry warms the snapshot cache before the rest hit it.
+            Groups themselves run in parallel up to ``max_concurrent``.
+            Eliminates the race where N concurrent scorings of packages
+            sharing a repo all do their own GitHub fetch before any of
+            them writes the snapshot. The win compounds with the v0.10.1
+            repo-keyed cache (steps 1a + 1b): on a manifest where
+            ~30–50% of packages share repos, this cuts real upstream
+            calls by the same fraction. Entries that can't be
+            pre-grouped (non-github with no explicit repo_url) flow
+            through the standard parallel path. Default ``False``
+            preserves prior behaviour.
 
     Returns:
-        BatchResult with counts and error details
+        BatchResult with counts and error details. When ``repo_aware``
+        is True, ``unique_repos`` / ``shared_repo_packages`` /
+        ``unplanable`` carry the planning telemetry.
     """
     if max_packages > 0:
         packages = packages[:max_packages]
@@ -499,7 +588,53 @@ async def batch_score(
                 completed += 1
                 return pkg_name, f"error: {e}"
 
-    # Process all packages
+    # Process all packages.
+    if repo_aware:
+        # Group by canonical repo URL up front; entries inside a group
+        # process sequentially (first warms the cache, subsequent hit
+        # it). Across groups, run with the standard semaphore. Entries
+        # we can't pre-group go through the standard parallel path.
+        plan = _build_repo_plan(packages)
+        result.unique_repos = len(plan.groups)
+        result.shared_repo_packages = sum(
+            len(g) for g in plan.groups.values() if len(g) > 1
+        )
+        result.unplanable = len(plan.unplanable)
+
+        async def process_group(entries: list[PackageEntry]) -> list[tuple[str, str]]:
+            """Score every entry in a group, sequentially. The first
+            call does the upstream fetch and writes the snapshot; the
+            rest hit the per-package or repo-keyed cache."""
+            outcomes: list[tuple[str, str]] = []
+            for entry in entries:
+                outcomes.append(await score_one(entry))
+            return outcomes
+
+        # One asyncio task per group + one per unplanable entry. The
+        # semaphore inside score_one bounds concurrency for the actual
+        # upstream calls; group serialisation here is purely for
+        # cache-warm sequencing and doesn't fight with the semaphore
+        # (a group's only one outstanding call at any moment).
+        group_tasks = [process_group(g) for g in plan.groups.values()]
+        unplanable_tasks = [process_group([e]) for e in plan.unplanable]
+        all_tasks = group_tasks + unplanable_tasks
+
+        for coro in asyncio.as_completed(all_tasks):
+            outcomes = await coro
+            for pkg_name, status in outcomes:
+                if status == "scored":
+                    result.scored += 1
+                elif status == "skipped":
+                    result.skipped += 1
+                else:
+                    result.errors += 1
+                    result.error_details.append(f"{pkg_name}: {status}")
+                if progress_callback:
+                    progress_callback(completed, result.total, pkg_name, status)
+
+        return result
+
+    # Default (non-repo-aware) parallel path — preserves prior behaviour.
     tasks = [score_one(entry) for entry in packages]
 
     for coro in asyncio.as_completed(tasks):
