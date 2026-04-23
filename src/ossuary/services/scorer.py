@@ -120,12 +120,14 @@ async def cached_collect(
     from ossuary.services.repo_cache import (
         RepoSnapshotCache,
         deserialise_collected_data,
+        is_permanent_failure,
         serialise_collected_data,
     )
 
     if use_cache:
         with session_scope() as session:
             cache = RepoSnapshotCache(session)
+            # Positive cache (snapshot hit).
             snapshot = cache.get_snapshot_for_cutoff(
                 package_name, ecosystem, cutoff_date
             )
@@ -145,6 +147,13 @@ async def cached_collect(
                         ecosystem, package_name, exc,
                     )
 
+            # Negative cache: skip the upstream probe entirely if a recent
+            # permanent failure is recorded (404, no repo URL, etc.). The
+            # TTL-based expiry in get_negative_cache handles re-probes.
+            cached_failure = cache.get_negative_cache(package_name, ecosystem)
+            if cached_failure is not None:
+                return None, [f"(cached) {cached_failure}"]
+
     data, warnings = await collect_package_data(package_name, ecosystem, repo_url)
     if data is not None:
         try:
@@ -156,12 +165,29 @@ async def cached_collect(
                     repo_url=data.repo_url,
                     blob=serialise_collected_data(data),
                 )
+                # Recovered from a prior negative-cache state — clear it
+                # so the package isn't re-flagged on the next read.
+                cache.clear_negative(package_name, ecosystem)
         except Exception as exc:  # noqa: BLE001
             # Snapshot persistence is best-effort; never let a cache write
             # failure block the score path. Log so we can investigate.
             import logging as _logging
             _logging.getLogger(__name__).warning(
                 "Failed to persist snapshot for %s/%s: %s",
+                ecosystem, package_name, exc,
+            )
+    elif use_cache and warnings and is_permanent_failure(warnings[0]):
+        # Permanent failure — record it so we don't re-probe on every run.
+        # Transient failures (rate limit, 5xx, INSUFFICIENT_DATA) flow
+        # through the standard retry path instead.
+        try:
+            with session_scope() as session:
+                cache = RepoSnapshotCache(session)
+                cache.store_negative(package_name, ecosystem, warnings[0])
+        except Exception as exc:  # noqa: BLE001
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "Failed to persist negative cache for %s/%s: %s",
                 ecosystem, package_name, exc,
             )
     return data, warnings

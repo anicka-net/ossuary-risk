@@ -57,6 +57,51 @@ SLA_FRESH_DAYS = 30
 SLA_EXPIRED_DAYS = 90
 
 
+# Negative-cache TTLs (days). A *permanent* failure (404, no repo URL on
+# the registry, etc.) is recorded so subsequent runs skip the upstream
+# probe. Re-probed after the TTL elapses — repos rarely come back from
+# 404, but registry metadata can be updated more often, so the latter
+# uses a shorter TTL.
+NEGCACHE_TTL_DEAD_REPO_DAYS = 90
+NEGCACHE_TTL_NO_REPO_FIELD_DAYS = 30
+
+
+def is_permanent_failure(warning: str) -> bool:
+    """Decide whether a collection failure should be negative-cached.
+
+    Permanent failures (404, no repository URL on the registry, unsupported
+    ecosystem) are cacheable — re-probing on every run is pure waste.
+    Transient failures (rate limit, 5xx, network, INSUFFICIENT_DATA) are
+    *not* cached because they can recover and the standard retry path
+    (``rescore-invalid``) covers them.
+    """
+    if not warning:
+        return False
+    text = warning.lower()
+    # Transient — never negative-cache.
+    if any(token in text for token in (
+        "rate limit", "rate-limit", "429", "500", "502", "503", "504",
+        "timeout", "transport", "insufficient_data",
+    )):
+        return False
+    # Permanent — negative-cache.
+    if any(token in text for token in (
+        "not found", "no repository url", "unsupported ecosystem",
+    )):
+        return True
+    return False
+
+
+def _ttl_for_reason(reason: str) -> int:
+    """Days to wait before re-probing this failure class."""
+    if not reason:
+        return NEGCACHE_TTL_NO_REPO_FIELD_DAYS
+    text = reason.lower()
+    if "no repository url" in text:
+        return NEGCACHE_TTL_NO_REPO_FIELD_DAYS
+    return NEGCACHE_TTL_DEAD_REPO_DAYS
+
+
 # ---------------------------------------------------------------------------
 # Serialisation
 # ---------------------------------------------------------------------------
@@ -293,6 +338,129 @@ class RepoSnapshotCache:
             query = query.filter(RepoSnapshot.collected_at >= cutoff_date)
 
         return query.order_by(RepoSnapshot.collected_at.desc()).first()
+
+    # ----- Negative cache -----
+
+    def get_negative_cache(
+        self, name: str, ecosystem: str
+    ) -> Optional[str]:
+        """Return the cached failure reason if the package is in the negative
+        cache and the TTL has not elapsed; ``None`` otherwise.
+
+        A return value of ``None`` means "go ahead and probe upstream" —
+        either there is no recorded failure, or the TTL has expired and we
+        should re-check whether the failure is still present (a renamed
+        repo might be reachable again, a registry might have grown a
+        repository URL field).
+        """
+        canonical = normalize_package_name(name, ecosystem)
+        package = (
+            self.session.query(Package)
+            .filter(Package.name == canonical, Package.ecosystem == ecosystem)
+            .first()
+        )
+        if package is None or package.last_failed_at is None or not package.failure_reason:
+            return None
+
+        age = datetime.utcnow() - package.last_failed_at
+        ttl_days = _ttl_for_reason(package.failure_reason)
+        if age >= timedelta(days=ttl_days):
+            # TTL elapsed — caller should re-probe.
+            return None
+
+        return package.failure_reason
+
+    def store_negative(self, name: str, ecosystem: str, reason: str) -> None:
+        """Record a permanent failure on the package row.
+
+        Idempotent: replaces any prior failure on the same package. A later
+        successful collection should clear this via ``clear_negative``.
+        """
+        package = self._get_or_create_package(name, ecosystem)
+        package.last_failed_at = datetime.utcnow()
+        package.failure_reason = reason
+
+    def clear_negative(self, name: str, ecosystem: str) -> None:
+        """Clear any negative-cache state for a package.
+
+        Called after a successful collection so a recovered package
+        doesn't keep returning the cached failure once its TTL is back to
+        zero from the next failure.
+        """
+        canonical = normalize_package_name(name, ecosystem)
+        package = (
+            self.session.query(Package)
+            .filter(Package.name == canonical, Package.ecosystem == ecosystem)
+            .first()
+        )
+        if package is not None:
+            package.last_failed_at = None
+            package.failure_reason = None
+
+    # ----- Statistics / introspection -----
+
+    def stats(self) -> dict:
+        """Return a snapshot of the cache's operational state.
+
+        Used by ``ossuary cache-stats`` and the thesis operational-scalability
+        section. All counts are exact (no sampling); on a SUSE-scale DB this
+        is a few cheap aggregates over indexed columns.
+        """
+        from sqlalchemy import func
+
+        total_snapshots = self.session.query(func.count(RepoSnapshot.id)).scalar() or 0
+        unique_packages = (
+            self.session.query(func.count(func.distinct(RepoSnapshot.package_id)))
+            .scalar() or 0
+        )
+
+        now = datetime.utcnow()
+        fresh_cutoff = now - timedelta(days=SLA_FRESH_DAYS)
+        expired_cutoff = now - timedelta(days=SLA_EXPIRED_DAYS)
+
+        fresh = self.session.query(func.count(RepoSnapshot.id)).filter(
+            RepoSnapshot.collected_at >= fresh_cutoff,
+            RepoSnapshot.fetcher_version == COLLECTOR_VERSION,
+        ).scalar() or 0
+        stale = self.session.query(func.count(RepoSnapshot.id)).filter(
+            RepoSnapshot.collected_at < fresh_cutoff,
+            RepoSnapshot.collected_at >= expired_cutoff,
+            RepoSnapshot.fetcher_version == COLLECTOR_VERSION,
+        ).scalar() or 0
+        expired = self.session.query(func.count(RepoSnapshot.id)).filter(
+            RepoSnapshot.collected_at < expired_cutoff,
+            RepoSnapshot.fetcher_version == COLLECTOR_VERSION,
+        ).scalar() or 0
+        wrong_version = self.session.query(func.count(RepoSnapshot.id)).filter(
+            RepoSnapshot.fetcher_version != COLLECTOR_VERSION,
+        ).scalar() or 0
+
+        # Negative cache: packages with a current (non-expired) failure record.
+        neg_total = self.session.query(func.count(Package.id)).filter(
+            Package.last_failed_at.isnot(None),
+            Package.failure_reason.isnot(None),
+        ).scalar() or 0
+
+        return {
+            "snapshots": {
+                "total": total_snapshots,
+                "unique_packages": unique_packages,
+                "fresh": fresh,        # ≤ SLA_FRESH_DAYS
+                "stale": stale,        # SLA_FRESH_DAYS < age ≤ SLA_EXPIRED_DAYS
+                "expired": expired,    # > SLA_EXPIRED_DAYS
+                "wrong_collector_version": wrong_version,
+            },
+            "negative_cache": {
+                "total": neg_total,
+            },
+            "sla": {
+                "fresh_days": SLA_FRESH_DAYS,
+                "expired_days": SLA_EXPIRED_DAYS,
+            },
+            "collector_version": COLLECTOR_VERSION,
+        }
+
+    # ----- Snapshot write -----
 
     def store_snapshot(
         self,

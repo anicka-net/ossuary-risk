@@ -50,6 +50,16 @@ class Package(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_analyzed: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Negative cache: when a collection attempt fails with a *permanent*
+    # error (404 on the repo, no repository URL on the registry, etc.),
+    # we record the timestamp and reason so subsequent runs can skip the
+    # probe until the TTL elapses. Transient failures (rate limit, 5xx,
+    # network) are NOT cached here — they go through the standard retry
+    # path because they can recover. See
+    # ``services/repo_cache.py::is_permanent_failure``.
+    last_failed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    failure_reason: Mapped[Optional[str]] = mapped_column(String(500))
+
     # Relationships
     commits: Mapped[list["Commit"]] = relationship(back_populates="package", cascade="all, delete-orphan")
     issues: Mapped[list["Issue"]] = relationship(back_populates="package", cascade="all, delete-orphan")

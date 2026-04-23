@@ -334,3 +334,170 @@ class TestRepoSnapshotCache:
         session.commit()
 
         assert cache.get_snapshot_for_cutoff("React", "npm") is None
+
+
+# ---------------------------------------------------------------------------
+# Negative cache
+# ---------------------------------------------------------------------------
+
+class TestNegativeCache:
+    def test_no_cache_returns_none(self, session):
+        """A package never seen has no negative cache."""
+        cache = RepoSnapshotCache(session)
+        assert cache.get_negative_cache("never-seen", "npm") is None
+
+    def test_store_and_retrieve_within_ttl(self, session):
+        cache = RepoSnapshotCache(session)
+        cache.store_negative("dead-pkg", "npm", "Repository not found: https://example")
+        session.commit()
+
+        cached = cache.get_negative_cache("dead-pkg", "npm")
+        assert cached == "Repository not found: https://example"
+
+    def test_ttl_expires(self, session):
+        """A negative-cache entry older than its TTL must not be returned."""
+        from datetime import timedelta
+
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("expired-pkg", "npm")
+        package.last_failed_at = datetime.utcnow() - timedelta(days=120)
+        package.failure_reason = "Repository not found"
+        session.commit()
+
+        # 90-day TTL for "not found" — 120 days is past expiry.
+        assert cache.get_negative_cache("expired-pkg", "npm") is None
+
+    def test_no_repo_url_uses_shorter_ttl(self, session):
+        """Registry-has-no-repo failures use the 30-day TTL, not 90."""
+        from datetime import timedelta
+
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("no-repo", "npm")
+        package.last_failed_at = datetime.utcnow() - timedelta(days=45)
+        package.failure_reason = "Package 'no-repo' not found on npm (no repository URL)"
+        session.commit()
+
+        # 45 days > 30-day no-repo-field TTL → expired.
+        assert cache.get_negative_cache("no-repo", "npm") is None
+
+    def test_clear_negative_removes_cache(self, session):
+        cache = RepoSnapshotCache(session)
+        cache.store_negative("recovered", "npm", "Repository not found")
+        session.commit()
+        assert cache.get_negative_cache("recovered", "npm") is not None
+
+        cache.clear_negative("recovered", "npm")
+        session.commit()
+        assert cache.get_negative_cache("recovered", "npm") is None
+
+
+# ---------------------------------------------------------------------------
+# is_permanent_failure
+# ---------------------------------------------------------------------------
+
+class TestIsPermanentFailure:
+    """Classification of collection failures into 'cache forever-ish' vs
+    'retry next time' is the hinge of the negative cache. Get this wrong
+    and we either wastefully re-probe permanent 404s every run, or
+    permanently cache transient rate-limit failures and never see the
+    package again."""
+
+    def _check(self, text):
+        from ossuary.services.repo_cache import is_permanent_failure
+        return is_permanent_failure(text)
+
+    def test_repository_not_found_is_permanent(self):
+        assert self._check("Repository not found: https://github.com/foo/bar")
+
+    def test_no_repository_url_is_permanent(self):
+        assert self._check("Package 'foo' not found on npm (no repository URL)")
+
+    def test_unsupported_ecosystem_is_permanent(self):
+        assert self._check("Unsupported ecosystem: cool-new-thing")
+
+    def test_rate_limit_is_transient(self):
+        assert not self._check("pypi.weekly_downloads: HTTP 429 (rate limited)")
+
+    def test_5xx_is_transient(self):
+        assert not self._check("github.com returned 503 service unavailable")
+
+    def test_insufficient_data_is_transient(self):
+        assert not self._check("INSUFFICIENT_DATA: pypi.weekly_downloads: HTTP 429")
+
+    def test_empty_text_is_not_permanent(self):
+        assert not self._check("")
+        assert not self._check(None)
+
+    def test_unknown_text_defaults_to_transient(self):
+        """Default to NOT caching on unknown failure shapes — better to
+        re-probe than to silently lose a package forever."""
+        assert not self._check("Some weird new error nobody planned for")
+
+
+# ---------------------------------------------------------------------------
+# Stats / introspection
+# ---------------------------------------------------------------------------
+
+class TestStats:
+    def test_stats_on_empty_cache(self, session):
+        cache = RepoSnapshotCache(session)
+        stats = cache.stats()
+
+        assert stats["snapshots"]["total"] == 0
+        assert stats["snapshots"]["unique_packages"] == 0
+        assert stats["negative_cache"]["total"] == 0
+        assert stats["sla"]["fresh_days"] == 30
+        assert stats["sla"]["expired_days"] == 90
+
+    def test_stats_classifies_snapshots_by_sla_band(self, session):
+        from datetime import timedelta
+
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        now = datetime.utcnow()
+
+        cache.store_snapshot("fresh-pkg", "npm", "https://x", blob,
+                             collected_at=now - timedelta(days=10))
+        cache.store_snapshot("stale-pkg", "npm", "https://x", blob,
+                             collected_at=now - timedelta(days=60))
+        cache.store_snapshot("expired-pkg", "npm", "https://x", blob,
+                             collected_at=now - timedelta(days=120))
+        session.commit()
+
+        stats = cache.stats()
+        assert stats["snapshots"]["fresh"] == 1
+        assert stats["snapshots"]["stale"] == 1
+        assert stats["snapshots"]["expired"] == 1
+        assert stats["snapshots"]["unique_packages"] == 3
+
+    def test_stats_counts_negative_cache(self, session):
+        cache = RepoSnapshotCache(session)
+        cache.store_negative("dead-1", "npm", "Repository not found")
+        cache.store_negative("dead-2", "pypi", "Package not found (no repository URL)")
+        session.commit()
+
+        stats = cache.stats()
+        assert stats["negative_cache"]["total"] == 2
+
+    def test_stats_separates_wrong_collector_version(self, session):
+        """Snapshots from an old collector schema show up under their own
+        bucket so operators know to re-collect after a collector bump."""
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("old-snap", "npm")
+        session.add(
+            RepoSnapshot(
+                package_id=package.id,
+                collected_at=datetime.utcnow(),
+                coverage_until=datetime.utcnow(),
+                repo_url="https://x",
+                blob={},
+                fetcher_version=COLLECTOR_VERSION + 99,
+            )
+        )
+        session.commit()
+
+        stats = cache.stats()
+        assert stats["snapshots"]["wrong_collector_version"] == 1
+        assert stats["snapshots"]["fresh"] == 0
+        assert stats["snapshots"]["stale"] == 0
+        assert stats["snapshots"]["expired"] == 0

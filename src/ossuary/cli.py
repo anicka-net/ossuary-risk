@@ -90,6 +90,57 @@ def api(
 SUPPORTED_ECOSYSTEMS = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
 
 
+@app.command(name="cache-stats")
+def cache_stats(
+    output_json: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Show repo-snapshot cache state — snapshot counts by SLA band,
+    negative-cache size, configured TTLs.
+
+    Driven by the v0.10 snapshot cache; see
+    `docs/data_reuse_design.md` and `docs/methodology.md` §4.-0.
+    """
+    from ossuary.db.session import init_db, session_scope
+    from ossuary.services.repo_cache import RepoSnapshotCache
+
+    # Ensures the v0.10 cache columns/tables exist on databases that
+    # pre-date this release. Idempotent on already-current schemas.
+    init_db()
+
+    with session_scope() as session:
+        stats = RepoSnapshotCache(session).stats()
+
+    if output_json:
+        console.print_json(data=stats)
+        return
+
+    snap = stats["snapshots"]
+    neg = stats["negative_cache"]
+    sla = stats["sla"]
+
+    table = Table(title="Snapshot Cache", show_header=True, header_style="bold")
+    table.add_column("Band")
+    table.add_column("Threshold", justify="right")
+    table.add_column("Snapshots", justify="right")
+    table.add_row("Fresh", f"≤ {sla['fresh_days']} days", str(snap["fresh"]))
+    table.add_row("Stale", f"≤ {sla['expired_days']} days", str(snap["stale"]))
+    table.add_row("Expired", f"> {sla['expired_days']} days", str(snap["expired"]))
+    table.add_row(
+        "Wrong collector version",
+        f"v != {stats['collector_version']}",
+        str(snap["wrong_collector_version"]),
+    )
+    console.print(table)
+    console.print(
+        f"[dim]Total snapshots: {snap['total']} across "
+        f"{snap['unique_packages']} packages[/dim]"
+    )
+    console.print(
+        f"[dim]Negative cache: {neg['total']} packages with "
+        f"recorded permanent failures[/dim]"
+    )
+
+
 @app.command()
 def score(
     package: str = typer.Argument(..., help="Package name to analyze"),

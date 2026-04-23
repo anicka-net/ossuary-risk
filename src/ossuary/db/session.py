@@ -65,6 +65,21 @@ def _autoapply_simple_migrations(connection) -> None:
             "ALTER TABLE scores ADD COLUMN data_snapshot_at DATETIME"
         ))
 
+    if "packages" in inspector.get_table_names():
+        package_cols = {col["name"] for col in inspector.get_columns("packages")}
+        if "last_failed_at" not in package_cols:
+            logger.warning(
+                "Auto-migrating packages schema: adding last_failed_at + "
+                "failure_reason for the v0.10 negative cache"
+            )
+            connection.execute(text(
+                "ALTER TABLE packages ADD COLUMN last_failed_at DATETIME"
+            ))
+        if "failure_reason" not in package_cols:
+            connection.execute(text(
+                "ALTER TABLE packages ADD COLUMN failure_reason VARCHAR(500)"
+            ))
+
 
 def init_db() -> None:
     """Initialize the database, creating tables and applying pending
