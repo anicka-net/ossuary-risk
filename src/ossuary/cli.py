@@ -3257,6 +3257,18 @@ def seed_custom(
              "packages map to the same repo (vendor monorepos, "
              "cross-ecosystem libraries).",
     ),
+    probe_registries: bool = typer.Option(
+        False, "--probe-registries/--no-probe-registries",
+        help="Pre-probe registries to learn canonical repo URLs for entries "
+             "without an explicit 'repo:' field (pip-list / gem-list style "
+             "seeds). Only meaningful with --repo-aware. Lets sibling "
+             "packages from the same monorepo (nvidia-cuda-*, jupyter-*) "
+             "be grouped instead of racing in parallel. The probe result "
+             "is plumbed through to scoring so cached_collect reuses it "
+             "instead of refetching — net HTTP per probed entry stays at "
+             "one registry call (just done earlier). The win is the "
+             "GitHub fetches saved by sibling-grouping.",
+    ),
 ):
     """Score packages from a custom YAML seed file.
 
@@ -3270,12 +3282,16 @@ def seed_custom(
 
     GitHub packages require a 'repo' URL. For npm/pypi, 'repo' is optional.
     """
-    asyncio.run(_seed_custom(file, limit, concurrent, skip_fresh, fresh_days, repo_aware))
+    asyncio.run(_seed_custom(
+        file, limit, concurrent, skip_fresh, fresh_days,
+        repo_aware, probe_registries,
+    ))
 
 
 async def _seed_custom(
     file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int,
     repo_aware: bool = False,
+    probe_registries: bool = False,
 ):
     """Score packages from a custom YAML seed file."""
     from ossuary.services.batch import load_custom_seed, batch_score
@@ -3326,6 +3342,7 @@ async def _seed_custom(
         fresh_days=fresh_days,
         progress_callback=on_progress,
         repo_aware=repo_aware,
+        probe_registries=probe_registries,
     )
 
     console.print(f"\n[bold green]Done![/bold green]")
@@ -3338,6 +3355,11 @@ async def _seed_custom(
             f"{result.shared_repo_packages} shared-repo packages / "
             f"{result.unplanable} unplanable"
         )
+        if probe_registries:
+            console.print(
+                f"  Registry probe: {result.probe_resolved}/{result.probed} "
+                f"resolved a usable URL"
+            )
 
     if result.errors > 0 and result.error_details:
         console.print(f"\n[bold yellow]Error summary (first 20):[/bold yellow]")
@@ -3359,14 +3381,24 @@ def seed_suse(
              "shared packages hit it. SUSE pipeline benefit: a 5000-dep "
              "manifest with ~30%% repo overlap saves ~1500 GitHub fetches.",
     ),
+    probe_registries: bool = typer.Option(
+        False, "--probe-registries/--no-probe-registries",
+        help="Pre-probe registries to learn canonical repo URLs for "
+             "entries without an explicit repo URL. Only meaningful with "
+             "--repo-aware. See seed-custom for details.",
+    ),
 ):
     """Score all discovered SUSE packages from a discovery JSON file."""
-    asyncio.run(_seed_suse(file, limit, concurrent, skip_fresh, fresh_days, repo_aware))
+    asyncio.run(_seed_suse(
+        file, limit, concurrent, skip_fresh, fresh_days,
+        repo_aware, probe_registries,
+    ))
 
 
 async def _seed_suse(
     file: str, limit: int, concurrent: int, skip_fresh: bool, fresh_days: int,
     repo_aware: bool = False,
+    probe_registries: bool = False,
 ):
     """Batch-score SUSE packages."""
     from ossuary.services.batch import load_discovery_file, batch_score
@@ -3414,6 +3446,7 @@ async def _seed_suse(
         fresh_days=fresh_days,
         progress_callback=on_progress,
         repo_aware=repo_aware,
+        probe_registries=probe_registries,
     )
 
     console.print(f"\n[bold green]Done![/bold green]")
@@ -3426,6 +3459,11 @@ async def _seed_suse(
             f"{result.shared_repo_packages} shared-repo packages / "
             f"{result.unplanable} unplanable"
         )
+        if probe_registries:
+            console.print(
+                f"  Registry probe: {result.probe_resolved}/{result.probed} "
+                f"resolved a usable URL"
+            )
 
     if result.errors > 0 and result.error_details:
         console.print(f"\n[bold yellow]Error summary (first 20):[/bold yellow]")

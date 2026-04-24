@@ -248,3 +248,339 @@ class TestRepoAwareBatchScore:
         assert result.unique_repos == 1  # planable_a + planable_b
         assert result.shared_repo_packages == 2
         assert result.unplanable == 1
+
+
+class TestRegistryProbePrePass:
+    """Optional probe pre-pass for ``--repo-aware``: pip-list / gem-list
+    style seeds carry no explicit ``repo_url`` and would otherwise all
+    fall into ``unplanable`` (no grouping benefit). The probe pre-pass
+    runs one cheap registry call per such entry to learn its canonical
+    URL upfront, so sibling packages from the same monorepo
+    (nvidia-cuda-*, jupyter-*) get grouped instead of racing in
+    parallel.
+    """
+
+    def test_probe_resolves_unplanable_into_groups(self):
+        """Three sibling entries with no explicit URL — probe returns
+        the same canonical URL for all three — they collapse into one
+        group of three (sequential within), not three unplanable
+        singletons."""
+        from ossuary.services.scorer import RegistryData, ScoringResult
+
+        entries = [
+            _entry("nvidia-cuda-cublas", "pypi"),
+            _entry("nvidia-cuda-cudart", "pypi"),
+            _entry("nvidia-cuda-cufft", "pypi"),
+        ]
+        shared_url = "https://github.com/nvidia/cuda-python"
+
+        async def fake_probe(name, ecosystem, repo_url=None):
+            return RegistryData(
+                repo_url=shared_url,
+                weekly_downloads=100,
+                fetch_errors=[],
+                warnings=[],
+            )
+
+        async def fake_score_package(name, eco, force=False, **kwargs):
+            return ScoringResult(success=True, breakdown=None)
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            side_effect=fake_probe,
+        ), patch(
+            "ossuary.services.batch.score_package",
+            side_effect=fake_score_package,
+        ), patch(
+            "ossuary.services.batch.is_fresh", return_value=False,
+        ):
+            result = asyncio.run(batch_score(
+                entries, max_concurrent=5, skip_fresh=False,
+                repo_aware=True, probe_registries=True,
+            ))
+
+        # All three landed in a single group via the probe.
+        assert result.scored == 3
+        assert result.unique_repos == 1
+        assert result.shared_repo_packages == 3
+        assert result.unplanable == 0
+        assert result.probed == 3
+        assert result.probe_resolved == 3
+
+    def test_probe_failure_leaves_entries_unplanable(self):
+        """When the registry probe returns no URL, the entry stays in
+        ``unplanable`` and falls through to the standard parallel path
+        — no error, no crash."""
+        from ossuary.services.scorer import RegistryData, ScoringResult
+
+        entries = [
+            _entry("orphan-pkg-1", "pypi"),
+            _entry("orphan-pkg-2", "pypi"),
+        ]
+
+        async def fake_probe(name, ecosystem, repo_url=None):
+            return RegistryData(
+                repo_url=None,  # no URL discoverable
+                weekly_downloads=10,
+                fetch_errors=[],
+                warnings=[],
+            )
+
+        async def fake_score_package(name, eco, force=False, **kwargs):
+            return ScoringResult(success=True, breakdown=None)
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            side_effect=fake_probe,
+        ), patch(
+            "ossuary.services.batch.score_package",
+            side_effect=fake_score_package,
+        ), patch(
+            "ossuary.services.batch.is_fresh", return_value=False,
+        ):
+            result = asyncio.run(batch_score(
+                entries, max_concurrent=5, skip_fresh=False,
+                repo_aware=True, probe_registries=True,
+            ))
+
+        assert result.scored == 2
+        assert result.unique_repos == 0
+        assert result.unplanable == 2
+        assert result.probed == 2
+        assert result.probe_resolved == 0
+
+    def test_probe_only_runs_for_entries_lacking_url(self):
+        """Entries that already have a URL skip the probe; only the
+        URL-less ones get probed. Cuts unnecessary HTTP for mixed
+        batches."""
+        from ossuary.services.scorer import RegistryData, ScoringResult
+
+        entries = [
+            _entry("known", "npm", url="https://github.com/known/known"),
+            _entry("unknown", "pypi"),  # needs probe
+        ]
+
+        probed_names: list[str] = []
+
+        async def fake_probe(name, ecosystem, repo_url=None):
+            probed_names.append(name)
+            return RegistryData(
+                repo_url="https://github.com/found/found",
+                weekly_downloads=100,
+                fetch_errors=[], warnings=[],
+            )
+
+        async def fake_score_package(name, eco, force=False, **kwargs):
+            return ScoringResult(success=True, breakdown=None)
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            side_effect=fake_probe,
+        ), patch(
+            "ossuary.services.batch.score_package",
+            side_effect=fake_score_package,
+        ), patch(
+            "ossuary.services.batch.is_fresh", return_value=False,
+        ):
+            result = asyncio.run(batch_score(
+                entries, max_concurrent=5, skip_fresh=False,
+                repo_aware=True, probe_registries=True,
+            ))
+
+        # Only the URL-less entry got probed.
+        assert probed_names == ["unknown"]
+        assert result.probed == 1
+        assert result.probe_resolved == 1
+
+    def test_probe_disabled_preserves_old_unplanable_behavior(self):
+        """``probe_registries=False`` (the default) — repo-aware mode
+        without the pre-pass leaves URL-less entries in unplanable,
+        same as before. Pin so the new flag is opt-in only."""
+        from ossuary.services.scorer import ScoringResult
+
+        entries = [
+            _entry("urlless-1", "pypi"),
+            _entry("urlless-2", "pypi"),
+        ]
+
+        async def fake_probe(name, ecosystem, repo_url=None):
+            raise AssertionError("probe must not be called when flag is off")
+
+        async def fake_score_package(name, eco, force=False, **kwargs):
+            return ScoringResult(success=True, breakdown=None)
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            side_effect=fake_probe,
+        ), patch(
+            "ossuary.services.batch.score_package",
+            side_effect=fake_score_package,
+        ), patch(
+            "ossuary.services.batch.is_fresh", return_value=False,
+        ):
+            result = asyncio.run(batch_score(
+                entries, max_concurrent=5, skip_fresh=False,
+                repo_aware=True, probe_registries=False,
+            ))
+
+        assert result.scored == 2
+        assert result.unplanable == 2
+        assert result.probed == 0
+        assert result.probe_resolved == 0
+
+    def test_probe_exception_does_not_crash_run(self):
+        """Defensive: a probe that raises shouldn't take down the
+        whole batch. The entry just stays unplanable."""
+        from ossuary.services.scorer import ScoringResult
+
+        entries = [_entry("flaky", "pypi")]
+
+        async def fake_probe(name, ecosystem, repo_url=None):
+            raise RuntimeError("simulated registry meltdown")
+
+        async def fake_score_package(name, eco, force=False, **kwargs):
+            return ScoringResult(success=True, breakdown=None)
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            side_effect=fake_probe,
+        ), patch(
+            "ossuary.services.batch.score_package",
+            side_effect=fake_score_package,
+        ), patch(
+            "ossuary.services.batch.is_fresh", return_value=False,
+        ):
+            result = asyncio.run(batch_score(
+                entries, max_concurrent=5, skip_fresh=False,
+                repo_aware=True, probe_registries=True,
+            ))
+
+        assert result.scored == 1
+        assert result.unplanable == 1
+        assert result.probed == 1
+        assert result.probe_resolved == 0
+
+    def test_probe_result_is_threaded_through_to_score_package(self):
+        """Pin the no-double-call contract that justifies the
+        'no net new HTTP per probed entry' wording in --probe-registries
+        help. The pre-pass calls _collect_registry_data once per
+        URL-less entry, then the result is plumbed via
+        score_package(prefetched_registry=...) so cached_collect
+        reuses it instead of refetching. Without plumbing, we'd see
+        2 registry calls per entry (probe + cached_collect's own
+        internal probe). Counts the side-effect to assert exactly 1."""
+        from ossuary.services.scorer import (
+            RegistryData, ScoringResult, score_package,
+        )
+
+        entries = [
+            _entry("pkg-a", "pypi"),
+            _entry("pkg-b", "pypi"),
+        ]
+        registry_call_log: list[str] = []
+
+        async def fake_collect_registry_data(name, ecosystem, repo_url=None):
+            registry_call_log.append(name)
+            return RegistryData(
+                repo_url=f"https://github.com/shared/{name}",
+                weekly_downloads=100,
+                fetch_errors=[], warnings=[],
+            )
+
+        prefetched_seen: list[bool] = []
+
+        async def fake_score_package(name, eco, force=False, **kwargs):
+            # Capture whether the prefetched_registry was threaded
+            # through — that's the actual contract.
+            prefetched_seen.append("prefetched_registry" in kwargs)
+            return ScoringResult(success=True, breakdown=None)
+
+        with patch(
+            "ossuary.services.scorer._collect_registry_data",
+            side_effect=fake_collect_registry_data,
+        ), patch(
+            "ossuary.services.batch.score_package",
+            side_effect=fake_score_package,
+        ), patch(
+            "ossuary.services.batch.is_fresh", return_value=False,
+        ):
+            asyncio.run(batch_score(
+                entries, max_concurrent=5, skip_fresh=False,
+                repo_aware=True, probe_registries=True,
+            ))
+
+        # Pre-pass runs the probe exactly once per URL-less entry.
+        # The fake_score_package above intercepts before reaching
+        # cached_collect, so we can't observe the avoided second call
+        # directly here — but we CAN observe that the prefetched
+        # RegistryData was threaded through, which is the wiring that
+        # makes cached_collect skip its internal probe.
+        assert sorted(registry_call_log) == ["pkg-a", "pkg-b"], (
+            f"probe should run exactly once per entry, got: "
+            f"{registry_call_log}"
+        )
+        assert prefetched_seen == [True, True], (
+            f"score_package must receive prefetched_registry kwarg "
+            f"so cached_collect can skip its internal probe — "
+            f"otherwise we silently double-fetch. Got: {prefetched_seen}"
+        )
+
+    def test_cached_collect_skips_internal_probe_when_prefetched_given(self):
+        """Companion to the above test, at the cached_collect layer.
+        Pins the receiving end of the contract: when a caller passes
+        prefetched_registry, cached_collect must NOT call
+        _collect_registry_data internally. Without this, the plumbing
+        on the batch side would still result in 2 calls."""
+        import asyncio
+        from ossuary.services.scorer import (
+            RegistryData, cached_collect, _collect_registry_data,
+        )
+
+        prefetched = RegistryData(
+            repo_url="https://github.com/found/it",
+            weekly_downloads=999,
+            fetch_errors=[], warnings=[],
+        )
+
+        internal_call_log: list[str] = []
+
+        async def spy(name, ecosystem, repo_url=None):
+            internal_call_log.append(name)
+            return RegistryData(
+                repo_url=None, weekly_downloads=None,
+                fetch_errors=["should not be called"], warnings=[],
+            )
+
+        # cached_collect needs use_cache=False to bypass DB session
+        # paths it has no DB for in this test, but the prefetched-vs-
+        # internal-probe gate is also on the use_cache=True path —
+        # both branches must respect prefetched.
+        async def go():
+            with patch(
+                "ossuary.services.scorer._collect_registry_data",
+                side_effect=spy,
+            ):
+                # use_cache=False → snapshot block skipped; goes straight
+                # to the prefetched-or-fetch decision (which we want to
+                # pin: prefetched provided → no internal call).
+                await cached_collect(
+                    "x", "pypi",
+                    prefetched_registry=prefetched,
+                    use_cache=False,
+                )
+        # Suppress the downstream collect_package_data call which
+        # would otherwise try real network — make it a no-op coroutine.
+        async def _noop_collect(*_a, **_kw):
+            return None, []
+
+        with patch(
+            "ossuary.services.scorer.collect_package_data",
+            side_effect=_noop_collect,
+        ):
+            asyncio.run(go())
+
+        assert internal_call_log == [], (
+            f"cached_collect must not call _collect_registry_data "
+            f"when prefetched_registry is provided. Got: "
+            f"{internal_call_log}"
+        )

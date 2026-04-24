@@ -41,6 +41,14 @@ class BatchResult:
     unique_repos: int = 0
     shared_repo_packages: int = 0
     unplanable: int = 0
+    # Registry-probe pre-pass telemetry (populated when batch_score is
+    # called with repo_aware=True and probe_registries=True). The pre-
+    # pass runs a cheap registry call per would-be-unplanable entry to
+    # learn its canonical repo URL upfront, so sibling packages from
+    # the same monorepo (e.g. nvidia-cuda-*, jupyter-*) get grouped and
+    # cache-warmed instead of racing in parallel.
+    probed: int = 0
+    probe_resolved: int = 0
 
 
 @dataclass
@@ -476,6 +484,52 @@ def _entry_repo_url(entry: "PackageEntry") -> Optional[str]:
     return None
 
 
+async def _probe_registry_urls(
+    entries: list["PackageEntry"],
+    max_concurrent: int,
+):
+    """Cheap registry-probe pre-pass.
+
+    For each entry whose repo URL isn't knowable up-front, do one
+    ``_collect_registry_data`` call to learn the canonical URL. Used by
+    ``batch_score`` when both ``repo_aware`` and ``probe_registries``
+    are set, so sibling packages from the same monorepo
+    (e.g. nvidia-cuda-*, jupyter-*) can be grouped and cache-warmed
+    instead of racing in parallel.
+
+    Returns a dict ``id(entry) → RegistryData_or_None``. The full
+    ``RegistryData`` (not just the URL) is kept so the caller can
+    plumb it through to ``score_package(..., prefetched_registry=...)``
+    — that's how we make the "no net new HTTP" claim hold: the probe
+    call done here replaces the one ``cached_collect`` would otherwise
+    do on first cache miss. Probes that fail (transient registry,
+    no repo URL on the package, exception) map to ``None`` and the
+    caller leaves the entry as-is.
+
+    Probes run in parallel up to ``max_concurrent``.
+    """
+    from ossuary.services.scorer import _collect_registry_data
+
+    semaphore = asyncio.Semaphore(max_concurrent)
+    resolved: dict = {}
+
+    async def probe_one(entry: "PackageEntry") -> None:
+        async with semaphore:
+            try:
+                registry = await _collect_registry_data(
+                    entry.obs_package, entry.ecosystem,
+                    repo_url=None,
+                )
+                resolved[id(entry)] = registry
+            except Exception:
+                # Defensive: any probe failure leaves the entry
+                # unplanable, which is no worse than not probing.
+                resolved[id(entry)] = None
+
+    await asyncio.gather(*(probe_one(e) for e in entries))
+    return resolved
+
+
 def _build_repo_plan(packages: list["PackageEntry"]) -> _RepoPlan:
     """Pre-group entries by canonical repo URL when knowable up-front.
 
@@ -515,6 +569,7 @@ async def batch_score(
     fresh_days: int = 7,
     progress_callback: Optional[callable] = None,
     repo_aware: bool = False,
+    probe_registries: bool = False,
 ) -> BatchResult:
     """
     Score a batch of packages with concurrency control.
@@ -539,6 +594,22 @@ async def batch_score(
             pre-grouped (non-github with no explicit repo_url) flow
             through the standard parallel path. Default ``False``
             preserves prior behaviour.
+        probe_registries: When True (and ``repo_aware`` is also True),
+            run a cheap registry probe per would-be-unplanable entry
+            *before* planning so sibling packages from the same
+            monorepo (nvidia-cuda-*, jupyter-*, etc.) get grouped
+            instead of racing in parallel. The full ``RegistryData``
+            from each probe is plumbed through to ``score_package(...,
+            prefetched_registry=...)``; ``cached_collect`` uses it
+            instead of doing its own probe — so the registry call
+            happens exactly once per probed entry, just earlier (no
+            net new HTTP). The win comes from the GitHub fetches saved
+            by sibling-grouping: N siblings from one monorepo go from
+            N concurrent GitHub fetches to 1 + N-1 cache hits. Probe
+            failures (transient registry, no repo URL) leave the entry
+            unplanable; harmless fallback to the standard parallel
+            path, where ``cached_collect`` does its own probe as
+            usual. No-op when ``repo_aware`` is False. Default ``False``.
 
     Returns:
         BatchResult with counts and error details. When ``repo_aware``
@@ -551,6 +622,13 @@ async def batch_score(
     result = BatchResult(total=len(packages))
     semaphore = asyncio.Semaphore(max_concurrent)
     completed = 0
+
+    # Per-entry RegistryData captured by the probe pre-pass (when
+    # ``probe_registries=True``). Threaded into ``score_package`` so
+    # ``cached_collect`` reuses it instead of doing its own probe call —
+    # that's how we make the "no net new HTTP" claim hold. Empty when
+    # the pre-pass didn't run or the entry's probe returned None.
+    prefetched_per_entry: dict[int, object] = {}
 
     async def score_one(entry: PackageEntry) -> tuple[str, str]:
         """Score a single package, returning (pkg_name, status)."""
@@ -572,6 +650,9 @@ async def batch_score(
                 kwargs = {}
                 if entry.repo_url:
                     kwargs["repo_url"] = entry.repo_url
+                prefetched = prefetched_per_entry.get(id(entry))
+                if prefetched is not None:
+                    kwargs["prefetched_registry"] = prefetched
                 scoring_result = await score_package(
                     pkg_name,
                     eco,
@@ -590,6 +671,27 @@ async def batch_score(
 
     # Process all packages.
     if repo_aware:
+        # Optional pre-pass: probe registries for entries that have no
+        # knowable URL yet. Mutates entry.repo_url in place so the
+        # subsequent _build_repo_plan call can group them, AND stashes
+        # the full RegistryData in prefetched_per_entry so score_one
+        # can plumb it through to cached_collect — that way the probe
+        # call done here REPLACES the one cached_collect would
+        # otherwise make, instead of duplicating it.
+        if probe_registries:
+            probe_targets = [e for e in packages if not _entry_repo_url(e)]
+            result.probed = len(probe_targets)
+            if probe_targets:
+                probed = await _probe_registry_urls(
+                    probe_targets, max_concurrent,
+                )
+                for entry in probe_targets:
+                    registry = probed.get(id(entry))
+                    if registry is not None and registry.repo_url:
+                        entry.repo_url = registry.repo_url
+                        prefetched_per_entry[id(entry)] = registry
+                        result.probe_resolved += 1
+
         # Group by canonical repo URL up front; entries inside a group
         # process sequentially (first warms the cache, subsequent hit
         # it). Across groups, run with the standard semaphore. Entries

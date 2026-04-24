@@ -284,6 +284,7 @@ async def cached_collect(
     repo_url: Optional[str] = None,
     cutoff_date: Optional[datetime] = None,
     use_cache: bool = True,
+    prefetched_registry: Optional[RegistryData] = None,
 ) -> tuple[Optional[CollectedData], list[str]]:
     """
     Wrapper around :func:`collect_package_data` that consults the snapshot cache.
@@ -411,8 +412,12 @@ async def cached_collect(
     # repo-share hit. On a miss we pass the prefetched registry
     # through to ``collect_package_data`` so the registry call isn't
     # duplicated.
-    prefetched_registry: Optional[RegistryData] = None
-    if use_cache and ecosystem != "github":
+    #
+    # When the caller passed in ``prefetched_registry`` (typically
+    # batch.py's --probe-registries pre-pass), we skip the local fetch
+    # entirely — that's the whole point of the pre-pass: do the
+    # registry call once at planning time, reuse here.
+    if use_cache and ecosystem != "github" and prefetched_registry is None:
         prefetched_registry = await _collect_registry_data(
             package_name, ecosystem, repo_url
         )
@@ -1119,6 +1124,7 @@ async def score_package(
     use_cache: bool = True,
     force: bool = False,
     freshness_days: Optional[int] = None,
+    prefetched_registry: Optional[RegistryData] = None,
 ) -> ScoringResult:
     """
     Score a single package.
@@ -1170,6 +1176,7 @@ async def score_package(
         package_name, ecosystem, repo_url,
         cutoff_date=cutoff_date,  # original Optional, NOT the derived `cutoff`
         use_cache=use_cache,
+        prefetched_registry=prefetched_registry,
     )
     if collected_data is None:
         return ScoringResult(success=False, error=warnings[0] if warnings else "Unknown error")
