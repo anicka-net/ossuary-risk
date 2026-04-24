@@ -46,12 +46,22 @@ class RegistryData:
 
     ``weekly_downloads = None`` signals fetch failure (see module
     docstring); ``0`` is a real measurement.
+
+    ``homepage_url`` is an optional secondary URL used as a fallback
+    when ``repository_url`` 404s downstream — most registries expose a
+    separate "homepage" field that maintainers sometimes keep in sync
+    when they let ``repository_url`` rot (or never updated a typo). The
+    classic case is cargo's ``agg`` crate: ``repository`` field has a
+    typo (``savge13``), ``homepage`` field has the correct URL
+    (``savage13``). Currently only populated by ``CratesCollector``;
+    other collectors can opt in.
     """
 
     name: str = ""
     version: str = ""
     description: str = ""
     repository_url: str = ""
+    homepage_url: str = ""
     weekly_downloads: Optional[int] = None
     fetch_errors: list[str] = field(default_factory=list)
 
@@ -148,6 +158,16 @@ class CratesCollector(BaseCollector):
         data.version = crate.get("newest_version", "")
         data.description = crate.get("description", "")
         data.repository_url = crate.get("repository", "") or ""
+        # Homepage often points to the canonical repo when repository
+        # is stale or has a typo. Only carry it as a fallback when it
+        # looks like a code-host URL and differs from repository.
+        homepage = crate.get("homepage", "") or ""
+        if (
+            homepage
+            and homepage != data.repository_url
+            and ("github.com" in homepage or "gitlab.com" in homepage)
+        ):
+            data.homepage_url = homepage
         recent = crate.get("recent_downloads")
         if recent is None:
             data.fetch_errors.append("cargo.recent_downloads: field missing")

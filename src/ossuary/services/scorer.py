@@ -103,6 +103,11 @@ class RegistryData:
     surface those via ``fetch_errors``); kept for parity with
     ``collect_package_data``'s return shape.
 
+    ``repo_url_fallback`` is the registry's secondary URL (e.g. cargo
+    ``homepage`` field) used when ``repo_url`` 404s downstream. None
+    when no fallback exists or when both URLs would point at the same
+    repo. Currently populated only by the cargo collector.
+
     For ``ecosystem == "github"`` there is no registry call —
     ``weekly_downloads`` is set to ``None`` (sentinel: "not applicable
     on this path", distinct from "measured zero").
@@ -112,6 +117,7 @@ class RegistryData:
     weekly_downloads: Optional[int]
     fetch_errors: list[str]
     warnings: list[str]
+    repo_url_fallback: Optional[str] = None
 
 
 # Auxiliary GitHub families that ``_refresh_auxiliary_families`` re-runs.
@@ -247,10 +253,17 @@ async def _collect_registry_data(
         )
 
     pkg_collector = collector_cls()
+    repo_url_fallback: Optional[str] = None
     try:
         pkg_data = await pkg_collector.collect(package_name)
         if not repo_url:
             repo_url = pkg_data.repository_url
+        # Cargo + future opt-in collectors expose a homepage_url that
+        # we carry as a 404-fallback. Skip when the homepage matches
+        # the chosen repo_url (no benefit to retrying the same URL).
+        homepage = getattr(pkg_data, "homepage_url", "") or ""
+        if homepage and repo_url and homepage != repo_url:
+            repo_url_fallback = homepage
         weekly_downloads = pkg_data.weekly_downloads
         fetch_errors = list(pkg_data.fetch_errors)
     finally:
@@ -261,6 +274,7 @@ async def _collect_registry_data(
         weekly_downloads=weekly_downloads,
         fetch_errors=fetch_errors,
         warnings=[],
+        repo_url_fallback=repo_url_fallback,
     )
 
 
@@ -651,9 +665,41 @@ async def collect_package_data(
         all_commits = git_collector.extract_commits(repo_path)
     except Exception as e:
         err_str = str(e)
-        if "not found" in err_str.lower() or "exit code(128)" in err_str:
+        is_not_found = (
+            "not found" in err_str.lower() or "exit code(128)" in err_str
+        )
+        # Registry-secondary fallback: a few crates.io packages have a
+        # typo in ``repository`` but the correct URL in ``homepage``
+        # (canonical case: ``agg`` → savge13/agg vs savage13/agg).
+        # Retry once with the fallback before giving up so the negative
+        # cache doesn't permanently lock the package out.
+        fallback = registry.repo_url_fallback
+        if is_not_found and fallback and fallback != repo_url:
+            warnings.append(
+                f"Primary repo URL 404'd ({repo_url}); retrying with "
+                f"registry homepage fallback ({fallback})."
+            )
+            try:
+                repo_path = git_collector.clone_or_update(fallback)
+                all_commits = git_collector.extract_commits(repo_path)
+                repo_url = fallback
+            except Exception as e2:
+                err_str2 = str(e2)
+                if (
+                    "not found" in err_str2.lower()
+                    or "exit code(128)" in err_str2
+                ):
+                    return None, [
+                        f"Repository not found: {repo_url} "
+                        f"(also tried fallback {fallback})"
+                    ]
+                return None, [
+                    f"Failed to collect git data from {fallback}: {e2}"
+                ]
+        elif is_not_found:
             return None, [f"Repository not found: {repo_url}"]
-        return None, [f"Failed to collect git data from {repo_url}: {e}"]
+        else:
+            return None, [f"Failed to collect git data from {repo_url}: {e}"]
 
     if not all_commits:
         return None, ["No commits found in repository"]
