@@ -332,3 +332,99 @@ class TestUserFacingLookupsNormalize:
         result2 = runner.invoke(app, ["history", "PyYAML", "--json"])
         assert result2.exit_code == 0, result2.output
         assert json.loads(result2.output)["package"] == "pyyaml"
+
+
+class TestGetPackageDoesNotCreate:
+    """``get_package`` is the lookup-only counterpart to
+    ``get_or_create_package``. It exists so cache-check paths in
+    ``score_package`` and ``get_historical_scores`` can probe for an
+    existing row without leaking an empty Package row when the
+    subsequent collection then fails — that leak is what produced the
+    "5 tracked / 0 scored" dashboard discrepancy on packagist/go/nuget.
+    """
+
+    def test_returns_none_when_row_absent_and_does_not_create(self, session):
+        from ossuary.db.models import Package
+
+        cache = ScoreCache(session)
+        assert cache.get_package("nonexistent", "pypi") is None
+        # Critical: no row was inserted as a side effect.
+        assert session.query(Package).count() == 0
+
+    def test_returns_existing_row_when_present(self, session):
+        cache = ScoreCache(session)
+        created = cache.get_or_create_package("requests", "pypi")
+        session.commit()
+
+        found = cache.get_package("requests", "pypi")
+        assert found is not None
+        assert found.id == created.id
+
+    def test_normalises_pypi_name_for_lookup(self, session):
+        cache = ScoreCache(session)
+        # Use a name that exercises both the case-fold and the divider-
+        # collapse rules — stored canonical form is "foo-bar".
+        cache.get_or_create_package("Foo_Bar", "pypi")
+        session.commit()
+
+        # All four divider/case variants must hit the canonical row.
+        assert cache.get_package("foo-bar", "pypi") is not None
+        assert cache.get_package("Foo_Bar", "pypi") is not None
+        assert cache.get_package("foo.bar", "pypi") is not None
+        assert cache.get_package("FOO__BAR", "pypi") is not None
+
+
+class TestScoreFailureLeavesNoOrphanPackage:
+    """Regression: previously ``score_package`` pre-created the Package
+    row during the cache-check phase. If the subsequent ``cached_collect``
+    failed (network, registry 404, anything that returns ``None``), the
+    Package row was left committed with ``last_analyzed=None`` and no
+    Score row. Dashboard then showed "N tracked / 0 scored". The fix
+    moved row creation to happen only after a successful score, via
+    the new lookup-only ``get_package`` cache-check path. This test pins
+    that behaviour.
+    """
+
+    def test_failed_collection_does_not_persist_package_row(
+        self, tmp_path, monkeypatch
+    ):
+        import asyncio
+
+        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'o.db'}")
+
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from ossuary.db import session as db_session
+        from ossuary.db.models import Base, Package
+        engine = create_engine(
+            f"sqlite:///{tmp_path / 'o.db'}",
+            connect_args={"check_same_thread": False},
+        )
+        monkeypatch.setattr(db_session, "engine", engine)
+        monkeypatch.setattr(
+            db_session, "SessionLocal",
+            sessionmaker(autocommit=False, autoflush=False, bind=engine),
+        )
+        Base.metadata.create_all(bind=engine)
+
+        # Force collection to "fail" — the orphan-leak shows up exactly
+        # when collection returns None after the cache-check has run.
+        from ossuary.services import scorer as scorer_mod
+
+        async def _fail(*_args, **_kwargs):
+            return None, ["simulated registry failure"]
+
+        monkeypatch.setattr(scorer_mod, "cached_collect", _fail)
+
+        result = asyncio.run(scorer_mod.score_package(
+            "ghost-package", "packagist",
+            repo_url="https://github.com/nope/nope",
+        ))
+
+        assert result.success is False
+        # Critical: no Package row leaked.
+        with db_session.session_scope() as s:
+            assert s.query(Package).filter(
+                Package.name == "ghost-package",
+                Package.ecosystem == "packagist",
+            ).count() == 0

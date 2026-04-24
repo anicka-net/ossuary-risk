@@ -46,6 +46,24 @@ class ScoreCache:
         self.session = session
         self.freshness_threshold = timedelta(days=freshness_days)
 
+    def get_package(self, name: str, ecosystem: str) -> Optional[Package]:
+        """Look up a Package row without creating one.
+
+        Used by cache-check paths so a lookup miss does not leak an empty
+        Package row when the subsequent collection / scoring step then
+        fails. Pre-creating the row leaves it stuck with
+        ``last_analyzed=None`` and no Score, which the dashboard then
+        surfaces as "N tracked / 0 scored". Persistence is the caller's
+        job — call ``get_or_create_package`` only once you are about to
+        write a Score row tied to it.
+        """
+        canonical = normalize_package_name(name, ecosystem)
+        return (
+            self.session.query(Package)
+            .filter(Package.name == canonical, Package.ecosystem == ecosystem)
+            .first()
+        )
+
     def get_or_create_package(
         self, name: str, ecosystem: str, repo_url: Optional[str] = None
     ) -> Package:
@@ -54,6 +72,10 @@ class ScoreCache:
         ``name`` is normalised per :func:`normalize_package_name` before
         lookup and storage so that case / underscore variants of the same
         PyPI distribution resolve to the same row.
+
+        Reserve this for write paths (about to attach a Score, snapshot,
+        or negative-cache entry). For read-only cache checks call
+        :meth:`get_package` instead — see its docstring.
         """
         canonical = normalize_package_name(name, ecosystem)
         package = (

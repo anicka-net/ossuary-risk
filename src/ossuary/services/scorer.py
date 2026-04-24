@@ -1090,18 +1090,22 @@ async def score_package(
     """
     cutoff = cutoff_date or datetime.now()
 
-    # Check cache (skip when force=True to ensure re-scoring)
+    # Check cache (skip when force=True to ensure re-scoring). Use the
+    # lookup-only ``get_package`` here: if the row does not exist, that
+    # is a cache miss and we fall through to collection. Pre-creating it
+    # would leave an orphan row with last_analyzed=None if the
+    # subsequent collection then fails.
     if use_cache and not force:
         with session_scope() as session:
             cache = ScoreCache(session, freshness_days=freshness_days or ScoreCache(session).freshness_threshold.days)
-            package = cache.get_or_create_package(package_name, ecosystem, repo_url)
+            package = cache.get_package(package_name, ecosystem)
 
-            if cutoff_date is not None:
-                cached_score = cache.get_score_for_cutoff(package, cutoff)
-            elif cache.is_fresh(package):
-                cached_score = cache.get_current_score(package)
-            else:
-                cached_score = None
+            cached_score = None
+            if package is not None:
+                if cutoff_date is not None:
+                    cached_score = cache.get_score_for_cutoff(package, cutoff)
+                elif cache.is_fresh(package):
+                    cached_score = cache.get_current_score(package)
 
             if cached_score and cached_score.breakdown:
                 breakdown = _rebuild_breakdown(cached_score, package_name, ecosystem)
@@ -1199,12 +1203,13 @@ async def get_historical_scores(
     """
     warnings = []
 
-    # Check cache
+    # Check cache (lookup only — see score_package's cache-check comment
+    # on why we don't pre-create the Package row).
     if use_cache:
         with session_scope() as session:
             cache = ScoreCache(session)
-            package = cache.get_or_create_package(package_name, ecosystem, repo_url)
-            cached_scores = cache.get_historical_scores(package, months)
+            package = cache.get_package(package_name, ecosystem)
+            cached_scores = cache.get_historical_scores(package, months) if package else []
             if len(cached_scores) >= months:
                 return [
                     HistoricalScore(

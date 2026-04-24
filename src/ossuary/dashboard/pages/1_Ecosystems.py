@@ -9,6 +9,7 @@ import streamlit as st
 from ossuary.db.session import init_db
 from ossuary.dashboard.utils import (
     apply_style, get_packages_by_ecosystem, get_ecosystem_summary,
+    get_unscored_packages, rescore_packages, retry_packages,
     risk_color, risk_badge, COLORS, VERSION,
 )
 
@@ -65,6 +66,69 @@ col1.metric("Packages", data["count"])
 col2.metric("Avg score", f'{data["avg_score"]:.0f}')
 col3.metric("Max score", data["max_score"])
 col4.metric("At risk (60+)", data["critical"] + data["high"])
+
+# -- Refresh / retry orphans --
+# Surface packages that were registered but never successfully scored
+# (last_analyzed=None), with a one-click retry. Also offer a re-score-all
+# button for the ecosystem so a user can refresh stale scores from the UI.
+
+unscored = get_unscored_packages(selected)
+all_in_eco = get_packages_by_ecosystem(selected)
+
+cta1, cta2, _ = st.columns([2, 2, 4])
+
+
+def _show_result(result: dict, verb: str) -> None:
+    if result["errors"]:
+        st.warning(
+            f"{result['success']} succeeded, {len(result['errors'])} "
+            f"failed: " + ", ".join(n for n, _ in result["errors"][:5])
+        )
+    else:
+        st.success(f"{verb} {result['success']} packages.")
+
+
+with cta1:
+    if unscored and st.button(
+        f"Retry {len(unscored)} unscored",
+        key=f"retry_unscored_{selected}",
+        help="Bypass all caches (score, snapshot, negative) and re-attempt "
+             "collection from scratch. Use this for packages stuck on a "
+             "stale failure cache. Will not fix genuinely bad source data "
+             "(e.g. a typo in the registry's repository URL).",
+    ):
+        with st.spinner(f"Retrying {len(unscored)} {selected} packages…"):
+            result = retry_packages(unscored)
+        _show_result(result, "Retried")
+        st.rerun()
+
+with cta2:
+    if all_in_eco and st.button(
+        f"Re-score all {len(all_in_eco)}",
+        key=f"rescore_all_{selected}",
+        help="Bypass the score cache so every package recomputes a fresh "
+             "breakdown. Snapshot cache is still used where the SLA is "
+             "good (so this is cheap on cache hits). Negative-cached "
+             "failures are still respected — use the Retry button above "
+             "to bypass those.",
+    ):
+        targets = [
+            {"name": p["name"], "ecosystem": p["ecosystem"],
+             "repo_url": p.get("repo_url") or None}
+            for p in all_in_eco
+        ]
+        with st.spinner(f"Re-scoring {len(targets)} {selected} packages…"):
+            result = rescore_packages(targets)
+        _show_result(result, "Re-scored")
+        st.rerun()
+
+if unscored:
+    st.caption(
+        f"⚠ {len(unscored)} package{'s' if len(unscored) != 1 else ''} "
+        f"registered but never scored — likely transient failures or "
+        "stuck on a negative-cache entry. Click Retry to bypass caches "
+        "and re-attempt."
+    )
 
 st.divider()
 

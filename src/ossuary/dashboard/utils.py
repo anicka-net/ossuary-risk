@@ -2,6 +2,7 @@
 
 import asyncio
 import re as _re
+from typing import Optional
 
 try:
     import streamlit as st
@@ -296,6 +297,82 @@ def get_ecosystem_summary() -> dict:
         data["max_score"] = max(scores) if scores else 0
 
     return ecosystems
+
+
+def get_unscored_packages(ecosystem: Optional[str] = None) -> list[dict]:
+    """Return packages registered in the DB but never successfully scored.
+
+    These are rows where ``last_analyzed IS NULL`` — typically the
+    residue of a scoring attempt that failed mid-flight (transient
+    registry/GitHub error). The dashboard's ecosystem page surfaces them
+    with a retry button so the user can clear the orphan without
+    dropping to the CLI.
+    """
+    with next(get_session()) as session:
+        q = session.query(Package).filter(Package.last_analyzed.is_(None))
+        if ecosystem:
+            q = q.filter(Package.ecosystem == ecosystem)
+        return [
+            {
+                "name": p.name,
+                "ecosystem": p.ecosystem,
+                "repo_url": p.repo_url or None,
+            }
+            for p in q.all()
+        ]
+
+
+def _run_score_targets(targets: list[dict], *, force: bool, use_cache: bool) -> dict:
+    """Score a list of targets sequentially with the given cache flags.
+
+    Returns ``{"success": int, "errors": list[(name, error)]}``. Runs in
+    the Streamlit request thread; suitable for small N (typically <50).
+    """
+    from ossuary.services.scorer import score_package
+
+    async def _run():
+        success = 0
+        errors: list[tuple[str, str]] = []
+        for t in targets:
+            r = await score_package(
+                t["name"], t["ecosystem"],
+                repo_url=t.get("repo_url"),
+                force=force,
+                use_cache=use_cache,
+            )
+            if r.success:
+                success += 1
+            else:
+                errors.append((t["name"], r.error or "unknown"))
+        return {"success": success, "errors": errors}
+
+    return run_async(_run())
+
+
+def rescore_packages(targets: list[dict]) -> dict:
+    """Re-score every target, bypassing the score cache only.
+
+    ``force=True`` skips the cached Score lookup so each call recomputes
+    a fresh breakdown, but ``use_cache=True`` lets the snapshot cache
+    serve cheap upstream-data reuse where the SLA is still good (so a
+    re-score-all on 100 packages doesn't issue 100 GitHub round-trips).
+    Negative-cache entries (``failure_kind=repo_not_found`` etc.) are
+    still respected — use :func:`retry_packages` to bypass those.
+    """
+    return _run_score_targets(targets, force=True, use_cache=True)
+
+
+def retry_packages(targets: list[dict]) -> dict:
+    """Retry every target from scratch, bypassing all caches.
+
+    ``use_cache=False`` skips the score cache, the snapshot cache, and
+    the negative cache, so a package stuck in
+    ``failure_kind=repo_not_found`` will actually re-attempt upstream
+    collection. Caveat: a true upstream-data problem (e.g. a typo in
+    the registry's repository URL) will still fail — retry helps with
+    transient failures, not bad source data.
+    """
+    return _run_score_targets(targets, force=True, use_cache=False)
 
 
 def get_score_history(package_name: str, ecosystem: str) -> list[dict]:
