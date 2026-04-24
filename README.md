@@ -53,11 +53,15 @@ ossuary deps express
 # Generate xkcd-2347 tower visualization
 ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
 
-# Batch score from seed file
-ossuary seed-custom seeds/pypi-popular.yaml
+# Batch score from seed file (--repo-aware groups sibling packages
+# that share a repo so the snapshot cache is warmed once per repo)
+ossuary seed-custom seeds/pypi-popular.yaml --repo-aware
 
 # Show packages with biggest score changes
 ossuary movers
+
+# Show cache state
+ossuary cache-stats
 ```
 
 ## Supported Ecosystems
@@ -88,7 +92,7 @@ ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
 
 ## CRA Compliance Workflow
 
-Ossuary v0.9 plugs into a Cyber Resilience Act (Regulation (EU) 2024/2847) workflow:
+Ossuary plugs into a Cyber Resilience Act (Regulation (EU) 2024/2847) workflow:
 
 - `ossuary score-sbom` consumes the manufacturer's SBOM (CycloneDX or SPDX) and scores every component, mapping CRA Article 13(5) due-diligence on third-party components to a per-component governance signal.
 - `--enrich` writes the SBOM back with scores attached as CycloneDX `components[].properties[]` entries or SPDX 2.3 package-level `annotations[]` entries (validated against the official SPDX 2.3 JSON Schema in CI; an optional interop test round-trips through `spdx-tools`).

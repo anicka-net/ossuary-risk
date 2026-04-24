@@ -71,8 +71,13 @@ def _autoapply_simple_migrations(connection) -> None:
             connection.execute(text(
                 "ALTER TABLE repo_snapshots ADD COLUMN repo_url_canonical VARCHAR(500)"
             ))
+            # Use the same name SQLAlchemy's create_all assigns (table
+            # name + column name) so a fresh-install user and an
+            # in-place-upgraded user end up with the same index name,
+            # not two differently-named indexes on the same column.
             connection.execute(text(
-                "CREATE INDEX IF NOT EXISTS ix_repo_snapshot_url_canonical "
+                "CREATE INDEX IF NOT EXISTS "
+                "ix_repo_snapshots_repo_url_canonical "
                 "ON repo_snapshots (repo_url_canonical)"
             ))
             from ossuary.services.repo_cache import canonicalize_repo_url
