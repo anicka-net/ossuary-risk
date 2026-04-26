@@ -16,7 +16,7 @@ METHODOLOGY_VERSION = "6.3"
 """Active scoring methodology version (without ``v`` prefix; prose
 references add the ``v`` themselves). v6.3 lowered the frustration weight
 from +20 to +15 and removed the VADER sentiment branch from the score
-formula (see thesis §5.10 ablation)."""
+formula (see the factor-ablation pass)."""
 
 FRUSTRATION_WEIGHT = 15
 """Points added when economic/maintainer frustration is detected.
@@ -24,10 +24,10 @@ Lowered from 20 in v6.3."""
 
 SENTIMENT_IN_SCORE = False
 """Whether the VADER sentiment magnitude contributes to the final score.
-False in v6.3: the §5.10 ablation found 0/167 packages crossed the ±0.3
-threshold on the validation set, so the signal earned no detectable
-contribution. Field retained on ``ProtectiveFactors`` as structurally 0
-for cached-score deserialisation compatibility."""
+False in v6.3: the factor-ablation pass found that no packages crossed the
+±0.3 threshold on the v6.2.1 validation baseline, so the signal earned no
+detectable contribution. Field retained on ``ProtectiveFactors`` as
+structurally 0 for cached-score deserialisation compatibility."""
 
 PREDICTION_THRESHOLD = 60
 """Score >= PREDICTION_THRESHOLD means "predicted risky" in validation.
@@ -54,7 +54,7 @@ def label_for_score(score: int) -> str:
     return RISK_THRESHOLDS[-1][1]
 
 
-# Validation scope (per thesis §5.5)
+# Validation scope (per docs/methodology.md §8.2 Scoped Validation Framework)
 IN_SCOPE_TIERS: frozenset[str] = frozenset({"T1", "T2", "T3", "T_risk"})
 """Detectability tiers counted toward Scope B precision/recall:
 T1 governance decay, T2 protestware/sabotage, T3 weak-governance

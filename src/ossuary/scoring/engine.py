@@ -241,7 +241,7 @@ class RiskScorer:
             pf.cii_score = -10
 
         # Factor 8: Economic Frustration (+FRUSTRATION_WEIGHT)
-        # Weight lowered from +20 to +15 in v6.3 after the §5.10 ablation: at
+        # Weight lowered from +20 to +15 in v6.3 after the factor-ablation pass: at
         # +20 the floor leaked one residual FP (rayon, cargo) without earning
         # recall; at +15 the same rule-set is precision-positive and the
         # bounded instrument frame is preserved.
@@ -250,11 +250,11 @@ class RiskScorer:
             pf.frustration_evidence = metrics.frustration_evidence
 
         # Factor 9: Sentiment Analysis — no score contribution as of v6.3.
-        # The §5.10 ablation found 0/167 packages cross the ±0.3 threshold,
-        # so the VADER magnitude signal never participated in the score on
-        # the validation set. The rule-based frustration layer captures the
+        # The factor-ablation pass found that the VADER magnitude signal never
+        # participated in the score on the v6.2.1 validation baseline. The
+        # rule-based frustration layer captures the
         # detectable emotional signal; the deferred layer-3 embedding work
-        # (§6.5) is what would make a sentiment factor earn its place again.
+        # (methodology.md §6.6) is what would make a sentiment factor earn its place again.
         # Field retained on ProtectiveFactors as structurally 0 to keep
         # cached-score deserialization stable.
 

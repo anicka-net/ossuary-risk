@@ -5,8 +5,8 @@ The analyzer has two layers:
 1. **VADER general sentiment** — runs across every text we have
    (commits, issue bodies, comments). Through v6.2.1 this fed a
    ±10 protective factor; in v6.3 the scoring branch was removed
-   (the §5.10 ablation found 0/167 packages crossed the ±0.3
-   threshold on the validation set). The compound score is still
+   (the factor-ablation pass found no packages crossed the ±0.3
+   threshold on the v6.2.1 validation baseline). The compound score is still
    reported on the breakdown as a community-mood readout, but it
    no longer changes the final score.
 2. **Rule-based frustration detection** — a curated set of regex

@@ -74,18 +74,18 @@ class ProtectiveFactors:
     ``ossuary.scoring.methodology.FRUSTRATION_WEIGHT``."""
     sentiment_score: int = 0
     """Structurally always 0 as of v6.3. Retained for cached-score
-    deserialization compatibility. The §5.10 ablation found that the VADER
-    sentiment-magnitude signal never crossed the ±0.3 threshold on the
-    167-package validation set, so it contributed nothing detectable. The
+    deserialization compatibility. The factor-ablation pass found that the
+    VADER sentiment-magnitude signal never crossed the ±0.3 threshold on the
+    v6.2.1 validation baseline, so it contributed nothing detectable. The
     rule-based frustration layer captures the detectable emotional signal;
     sentiment may earn its place back when the deferred layer-3 embedding
-    work (§6.5) ships."""
+    work (methodology.md §6.6) ships."""
     maturity_score: int = 0
     """Structurally always 0. Retained only so ``maturity_evidence`` has a
     natural home on ``ProtectiveFactors``. The real maturity contribution is
     in ``RiskScorer.calculate()``: it suppresses the activity penalty and
     swaps in lifetime concentration for mature-but-quiet projects. See the
-    thesis §5.10 ablation note."""
+    v6.3 factor-ablation note."""
     takeover_risk_score: int = 0  # +20 for newcomer takeover signal
 
     # Evidence for each factor
