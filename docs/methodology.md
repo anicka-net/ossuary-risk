@@ -6,7 +6,7 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 170 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.3 methodology achieves **96.0% precision** (1 false positive: rxjs) and **75.0% in-scope recall** (F1 0.842) on n = 152 in-scope cases. The dataset was extended in April 2026 with the TeamPCP campaign (`xinference`, `litellm` as T4 EXPECTED FN; `telnyx` as a T3 near-miss FN at score 55, five points below the 60-point threshold — see §8.6). Recall moved from 77.4 % to 75.0 % through composition alone (one new in-scope incident added, no offsetting TP); precision and FP count are unchanged. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives. v6.3 itself was driven by the §6.4.1 factor ablation: the frustration weight was lowered from +20 to +15 (rayon flipped FP→TN, no TPs lost) and the sentiment scoring branch was removed (0/170 fires on the validation set); see §6.3 and §6.4.1.
+**Key Finding**: In validation testing against 170 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.3 methodology achieves **96.0% precision** (1 false positive: rxjs) and **75.0% in-scope recall** (F1 0.842) on n = 152 in-scope cases. The dataset was extended in April 2026 with the TeamPCP campaign (`xinference`, `litellm` as T4 EXPECTED FN; `telnyx` as a T3 near-miss FN at score 55, five points below the 60-point threshold — see §8.6). Recall moved from 77.4 % to 75.0 % through composition alone (one new in-scope incident added, no offsetting TP); precision and FP count are unchanged. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives. v6.3 itself was driven by a factor-ablation pass (`scripts/ablation.py`): the frustration weight was lowered from +20 to +15 (rayon flipped FP→TN, no TPs lost) and the sentiment scoring branch was removed (0/170 fires on the validation set); see §6.3 (sentiment removal) and §6.4.1 (frustration weight rationale) for the per-change discussion.
 
 **Version**: 6.3 (April 2026)
 **Validation Dataset**: 170 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
@@ -476,7 +476,7 @@ Protective factors can reduce (or increase) risk based on governance quality sig
 | **Project Maturity** | 0 (informational) | Mature project (see §4.0) | Benefit is activity-penalty suppression + lifetime concentration fallback, not a score bonus |
 
 The VADER sentiment magnitude was a `±10` factor through v6.2.1; it
-contributes 0 in v6.3 (the §6.4.1 ablation found 0/167 packages
+contributes 0 in v6.3 (the factor-ablation pass found 0/167 packages
 crossed the ±0.3 threshold on the validation set). The field is
 retained on `ProtectiveFactors` as structurally 0 for cached-score
 deserialisation; see §6.3.
@@ -588,7 +588,7 @@ deterministic layers:
 1. **General sentiment** — VADER compound score across every text
    (commits, issue bodies, comments). Through v6.2.1 this fed a
    ±10 protective factor; in v6.3 the scoring branch was removed
-   (the §6.4.1 ablation found 0/167 packages crossed the ±0.3
+   (the factor-ablation pass found 0/167 packages crossed the ±0.3
    threshold on the validation set). The signal is still surfaced
    on `RiskBreakdown.protective_factors.sentiment_evidence` as a
    community-mood readout, but it does not change the score.
@@ -657,8 +657,8 @@ same order.
 
 Through v6.2.1 the VADER compound score contributed protective-factor
 points (+10 risk for compound < −0.3, −5 risk for compound > +0.3).
-The §6.4.1 ablation found that 0 of 167 packages in the validation
-set crossed the ±0.3 threshold, so the factor never participated in
+The factor-ablation pass (`scripts/ablation.py`) found that 0 of 167 packages in the validation
+set crossed the ±0.3 threshold (run on the v6.2.1 baseline), so the factor never participated in
 a final score. v6.3 removes the scoring branch and documents
 `sentiment_score` as structurally 0 on `ProtectiveFactors`. The
 underlying VADER computation is still performed and its average is
@@ -704,7 +704,7 @@ the global bar).
 #### 6.4.1 Precision-over-recall on lifecycle text
 
 The frustration factor (+15 in v6.3, lowered from +20 in v6.2.1
-after the §6.4.1 ablation showed the +20 floor was leaking one
+after the factor-ablation pass (`scripts/ablation.py`) showed the +20 floor was leaking one
 residual FP without earning recall) is one of the heaviest single
 contributions in the protective-factors aggregation. A false-positive
 on healthy lifecycle text (orderly maintainer succession, planned
