@@ -554,6 +554,54 @@ def test_no_universal_t1_recall_claim():
         )
 
 
+# --- Section-numbering hygiene --------------------------------------------
+
+def test_methodology_section_numbers_unique():
+    """No ``### N.M`` heading may appear more than once in methodology.md.
+    The GPT review caught a duplicate ``### 8.7`` (one for Out-of-Scope
+    Incident Analysis, another for T-1 Validation) — the section-scoped
+    helpers in this file then matched the wrong section's body."""
+    section_re = re.compile(r"^###\s+(\d+\.\d+)\s+", re.MULTILINE)
+    seen: dict[str, int] = {}
+    for match in section_re.finditer(METHODOLOGY):
+        num = match.group(1)
+        seen[num] = seen.get(num, 0) + 1
+    duplicates = {n: c for n, c in seen.items() if c > 1}
+    assert not duplicates, (
+        f"methodology.md has duplicate section numbers: {duplicates}. "
+        f"Renumber so each ### N.M heading is unique."
+    )
+
+
+def test_methodology_section_cross_refs_resolve():
+    """Every ``§N.M`` and ``§N.M.K`` cross-reference in methodology.md
+    must resolve to an existing ``### N.M`` or ``#### N.M.K`` heading.
+    The GPT review caught §3.2 pointing to §8.6 for out-of-scope
+    analysis (was §8.7) and several §5.5 / §5.7.1 / §5.10 / §5.10.1
+    refs left over from a thesis-chapter draft (no §5.5 etc. exist in
+    the standalone methodology doc)."""
+    section_re = re.compile(r"^###\s+(\d+\.\d+)\s+", re.MULTILINE)
+    subsection_re = re.compile(r"^####\s+(\d+\.\d+\.\d+)\s+", re.MULTILINE)
+    headings = {m.group(1) for m in section_re.finditer(METHODOLOGY)} | {
+        m.group(1) for m in subsection_re.finditer(METHODOLOGY)
+    }
+    # Match §N.M or §N.M.K. Word-boundary guard at the end so §6.4.1 is
+    # captured as 6.4.1 and not as 6.4 with trailing junk.
+    xref_re = re.compile(r"§\s*(\d+\.\d+(?:\.\d+)?)\b")
+    bad: list[tuple[str, str]] = []
+    for m in xref_re.finditer(METHODOLOGY):
+        ref = m.group(1)
+        if ref not in headings:
+            ctx_start = max(0, m.start() - 60)
+            ctx = METHODOLOGY[ctx_start:m.end() + 20].replace("\n", " ")
+            bad.append((ref, ctx))
+    assert not bad, (
+        "methodology.md contains §N.M[.K] cross-references that don't "
+        f"resolve to any ### or #### heading:\n"
+        + "\n".join(f"  §{ref}  in: …{ctx}" for ref, ctx in bad[:5])
+    )
+
+
 # --- helpers --------------------------------------------------------------
 
 def _section_text(doc: str, heading: str) -> str:

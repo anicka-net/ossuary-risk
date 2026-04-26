@@ -6,7 +6,7 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 170 packages across 8 ecosystems using the §5.5 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.3 methodology achieves **96.0% precision** (1 false positive: rxjs) and **75.0% in-scope recall** (F1 0.842) on n = 152 in-scope cases. The dataset was extended in April 2026 with the TeamPCP campaign (`xinference`, `litellm` as T4 EXPECTED FN; `telnyx` as a T3 near-miss FN at score 55, five points below the 60-point threshold — see §5.7.1). Recall moved from 77.4 % to 75.0 % through composition alone (one new in-scope incident added, no offsetting TP); precision and FP count are unchanged. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives. v6.3 itself was driven by the §5.10.1 factor ablation: the frustration weight was lowered from +20 to +15 (rayon flipped FP→TN, no TPs lost) and the sentiment scoring branch was removed (0/170 fires on the validation set); see §6.3 and §6.4.1.
+**Key Finding**: In validation testing against 170 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.3 methodology achieves **96.0% precision** (1 false positive: rxjs) and **75.0% in-scope recall** (F1 0.842) on n = 152 in-scope cases. The dataset was extended in April 2026 with the TeamPCP campaign (`xinference`, `litellm` as T4 EXPECTED FN; `telnyx` as a T3 near-miss FN at score 55, five points below the 60-point threshold — see §8.6). Recall moved from 77.4 % to 75.0 % through composition alone (one new in-scope incident added, no offsetting TP); precision and FP count are unchanged. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives. v6.3 itself was driven by the §6.4.1 factor ablation: the frustration weight was lowered from +20 to +15 (rayon flipped FP→TN, no TPs lost) and the sentiment scoring branch was removed (0/170 fires on the validation set); see §6.3 and §6.4.1.
 
 **Version**: 6.3 (April 2026)
 **Validation Dataset**: 170 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
@@ -138,7 +138,7 @@ Ossuary contributes to this body of research by:
 | **Typosquatting** | New package, no governance to analyze | crossenv, boltdb-go/bolt | Not tested (no repo to score) |
 | **Dependency Confusion** | Build system attack, not governance | PyTorch-nightly | Not tested |
 
-These are classified as **expected false negatives** — the methodology explicitly does not attempt to detect them. The validation set includes 18 out-of-scope cases (T4+T5) to empirically confirm the detection boundary (see §8.6).
+These are classified as **expected false negatives** — the methodology explicitly does not attempt to detect them. The validation set includes 18 out-of-scope cases (T4+T5) to empirically confirm the detection boundary (see §8.7).
 
 ### 3.3 The Detection Boundary
 
@@ -476,7 +476,7 @@ Protective factors can reduce (or increase) risk based on governance quality sig
 | **Project Maturity** | 0 (informational) | Mature project (see §4.0) | Benefit is activity-penalty suppression + lifetime concentration fallback, not a score bonus |
 
 The VADER sentiment magnitude was a `±10` factor through v6.2.1; it
-contributes 0 in v6.3 (the §5.10 ablation found 0/167 packages
+contributes 0 in v6.3 (the §6.4.1 ablation found 0/167 packages
 crossed the ±0.3 threshold on the validation set). The field is
 retained on `ProtectiveFactors` as structurally 0 for cached-score
 deserialisation; see §6.3.
@@ -588,7 +588,7 @@ deterministic layers:
 1. **General sentiment** — VADER compound score across every text
    (commits, issue bodies, comments). Through v6.2.1 this fed a
    ±10 protective factor; in v6.3 the scoring branch was removed
-   (the §5.10 ablation found 0/167 packages crossed the ±0.3
+   (the §6.4.1 ablation found 0/167 packages crossed the ±0.3
    threshold on the validation set). The signal is still surfaced
    on `RiskBreakdown.protective_factors.sentiment_evidence` as a
    community-mood readout, but it does not change the score.
@@ -657,7 +657,7 @@ same order.
 
 Through v6.2.1 the VADER compound score contributed protective-factor
 points (+10 risk for compound < −0.3, −5 risk for compound > +0.3).
-The §5.10.1 ablation found that 0 of 167 packages in the validation
+The §6.4.1 ablation found that 0 of 167 packages in the validation
 set crossed the ±0.3 threshold, so the factor never participated in
 a final score. v6.3 removes the scoring branch and documents
 `sentiment_score` as structurally 0 on `ProtectiveFactors`. The
@@ -704,7 +704,7 @@ the global bar).
 #### 6.4.1 Precision-over-recall on lifecycle text
 
 The frustration factor (+15 in v6.3, lowered from +20 in v6.2.1
-after the §5.10.1 ablation showed the +20 floor was leaking one
+after the §6.4.1 ablation showed the +20 floor was leaking one
 residual FP without earning recall) is one of the heaviest single
 contributions in the protective-factors aggregation. A false-positive
 on healthy lifecycle text (orderly maintainer succession, planned
@@ -854,7 +854,7 @@ F1 Score:   0.842
 **Key results**:
 
 - **1 false positive** (rxjs) across 120 safe packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year. The governance signals are genuinely concerning; it may warrant reclassification as `governance_risk`.
-- **8 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), devise (borderline drift), es5-ext and is-promise (maintainer reputation correctly reduces score), telnyx (T3 near-miss at score 55, five points below the 60-point threshold — see §5.7.1).
+- **8 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), devise (borderline drift), es5-ext and is-promise (maintainer reputation correctly reduces score), telnyx (T3 near-miss at score 55, five points below the 60-point threshold — see §8.6).
 - **75.0% in-scope recall** reflects genuine detection capability with honest historical scoring. Recall moved from 77.4 % at n=167 (v6.2.1) to 75.0 % at n=170 (v6.3) through dataset composition alone — one new in-scope incident (telnyx) added without an offsetting TP — not a model regression.
 
 **Comparison with unscoped metrics**: Across all 50 incidents (including out-of-scope), overall recall is 50.0%. This lower number is expected — 18 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) are fundamentally undetectable from governance signals.
@@ -918,7 +918,7 @@ A key methodological contribution is the **tier-based scoped evaluation**:
 
 This is more honest than either (a) reporting only in-scope incidents (hides the limitations) or (b) counting all incidents equally (artificially depresses recall for a tool with a clear, stated scope).
 
-### 8.7 T-1 Validation (Predictive Power)
+### 8.9 T-1 Validation (Predictive Power)
 
 To validate **predictive** capability, we scored packages at a cutoff date *before* their incidents occurred:
 
@@ -1106,7 +1106,7 @@ Despite these threats, several factors support the validity of findings:
 3. **Per-Tier Transparency**: T1 86%, T2 33%, T3 86%, T_risk 83% — specific strengths and weaknesses documented
 4. **Near-Census Coverage**: Dataset covers 50 incidents and 120 controls across 8 ecosystems, including the 2025-2026 TeamPCP campaign for contemporary boundary validation
 5. **CHAOSS Bus Factor**: Contributor diversity metric catches patterns missed by top-1 concentration (e.g. trivy: 18% top-1 but bus factor 3)
-4. **T-1 Detection on the worked examples**: event-stream, colors, coa scored CRITICAL and xz-utils scored HIGH at their pre-incident cutoffs (see §8.7); the small worked-example set is illustrative, not a separate recall claim
+4. **T-1 Detection on the worked examples**: event-stream, colors, coa scored CRITICAL and xz-utils scored HIGH at their pre-incident cutoffs (see §8.9); the small worked-example set is illustrative, not a separate recall claim
 5. **Explicit Boundary Validation**: 18 out-of-scope incidents included and documented
 6. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 7. **Temporal Range**: Incidents spanning 2016–2026, including the 2025 npm phishing wave and CI/CD exploit wave
@@ -1252,7 +1252,7 @@ Critically, the 5 incidents where Scorecard ≥ 5.0 (indicating good security pr
 | codecov/codecov-action | 0 | 7.0 | account_compromise |
 | nrwl/nx | 0 | 6.4 | account_compromise |
 
-Of these 5, Ossuary flagged 2 (xz-utils and ua-parser-js) — precisely the governance-detectable ones. The remaining 3 (tj-actions, codecov, nx) are CI/CD or credential compromises that neither governance nor security-practice scoring can predict, confirming the detection boundary analysis from §8.6.
+Of these 5, Ossuary flagged 2 (xz-utils and ua-parser-js) — precisely the governance-detectable ones. The remaining 3 (tj-actions, codecov, nx) are CI/CD or credential compromises that neither governance nor security-practice scoring can predict, confirming the detection boundary analysis from §8.7.
 
 #### Key Findings
 

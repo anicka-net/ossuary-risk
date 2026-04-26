@@ -69,14 +69,16 @@ Tier classification follows the validation script's `attack_type` field
 (`governance_failure` → T1; `maintainer_sabotage` → T2;
 `account_compromise` → T3 if governance was also weak, else T4 / T5
 based on whether the attack vector was credential or CI/CD;
-`governance_risk` → T_risk). The v6.3 dataset extension added the
-TeamPCP campaign to validate boundaries against contemporary
-credential-theft and CI-tag-manipulation attacks: `xinference`,
-`litellm`, `axios` joined T4; `aquasecurity/trivy-action` joined T5;
-`telnyx` joined T3 as a near-miss FN at score 55 (five points below
-the 60-point threshold). Recall moved from 77.4% to 75.0% through composition alone
-— one new in-scope incident added without an offsetting TP — not a
-model regression.
+`governance_risk` → T_risk). The v6.3 dataset extension (2026-04-23,
+n=167 → n=170) added exactly three TeamPCP-campaign packages —
+`xinference` and `litellm` joined T4; `telnyx` joined T3 as a
+near-miss FN at score 55 (five points below the 60-point threshold).
+Other named TeamPCP victims (`aquasecurity/trivy-action`, `axios`,
+`eslint-config-prettier`) were folded into the dataset in earlier
+v6.x revisions and are part of the v6.2.1 baseline at n=167; they
+are not in the v6.2.1 → v6.3 delta. Recall moved from 77.4 % to
+75.0 % through composition alone — one new in-scope incident added
+without an offsetting TP — not a model regression.
 
 ### Key finding: reputation-protected single-maintainer projects
 
