@@ -960,10 +960,11 @@ def calculate_score_for_date(
 
     # Run sentiment analysis on commits up to cutoff. Restrict
     # frustration detection in issues to maintainer-authored text so
-    # noisy user comments don't spuriously fire the +20 risk factor;
-    # commits already imply maintainer authorship. See
-    # ``ossuary.sentiment.analyzer`` module docstring for the v6.2
-    # author-attribution design.
+    # noisy user comments don't spuriously fire the frustration risk
+    # factor (currently +FRUSTRATION_WEIGHT = +15 in v6.3, lowered
+    # from +20 in v6.2.1); commits already imply maintainer
+    # authorship. See ``ossuary.sentiment.analyzer`` module docstring
+    # for the v6.2 author-attribution design.
     sentiment_analyzer = SentimentAnalyzer()
     commit_sentiment = sentiment_analyzer.analyze_commits([c.message for c in git_metrics.commits])
     maintainer_logins = (

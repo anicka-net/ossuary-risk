@@ -132,8 +132,8 @@ Ossuary contributes to this body of research by:
 
 | Attack Type | Why Undetectable | Examples | Validation Cases |
 |-------------|------------------|----------|-----------------|
-| **Account Compromise** | Active project, healthy governance metrics | ua-parser-js, chalk (2025), solana-web3.js, num2words | 8 cases (T4), all expected FN |
-| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, ultralytics, Nx | 6 cases (T5), all expected FN |
+| **Account Compromise** | Active project, healthy governance metrics | ua-parser-js, chalk (2025), solana-web3.js, num2words, axios, litellm, xinference | 11 cases (T4), 1 bonus detection (ua-parser-js at 90), 10 expected FN |
+| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, ultralytics, Nx, aquasecurity/trivy-action | 7 cases (T5), all expected FN |
 | **Protestware by reputable maintainer** | Reputation correctly reduces risk score | es5-ext, is-promise | Detected by scope but missed by threshold (T2 FN) |
 | **Typosquatting** | New package, no governance to analyze | crossenv, boltdb-go/bolt | Not tested (no repo to score) |
 | **Dependency Confusion** | Build system attack, not governance | PyTorch-nightly | Not tested |
@@ -171,16 +171,16 @@ The waves were causally linked: credentials stolen in the s1ngularity attack (Au
 | Package | Ossuary | Scorecard | Classification | Why |
 |---------|---------|-----------|----------------|-----|
 | **`is`** | **100 CRITICAL** | 3.4 | **True Positive** | Single inactive maintainer (100% concentration, 0 commits/year), no protective factors |
-| **eslint-config-prettier** | 35 LOW | 4.5 | Expected FN | Prettier org, active development, 32 commits/year, multiple contributors |
-| **chalk** | 20 LOW | 3.8 | Expected FN | Sindre Sorhus (Tier 1 reputation), established project, strong protective factors (−60) |
+| **eslint-config-prettier** | 55 MODERATE | 4.5 | Expected FN | Prettier org, active development, 32 commits/year, multiple contributors — sits just below the 60 threshold |
+| **chalk** | 35 LOW | 3.8 | Expected FN | Sindre Sorhus (Tier 1 reputation), established project, strong protective factors |
 
 All three were compromised by the same attack class (credential phishing), yet Ossuary correctly scored them on opposite sides of the risk threshold. This is not a bug — it reflects the fundamental distinction between **governance vulnerability** and **attack occurrence**:
 
 **`is`** — The `is` package had a single maintainer (enricomarino) who had not committed in years, with 100% contributor concentration and no organizational backing. Ossuary scored it 100 CRITICAL. When the attacker phished this inactive maintainer's npm credentials and then social-engineered the current team into re-granting publish access, the governance weakness was the enabling condition: a dormant account with live publish rights on a package with no review process for ownership changes.
 
-**chalk** — chalk is maintained by Sindre Sorhus, one of npm's most prolific contributors (Tier 1 reputation in Ossuary's system), with an active contributor base and organizational backing. Ossuary scored it 20 LOW. The attacker phished a co-maintainer (Qix-) via a fake `npmjs.help` domain and published malicious versions that intercepted cryptocurrency wallet transactions. The attack succeeded not because of governance weakness but because npm's authentication infrastructure allowed phishable TOTP-based MFA and long-lived publish tokens.
+**chalk** — chalk is maintained by Sindre Sorhus, one of npm's most prolific contributors (Tier 1 reputation in Ossuary's system), with an active contributor base and organizational backing. Ossuary scored it 35 LOW. The attacker phished a co-maintainer (Qix-) via a fake `npmjs.help` domain and published malicious versions that intercepted cryptocurrency wallet transactions. The attack succeeded not because of governance weakness but because npm's authentication infrastructure allowed phishable TOTP-based MFA and long-lived publish tokens.
 
-**eslint-config-prettier** — Part of the Prettier organization with active development (32 commits/year). Ossuary scored it 35 LOW. Maintainer JounQin was phished via the typosquatted `npnjs.com` domain, and malicious versions delivered a Windows RAT via disguised postinstall scripts. Again, the attack vector was credential theft against a well-governed project.
+**eslint-config-prettier** — Part of the Prettier organization with active development (32 commits/year). Ossuary scored it 55 MODERATE — just below the 60 threshold. Maintainer JounQin was phished via the typosquatted `npnjs.com` domain, and malicious versions delivered a Windows RAT via disguised postinstall scripts. Again, the attack vector was credential theft against a well-governed project.
 
 #### The Complementarity Argument
 
@@ -797,7 +797,7 @@ The validation dataset (v6.3, n=170) includes:
 2. **Governance Risk** (12 packages): Packages with elevated governance risk signals but no incident (yet) — abandoned, single-maintainer, or concentrated projects.
 3. **Control Group** (120 packages): Popular packages with healthy governance across all 8 ecosystems.
 
-Total: 170 packages across all 8 supported ecosystems. The v6.3 dataset extension (April 2026) added the TeamPCP campaign — `xinference`, `litellm`, `axios` as T4 EXPECTED FN; `eslint-config-prettier`, `aquasecurity/trivy-action` as additional T4/T5 cases; `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft and CI-tag-manipulation attacks.
+Total: 170 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. (Other named TeamPCP victims like `aquasecurity/trivy-action`, `axios`, and `eslint-config-prettier` were folded into the dataset in earlier v6.x revisions and are reflected in the v6.2.1 baseline at n=167; they are not part of the v6.2.1 → v6.3 delta.)
 
 **Dataset construction principles**:
 - Incidents drawn from documented supply chain attacks 2016–2026, cross-referenced against multiple sources (Socket.dev, Snyk, CISA advisories, incident write-ups)

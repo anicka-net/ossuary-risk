@@ -461,6 +461,78 @@ def test_out_of_scope_count_consistent_across_docs():
     )
 
 
+# --- §3.2 per-tier counts must match the artifact -----------------------
+
+def test_detection_scope_per_tier_counts_match_artifact():
+    """methodology.md §3.2 'What Ossuary Cannot Detect' enumerates T4 and
+    T5 case counts. Both must equal the per-tier counts in the artifact.
+    The previous review caught T4 cited as 8 (still v6.1 era) and T5 as
+    6, when the v6.3 dataset has 11 and 7. This test pins the specific
+    table cells."""
+    data = _load_validation_artifact()
+    per_tier = data.get("scopes", {}).get("per_tier_incidents")
+    if not per_tier:
+        pytest.skip("legacy artifact (no per-tier block); skip.")
+
+    section = _section_text(METHODOLOGY, "### 3.2 What Ossuary Cannot Detect")
+    for tier, label in (("T4", "Account Compromise"), ("T5", "CI/CD")):
+        info = per_tier.get(tier)
+        if not info:
+            pytest.fail(f"artifact has no {tier} bucket; dataset shifted?")
+        n = info["detected"] + info["missed"]
+        # The §3.2 row for this tier must contain "N cases (TTier)".
+        # We accept either "N cases (T4)" or "N cases (T5)" form so
+        # rewording around "all expected FN" / "1 bonus detection" stays
+        # editorial.
+        needle = f"{n} cases ({tier})"
+        assert needle in section, (
+            f"§3.2 row for {label} must mention '{needle}' "
+            f"(per the artifact). Found stale or missing count."
+        )
+
+
+# --- §3.3 worked-example scores must match the artifact -----------------
+
+def test_detection_boundary_table_scores_match_artifact():
+    """methodology.md §3.4 (the 2025 npm phishing case study) cites
+    scores for specific packages in a table ('chalk | 35 LOW',
+    'eslint-config-prettier | 55 MODERATE'). Each row that names a
+    package present in the validation artifact must agree with that
+    package's actual score. This is the section that drifted silently
+    after v6.3 without showing up in headline-metric tests."""
+    data = _load_validation_artifact()
+    by_name = {r["case"]["name"]: r for r in data.get("results", [])}
+    if not by_name:
+        pytest.skip("legacy artifact (no 'results'); skip.")
+
+    section = _section_text(
+        METHODOLOGY, "### 3.4 Case Study: The 2025 npm Phishing Wave"
+    )
+    # Table row form: "| **`name`** | NN LABEL | ...". The first column
+    # may use one or both of bold (**...**) and inline code (`...`).
+    row_re = re.compile(
+        r"\|\s*\*{0,2}`?([A-Za-z][\w./-]*)`?\*{0,2}\s*\|\s*"
+        r"\*{0,2}(\d+)\s+\w+",
+        re.MULTILINE,
+    )
+    matched_any = False
+    for m in row_re.finditer(section):
+        name, claimed = m.group(1), int(m.group(2))
+        if name not in by_name:
+            continue
+        matched_any = True
+        actual = by_name[name].get("score")
+        assert actual == claimed, (
+            f"§3.3 table claims {name} scored {claimed}, but the "
+            f"artifact reports {actual}. Update the doc cell."
+        )
+    assert matched_any, (
+        "§3.3 table parsed no rows matching artifact packages — either "
+        "the table format changed or no validation-set packages are "
+        "cited there. Update this guardrail's regex if the table moved."
+    )
+
+
 # --- T-1 claim guardrail -------------------------------------------------
 
 def test_no_universal_t1_recall_claim():

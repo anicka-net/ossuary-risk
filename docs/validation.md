@@ -327,9 +327,10 @@ the §5.10 ablation lowered the frustration weight from +20 to +15
 branch from the score formula (0/167 fires on the validation set);
 neither change moved any in-scope incident across the threshold.
 **Dataset-side**: the TeamPCP campaign extension (n=167 → n=170) added
-one new in-scope incident (telnyx, T3 near-miss FN) and four new
-out-of-scope T4/T5 incidents. The Scope B recall drop (77.4 % → 75.0 %)
-is composition alone — telnyx without an offsetting TP — not a model
+exactly three packages — one new in-scope incident (`telnyx`, T3
+near-miss FN at 55) and two out-of-scope T4 incidents (`litellm`,
+`xinference`). The Scope B recall drop (77.4 % → 75.0 %) is
+composition alone — telnyx without an offsetting TP — not a model
 regression; precision is unchanged.
 
 The v3.1 recall improvement (59%→77%) reflects the scoped framework, not a model improvement. The model correctly stopped penalizing for undetectable attack types. The modest recall (75.0% vs earlier 80.6%) is the cost of honest historical scoring — reconstructing verifiable reputation at cutoff dates rather than stripping it entirely. Historical mode is also intentionally conservative for unstable GitHub-only factors: present-day stars are not backfilled into the past, and issue/comment sentiment is disabled for T-1 scoring because the GitHub issue snapshot is current and incomplete.
