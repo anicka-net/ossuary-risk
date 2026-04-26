@@ -1865,8 +1865,8 @@ VALIDATION_CASES = [
     # telnyx (pypi) — TeamPCP campaign, 2026-03-27
     # Maintainer-account compromise; payload steganographically hidden in WAV file.
     # Borderline T3: governance weakness present (bf=1, 97% conc, 78% attrition)
-    # but org backing (-15) softens score from ~70 to 55, two points below the
-    # threshold of 60. Near-miss FN that illustrates the vendor-backed-solo edge.
+    # but org backing (-15) softens score from ~70 to 55, five points below the
+    # 60-point threshold. Near-miss FN that illustrates the vendor-backed-solo edge.
     ValidationCase(
         name="telnyx",
         ecosystem="pypi",

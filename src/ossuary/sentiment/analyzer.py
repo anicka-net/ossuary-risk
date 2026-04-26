@@ -3,12 +3,18 @@
 The analyzer has two layers:
 
 1. **VADER general sentiment** — runs across every text we have
-   (commits, issue bodies, comments) and feeds the ±10 sentiment
-   factor as a community-mood signal.
+   (commits, issue bodies, comments). Through v6.2.1 this fed a
+   ±10 protective factor; in v6.3 the scoring branch was removed
+   (the §5.10 ablation found 0/167 packages crossed the ±0.3
+   threshold on the validation set). The compound score is still
+   reported on the breakdown as a community-mood readout, but it
+   no longer changes the final score.
 2. **Rule-based frustration detection** — a curated set of regex
    templates plus literal phrases that target burnout / sabotage
-   precursor language. Frustration evidence drives the +20 risk
-   factor in the engine.
+   precursor language. Frustration evidence drives the +15 risk
+   factor in the engine (lowered from +20 in v6.3; see methodology
+   §6.4.1). The exact weight lives in
+   ``ossuary.scoring.methodology.FRUSTRATION_WEIGHT``.
 
 Two design choices that matter for thesis defensibility:
 

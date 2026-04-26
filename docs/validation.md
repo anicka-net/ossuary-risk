@@ -73,8 +73,8 @@ based on whether the attack vector was credential or CI/CD;
 TeamPCP campaign to validate boundaries against contemporary
 credential-theft and CI-tag-manipulation attacks: `xinference`,
 `litellm`, `axios` joined T4; `aquasecurity/trivy-action` joined T5;
-`telnyx` joined T3 as a near-miss FN at score 55 (two points below
-threshold). Recall moved from 77.4% to 75.0% through composition alone
+`telnyx` joined T3 as a near-miss FN at score 55 (five points below
+the 60-point threshold). Recall moved from 77.4% to 75.0% through composition alone
 — one new in-scope incident added without an offsetting TP — not a
 model regression.
 
@@ -164,7 +164,7 @@ All 8 in-scope false negatives are explainable:
 | core-js | 40 | T_risk | High activity gives discount despite 92% concentration |
 | es5-ext | 40 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
 | is-promise | 35 | T2 | Reputation correctly reconstructed at 2020 cutoff |
-| telnyx | 55 | T3 | T3 near-miss at 55, two points below threshold; org backing (-15) softens an otherwise risky bus-factor-1 / 97% concentration profile |
+| telnyx | 55 | T3 | T3 near-miss at 55, five points below the 60-point threshold; org backing (-15) softens an otherwise risky bus-factor-1 / 97% concentration profile |
 
 **faker**: The original Marak/faker.js repo was deleted. We evaluate the community fork (faker-js/faker), which has healthy governance — score 0 is correct for the current project state.
 
@@ -180,7 +180,7 @@ All 8 in-scope false negatives are explainable:
 
 **is-promise**: ForbesLindesay's portfolio and tenure are correctly reconstructed at the 2020 cutoff date, reducing protective factors. Score 35 (was 70 when historical reputation was incorrectly stripped). The accurate historical scoring gives the honest result — this maintainer was reputable in 2020.
 
-**telnyx**: TeamPCP campaign — maintainer-account compromise with payload steganographically hidden in a WAV file (matched the SDK's voice-AI use case). Bus factor 1, 97% concentration, 78% inactive-contributor ratio — governance weakness IS present, but org backing (-15) drops the score from 70 to 55, two points below the 60-point threshold. Illustrates the boundary: vendor-backed solo projects sit at the edge of what concentration+activity scoring can flag without org-aware adjustments.
+**telnyx**: TeamPCP campaign — maintainer-account compromise with payload steganographically hidden in a WAV file (matched the SDK's voice-AI use case). Bus factor 1, 97% concentration, 78% inactive-contributor ratio — governance weakness IS present, but org backing (-15) drops the score from 70 to 55, five points below the 60-point threshold. Illustrates the boundary: vendor-backed solo projects sit at the edge of what concentration+activity scoring can flag without org-aware adjustments.
 
 ---
 

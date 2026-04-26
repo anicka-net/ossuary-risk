@@ -340,6 +340,148 @@ def test_validation_scope_b_metrics_match_public_docs():
             )
 
 
+# --- Frustration weight: negative check on active-doc sections ----------
+
+def test_frustration_active_row_uses_current_weight():
+    """The §4.3 Risk Increasers table is what defines the *active* scoring
+    contribution for a factor. The Frustration row in that table must
+    cite the current ``FRUSTRATION_WEIGHT``; it must not be left at the
+    legacy +20. Historical values may appear in narrative prose
+    (e.g. "lowered from +20 in v6.3") but not in the active row.
+    """
+    section = _section_text(
+        METHODOLOGY, "#### Risk Increasers (Positive Points)"
+    )
+    frustration_rows = [
+        line for line in section.splitlines()
+        if line.lstrip().startswith("|") and "Frustration" in line
+    ]
+    assert frustration_rows, (
+        "no Frustration row found in §4.3 Risk Increasers — table moved? "
+        "If yes, update this guardrail."
+    )
+    expected = f"+{FRUSTRATION_WEIGHT}"
+    for row in frustration_rows:
+        assert expected in row, (
+            f"§4.3 Risk Increasers Frustration row must cite "
+            f"{expected}: {row!r}"
+        )
+
+
+def test_sentiment_not_listed_as_active_factor_when_disabled():
+    """When ``SENTIMENT_IN_SCORE`` is False, §4.3 must not list a
+    'Positive Sentiment' / 'Negative Sentiment' row as an active scoring
+    contribution. Past wording cited -5 / +10; the rows must be removed
+    or moved into v6.3-history prose."""
+    if SENTIMENT_IN_SCORE:
+        return
+    section = _section_text(METHODOLOGY, "### 4.3 Protective Factors")
+    forbidden_phrases = ("Positive Sentiment", "Negative Sentiment")
+    for line in section.splitlines():
+        if not line.lstrip().startswith("|"):
+            continue  # narrative prose / table separator, not an active row
+        if line.lstrip().startswith("|---"):
+            continue  # markdown table divider
+        for phrase in forbidden_phrases:
+            assert phrase not in line, (
+                f"§4.3 protective factors table row still mentions "
+                f"{phrase!r}: {line!r}. SENTIMENT_IN_SCORE is False; "
+                f"remove the row or move it to v6.3-history prose."
+            )
+
+
+def test_analyzer_docstring_matches_active_methodology():
+    """``sentiment/analyzer.py`` module docstring must not claim the
+    VADER score 'feeds the ±10 sentiment factor' once that branch is
+    disabled. The GPT review caught this docstring still asserting the
+    old contract after v6.3 removed the scoring branch."""
+    analyzer_src = (
+        REPO_ROOT / "src" / "ossuary" / "sentiment" / "analyzer.py"
+    ).read_text(encoding="utf-8")
+    if SENTIMENT_IN_SCORE:
+        return
+    forbidden = "feeds the ±10 sentiment"
+    assert forbidden not in analyzer_src, (
+        f"sentiment/analyzer.py docstring still claims {forbidden!r}, "
+        f"but SENTIMENT_IN_SCORE is False. Update the module docstring."
+    )
+    # Frustration weight in the docstring must also stay aligned.
+    legacy_frustration = "+20 risk\n   factor in the engine"
+    assert legacy_frustration not in analyzer_src, (
+        "sentiment/analyzer.py docstring still cites '+20 risk factor in "
+        f"the engine'; the active weight is +{FRUSTRATION_WEIGHT}."
+    )
+
+
+# --- Out-of-scope count: negative + positive presence in active docs ----
+
+def test_out_of_scope_count_consistent_across_docs():
+    """The artifact's out-of-scope count (T4 + T5) must appear with the
+    matching wording in methodology.md and validation.md, and the legacy
+    "14 out-of-scope" wording must not be present anywhere in the active
+    docs."""
+    data = _load_validation_artifact()
+    per_tier = data.get("scopes", {}).get("per_tier_incidents")
+    if not per_tier:
+        pytest.skip("legacy artifact (no per-tier block); skip.")
+
+    oos_total = sum(
+        info["detected"] + info["missed"]
+        for info in per_tier.values()
+        if not info.get("in_scope")
+    )
+
+    legacy = "14 out-of-scope"
+    expected = f"{oos_total} out-of-scope"
+
+    for doc_name, doc in (
+        ("docs/methodology.md", METHODOLOGY),
+        ("docs/validation.md", VALIDATION_DOC),
+        ("README.md", README),
+    ):
+        assert legacy not in doc, (
+            f"{doc_name} still contains {legacy!r}; the artifact "
+            f"reports {oos_total} out-of-scope incidents (T4+T5). "
+            f"Update the active-doc count."
+        )
+
+    # Positive presence: at least one doc must cite the actual count
+    # (methodology.md §3 + §10 are the obvious places). Don't enforce
+    # in every doc — the headline n=170 already does that work — but
+    # do require the count appear *somewhere* so authors can't silently
+    # drop it.
+    docs_with_count = sum(
+        expected in doc
+        for doc in (METHODOLOGY, VALIDATION_DOC, README)
+    )
+    assert docs_with_count >= 1, (
+        f"no public doc cites '{expected}'. Add it to methodology.md "
+        f"§3 (Detection Scope) or §10 (Threats to Validity) so the "
+        f"detection-boundary claim is verifiable."
+    )
+
+
+# --- T-1 claim guardrail -------------------------------------------------
+
+def test_no_universal_t1_recall_claim():
+    """The §8.7 worked examples are 3-4 packages with explicit cutoff
+    runs; they cannot ground a "100% T-1 detection rate" claim across
+    all governance-detectable incidents. The headline recall is the §8.4
+    Scope B figure. The forbidden phrasing was caught by the GPT review
+    after the v6.3 reconciliation."""
+    forbidden = (
+        "100% detection rate for governance-detectable incidents at T-1",
+        "All governance-detectable incidents scored CRITICAL",
+    )
+    for phrase in forbidden:
+        assert phrase not in METHODOLOGY, (
+            f"methodology.md still contains the unsupported T-1 claim "
+            f"{phrase!r}. The §8.7 worked-example set is 3-4 packages "
+            f"and cannot ground a universal recall claim; the headline "
+            f"recall is §8.4 Scope B."
+        )
+
+
 # --- helpers --------------------------------------------------------------
 
 def _section_text(doc: str, heading: str) -> str:
