@@ -63,9 +63,14 @@ with col2:
             "Project maturity (indirect)*",
             "Takeover risk (newcomer dominance)",
         ],
-        "Points": ["-25", "-10", "-15", "-15", "-20", "-10", "-10", "-10", "-10", "+20", "0", "+20"],
+        "Points": ["-25", "-10", "-15", "-15", "-20", "-10", "-10", "-10", "-10", "+15", "0", "+20"],
     }, use_container_width=True, hide_index=True)
-    st.caption("*Maturity suppresses activity penalty and uses lifetime concentration as fallback for base risk")
+    st.caption(
+        "*Maturity suppresses activity penalty and uses lifetime concentration "
+        "as fallback for base risk. Frustration weight lowered from +20 to +15 "
+        "in v6.3; sentiment removed from the score formula in v6.3 (see "
+        "methodology §6.3)."
+    )
 
 st.divider()
 
@@ -120,23 +125,62 @@ if results_files:
         pass
 
 if validation_data:
-    st.caption(f"Source: {results_files[-1]} ({validation_data.get('timestamp', '')[:10]})")
+    st.caption(
+        f"Source: {results_files[-1]} "
+        f"({validation_data.get('timestamp', '')[:10]}) · "
+        f"methodology v{validation_data.get('methodology', {}).get('version', '?')}"
+    )
 
-    # Key metrics
+    # Pull the headline (Scope B) metrics from the unified artifact, with
+    # backward-compatible fallback to the legacy top-level keys for older
+    # validation_results.json files that pre-date the v6.3 reformat.
+    scopes = validation_data.get("scopes", {})
+    scope_b = scopes.get("scope_b", {})
+    unscoped = scopes.get("unscoped", {})
+    dataset = validation_data.get("dataset", {})
+
+    if scope_b:
+        total_cases = dataset.get("total_cases", 0)
+        accuracy = scope_b.get("accuracy", 0)
+        precision = scope_b.get("precision", 0)
+        recall = scope_b.get("recall", 0)
+        f1 = scope_b.get("f1", 0)
+        cm = scope_b.get("confusion_matrix", {})
+        scope_label = "Scope B (in-scope)"
+    else:
+        # Legacy artifact shape
+        total_cases = validation_data.get("total", 0)
+        accuracy = validation_data.get("accuracy", 0)
+        precision = validation_data.get("precision", 0)
+        recall = validation_data.get("recall", 0)
+        f1 = validation_data.get("f1_score", 0)
+        cm = validation_data.get("confusion_matrix", {})
+        scope_label = "All cases (legacy artifact)"
+
+    st.caption(f"Headline metrics: {scope_label}")
+
     col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Packages", validation_data.get("total", 0))
-    col2.metric("Accuracy", f"{validation_data.get('accuracy', 0)*100:.1f}%")
-    col3.metric("Precision", f"{validation_data.get('precision', 0)*100:.0f}%")
-    col4.metric("Recall", f"{validation_data.get('recall', 0)*100:.0f}%")
-    col5.metric("F1", f"{validation_data.get('f1_score', 0):.2f}")
+    col1.metric("Packages", total_cases)
+    col2.metric("Accuracy", f"{accuracy * 100:.1f}%")
+    col3.metric("Precision", f"{precision * 100:.0f}%")
+    col4.metric("Recall", f"{recall * 100:.0f}%")
+    col5.metric("F1", f"{f1:.3f}")
+
+    if unscoped:
+        st.caption(
+            "Unscoped (all incidents, including out-of-scope T4/T5): "
+            f"prec={unscoped.get('precision', 0) * 100:.1f}% "
+            f"rec={unscoped.get('recall', 0) * 100:.1f}% "
+            f"F1={unscoped.get('f1', 0):.3f} · "
+            "see docs/validation.md for what Scope B excludes and why."
+        )
 
     st.markdown("")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        # Confusion matrix
-        cm = validation_data.get("confusion_matrix", {})
+        # Confusion matrix (Scope B if present, else whatever the artifact has)
         tn, fp = cm.get("TN", 0), cm.get("FP", 0)
         fn, tp = cm.get("FN", 0), cm.get("TP", 0)
 
@@ -248,7 +292,7 @@ st.divider()
 st.markdown("#### Risk levels")
 
 st.dataframe({
-    "Score": ["0–20", "21–40", "41–60", "61–80", "81–100"],
+    "Score": ["0–19", "20–39", "40–59", "60–79", "80–100"],
     "Level": ["Very Low", "Low", "Moderate", "High", "Critical"],
     "Action": [
         "Routine monitoring",
@@ -258,6 +302,10 @@ st.dataframe({
         "Immediate action required",
     ],
 }, use_container_width=True, hide_index=True)
+st.caption(
+    "Boundaries match RiskLevel.from_score: score ≥ 80 CRITICAL, ≥ 60 HIGH, "
+    "≥ 40 MODERATE, ≥ 20 LOW, < 20 VERY_LOW."
+)
 
 st.divider()
 col1, col2, col3, col4 = st.columns(4)

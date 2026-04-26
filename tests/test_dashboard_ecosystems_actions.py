@@ -27,10 +27,11 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from streamlit.testing.v1 import AppTest
 
 from ossuary._compat import utcnow_naive
 from ossuary.db.models import Base, Package, Score
+
+AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
 
 PAGE_PATH = "src/ossuary/dashboard/pages/1_Ecosystems.py"

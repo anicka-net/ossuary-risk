@@ -2,22 +2,33 @@
 
 from ossuary.scoring.engine import PackageMetrics, RiskScorer
 from ossuary.scoring.factors import ProtectiveFactors, RiskBreakdown, RiskLevel
+from ossuary.scoring.methodology import (
+    FRUSTRATION_WEIGHT,
+    IN_SCOPE_TIERS,
+    METHODOLOGY_VERSION,
+    OUT_OF_SCOPE_TIERS,
+    PREDICTION_THRESHOLD,
+    RISK_THRESHOLDS,
+    SENTIMENT_IN_SCORE,
+    label_for_score,
+)
 from ossuary.scoring.reputation import ReputationBreakdown, ReputationScorer, ReputationTier
 
-# Methodology version used to identify the scoring rules behind a result.
-# Mirrors the Version field in docs/methodology.md so that audit-ready
-# outputs (Annex VII export, enriched SBOMs) can declare which methodology
-# revision produced the score.
-METHODOLOGY_VERSION = "6.3"
-
 __all__ = [
+    "FRUSTRATION_WEIGHT",
+    "IN_SCOPE_TIERS",
     "METHODOLOGY_VERSION",
+    "OUT_OF_SCOPE_TIERS",
+    "PREDICTION_THRESHOLD",
     "PackageMetrics",
-    "RiskScorer",
     "ProtectiveFactors",
+    "RISK_THRESHOLDS",
     "RiskBreakdown",
     "RiskLevel",
+    "RiskScorer",
     "ReputationBreakdown",
     "ReputationScorer",
     "ReputationTier",
+    "SENTIMENT_IN_SCORE",
+    "label_for_score",
 ]

@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+from ossuary.scoring.methodology import RISK_THRESHOLDS
+
 
 class RiskLevel(str, Enum):
     """Risk level classification."""
@@ -21,17 +23,13 @@ class RiskLevel(str, Enum):
 
     @classmethod
     def from_score(cls, score: int) -> "RiskLevel":
-        """Get risk level from numeric score."""
-        if score >= 80:
-            return cls.CRITICAL
-        elif score >= 60:
-            return cls.HIGH
-        elif score >= 40:
-            return cls.MODERATE
-        elif score >= 20:
-            return cls.LOW
-        else:
-            return cls.VERY_LOW
+        """Get risk level from numeric score, derived from
+        ``methodology.RISK_THRESHOLDS`` so the bucket boundaries have a
+        single source of truth."""
+        for threshold, label in RISK_THRESHOLDS:
+            if score >= threshold:
+                return cls(label)
+        return cls(RISK_THRESHOLDS[-1][1])
 
     @property
     def semaphore(self) -> str:
@@ -70,7 +68,10 @@ class ProtectiveFactors:
     distributed_score: int = 0  # -10 for <40% concentration
     community_score: int = 0  # -10 for >20 contributors
     cii_score: int = 0  # -10 for CII badge
-    frustration_score: int = 0  # +20 for detected frustration
+    frustration_score: int = 0
+    """+15 when economic / maintainer frustration is detected (v6.3,
+    lowered from +20). The constant lives in
+    ``ossuary.scoring.methodology.FRUSTRATION_WEIGHT``."""
     sentiment_score: int = 0
     """Structurally always 0 as of v6.3. Retained for cached-score
     deserialization compatibility. The §5.10 ablation found that the VADER

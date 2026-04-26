@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from ossuary.scoring.factors import ProtectiveFactors, RiskBreakdown, RiskLevel
+from ossuary.scoring.methodology import FRUSTRATION_WEIGHT
 from ossuary.scoring.reputation import ReputationBreakdown, ReputationScorer
 
 
@@ -239,13 +240,13 @@ class RiskScorer:
         if metrics.cii_badge_level in ("gold", "silver", "passing"):
             pf.cii_score = -10
 
-        # Factor 8: Economic Frustration (+15)
-        # Weight lowered from +20 in v6.3 after the §5.10 ablation: at +20 the
-        # floor leaked one residual FP (rayon, cargo) without earning recall;
-        # at +15 the same rule-set is precision-positive and the bounded
-        # instrument frame is preserved.
+        # Factor 8: Economic Frustration (+FRUSTRATION_WEIGHT)
+        # Weight lowered from +20 to +15 in v6.3 after the §5.10 ablation: at
+        # +20 the floor leaked one residual FP (rayon, cargo) without earning
+        # recall; at +15 the same rule-set is precision-positive and the
+        # bounded instrument frame is preserved.
         if metrics.frustration_detected:
-            pf.frustration_score = 15
+            pf.frustration_score = FRUSTRATION_WEIGHT
             pf.frustration_evidence = metrics.frustration_evidence
 
         # Factor 9: Sentiment Analysis — no score contribution as of v6.3.

@@ -42,6 +42,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+from ossuary.scoring import (
+    FRUSTRATION_WEIGHT,
+    IN_SCOPE_TIERS,
+    METHODOLOGY_VERSION,
+    OUT_OF_SCOPE_TIERS,
+    PREDICTION_THRESHOLD,
+    RISK_THRESHOLDS,
+    SENTIMENT_IN_SCORE,
+)
 from ossuary.services.scorer import cached_collect, calculate_score_for_date
 
 
@@ -1907,7 +1916,10 @@ VALIDATION_CASES = [
 # =============================================================================
 
 # Risk threshold for classifying as "risky"
-RISK_THRESHOLD = 60  # HIGH or CRITICAL
+# Sourced from ossuary.scoring.methodology.PREDICTION_THRESHOLD so the
+# validation classifier and the dashboard's HIGH risk bucket agree by
+# construction.
+RISK_THRESHOLD = PREDICTION_THRESHOLD
 
 
 async def validate_package(case: ValidationCase) -> ValidationResult:
@@ -1976,6 +1988,166 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
         result.error = str(e)
 
     return result
+
+
+def _metric_block(tp: int, fp: int, tn: int, fn: int) -> dict:
+    """Confusion-matrix counts → precision / recall / F1 / accuracy block."""
+    total = tp + fp + tn + fn
+    accuracy = (tp + tn) / total if total else 0.0
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+    return {
+        "total_evaluated": total,
+        "confusion_matrix": {"TP": tp, "FP": fp, "TN": tn, "FN": fn},
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+    }
+
+
+def compute_scope_metrics(
+    results: list[ValidationResult],
+    in_scope_tiers: frozenset[str] = IN_SCOPE_TIERS,
+    threshold: int = PREDICTION_THRESHOLD,
+) -> dict:
+    """Compute scoped vs unscoped metrics + per-tier breakdown.
+
+    A case's tier comes from ``case.tier`` (set in the dataset definitions
+    at the top of this file), so this function does not need a hardcoded
+    name list. Controls (``expected_outcome == "safe"``) are tier-less and
+    always count toward both scoped and unscoped FP/TN. Out-of-scope
+    incidents (T4 / T5) count toward unscoped recall but are excluded
+    from the scoped (Scope B) recall denominator.
+    """
+
+    valid = [r for r in results if r.error is None]
+
+    unscoped = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    scope_b = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    per_tier: dict[str, dict] = {}
+
+    for r in valid:
+        score = r.score or 0
+        predicted_risky = score >= threshold
+        is_incident = r.case.expected_outcome == "incident"
+        tier = r.case.tier  # None for controls
+
+        if not is_incident:
+            # Controls: count in both unscoped and scope_b
+            if predicted_risky:
+                unscoped["fp"] += 1
+                scope_b["fp"] += 1
+            else:
+                unscoped["tn"] += 1
+                scope_b["tn"] += 1
+            continue
+
+        # Incidents: bucketed by predicted/actual; scope_b drops OOS tiers
+        if predicted_risky:
+            unscoped["tp"] += 1
+            if tier in in_scope_tiers:
+                scope_b["tp"] += 1
+        else:
+            unscoped["fn"] += 1
+            if tier in in_scope_tiers:
+                scope_b["fn"] += 1
+
+        # Per-tier rollup (incidents only)
+        bucket = per_tier.setdefault(
+            tier or "untagged",
+            {"detected": 0, "missed": 0, "in_scope": tier in in_scope_tiers},
+        )
+        if predicted_risky:
+            bucket["detected"] += 1
+        else:
+            bucket["missed"] += 1
+
+    return {
+        "threshold": threshold,
+        "in_scope_tiers": sorted(in_scope_tiers),
+        "out_of_scope_tiers": sorted(OUT_OF_SCOPE_TIERS),
+        "unscoped": _metric_block(**unscoped),
+        "scope_b": _metric_block(**scope_b),
+        "per_tier_incidents": per_tier,
+    }
+
+
+def build_artifact(
+    summary: "ValidationSummary",
+    by_ecosystem: dict,
+) -> dict:
+    """Assemble the validation_results.json artifact.
+
+    Stamps the methodology contracts (version, frustration weight,
+    sentiment-in-score, risk thresholds) so docs can derive from one
+    place and ``tests/test_doc_code_drift.py`` can pin the contract.
+    """
+
+    valid = [r for r in summary.results if r.error is None]
+    scopes = compute_scope_metrics(valid)
+
+    # FN / FP details — keep them at the top level for quick inspection
+    scoped_fn = [
+        {
+            "name": r.case.name,
+            "ecosystem": r.case.ecosystem,
+            "tier": r.case.tier,
+            "score": r.score,
+            "notes": r.case.notes,
+        }
+        for r in valid
+        if r.case.expected_outcome == "incident"
+        and r.case.tier in IN_SCOPE_TIERS
+        and (r.score or 0) < PREDICTION_THRESHOLD
+    ]
+    scoped_fp = [
+        {
+            "name": r.case.name,
+            "ecosystem": r.case.ecosystem,
+            "score": r.score,
+            "notes": r.case.notes,
+        }
+        for r in valid
+        if r.case.expected_outcome == "safe"
+        and (r.score or 0) >= PREDICTION_THRESHOLD
+    ]
+
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "methodology": {
+            "version": METHODOLOGY_VERSION,
+            "frustration_weight": FRUSTRATION_WEIGHT,
+            "sentiment_in_score": SENTIMENT_IN_SCORE,
+            "prediction_threshold": PREDICTION_THRESHOLD,
+            "risk_thresholds": [
+                {"min_score": t, "label": label} for t, label in RISK_THRESHOLDS
+            ],
+        },
+        "dataset": {
+            "total_cases": summary.total,
+            "controls": sum(
+                1 for r in valid if r.case.expected_outcome == "safe"
+            ),
+            "incidents": sum(
+                1 for r in valid if r.case.expected_outcome == "incident"
+            ),
+            "in_scope_incidents": sum(
+                1
+                for r in valid
+                if r.case.expected_outcome == "incident"
+                and r.case.tier in IN_SCOPE_TIERS
+            ),
+            "errors": sum(1 for r in summary.results if r.error is not None),
+        },
+        "scopes": scopes,
+        "false_negatives_scope_b": scoped_fn,
+        "false_positives": scoped_fp,
+        "by_attack_type": summary.by_attack_type,
+        "by_ecosystem": by_ecosystem,
+        "results": [r.to_dict() for r in summary.results],
+    }
 
 
 def calculate_summary(results: list[ValidationResult]) -> ValidationSummary:
@@ -2071,6 +2243,24 @@ def print_results(summary: ValidationSummary):
     print(f"\nPrecision: {summary.precision:.1%} (of packages flagged risky, how many were incidents)")
     print(f"Recall:    {summary.recall:.1%} (of actual incidents, how many were flagged)")
     print(f"F1 Score:  {summary.f1_score:.2f}")
+
+    # Scoped (Scope B) metrics — the headline academic frame
+    scopes = compute_scope_metrics(
+        [r for r in summary.results if r.error is None]
+    )
+    sb = scopes["scope_b"]
+    print(
+        f"\nScope B (in-scope tiers {','.join(scopes['in_scope_tiers'])}): "
+        f"Prec={sb['precision']:.1%} Rec={sb['recall']:.1%} F1={sb['f1']:.3f}"
+    )
+    print("Per-tier (incidents):")
+    for tier in sorted(scopes["per_tier_incidents"]):
+        b = scopes["per_tier_incidents"][tier]
+        marker = "  " if b["in_scope"] else "* "
+        total = b["detected"] + b["missed"]
+        pct = b["detected"] / total * 100 if total else 0
+        print(f"{marker}{tier:10s} {b['detected']}/{total} ({pct:.0f}%)")
+    print("  * = out of scope (not counted toward Scope B recall)")
 
     # By attack type
     if summary.by_attack_type:
@@ -2186,23 +2376,7 @@ async def main():
             if r.correct:
                 by_eco_out[eco]["correct"] += 1
 
-        output_data = {
-            "timestamp": datetime.now().isoformat(),
-            "total": summary.total,
-            "accuracy": summary.accuracy,
-            "precision": summary.precision,
-            "recall": summary.recall,
-            "f1_score": summary.f1_score,
-            "confusion_matrix": {
-                "TP": summary.true_positives,
-                "TN": summary.true_negatives,
-                "FP": summary.false_positives,
-                "FN": summary.false_negatives,
-            },
-            "by_attack_type": summary.by_attack_type,
-            "by_ecosystem": by_eco_out,
-            "results": [r.to_dict() for r in summary.results],
-        }
+        output_data = build_artifact(summary, by_eco_out)
         with open(args.output, "w") as f:
             json.dump(output_data, f, indent=2, default=str)
         print(f"\nResults saved to {args.output}")
