@@ -108,25 +108,39 @@ st.divider()
 
 st.markdown("#### Validation")
 
-# Look for validation results in current working directory
+# Prefer the canonical artifact name (what scripts/validate.py emits and
+# what README/docs reference). Fall back to the newest by mtime so a stray
+# legacy filename doesn't outrank the current run alphabetically — which
+# previously caused stale `validation_results_v4.json` to win over the
+# current `validation_results.json`.
 results_dir = os.getcwd()
-results_files = sorted(
-    f for f in os.listdir(results_dir)
-    if f.startswith("validation_results") and f.endswith(".json")
-)
+canonical = os.path.join(results_dir, "validation_results.json")
+latest_name = None
+latest_path = None
+
+if os.path.exists(canonical):
+    latest_path = canonical
+    latest_name = "validation_results.json"
+else:
+    candidates = [
+        f for f in os.listdir(results_dir)
+        if f.startswith("validation_results") and f.endswith(".json")
+    ]
+    if candidates:
+        latest_name = max(candidates, key=lambda f: os.path.getmtime(os.path.join(results_dir, f)))
+        latest_path = os.path.join(results_dir, latest_name)
 
 validation_data = None
-if results_files:
-    latest = os.path.join(results_dir, results_files[-1])
+if latest_path:
     try:
-        with open(latest) as f:
+        with open(latest_path) as f:
             validation_data = json.load(f)
     except Exception:
         pass
 
 if validation_data:
     st.caption(
-        f"Source: {results_files[-1]} "
+        f"Source: {latest_name} "
         f"({validation_data.get('timestamp', '')[:10]}) · "
         f"methodology v{validation_data.get('methodology', {}).get('version', '?')}"
     )
