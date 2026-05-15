@@ -13,6 +13,9 @@ Usage:
     python scripts/lfx_comparison.py
     python scripts/lfx_comparison.py --json          # machine-readable output
     python scripts/lfx_comparison.py --output FILE   # save JSON to file
+
+Reference results live in benchmarks/lfx_comparison_YYYY_MM_DD.json.
+Baseline: 2026-05-15, methodology v6.4, Pearson r = -0.615 (n=19).
 """
 
 import argparse

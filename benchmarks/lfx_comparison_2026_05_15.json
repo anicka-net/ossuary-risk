@@ -1,0 +1,362 @@
+{
+  "timestamp": "2026-05-15T11:31:45.017517",
+  "packages": 20,
+  "results": [
+    {
+      "name": "OpenTracing",
+      "lfx_slug": "opentracing",
+      "ossuary_package": "opentracing/opentracing-go",
+      "lfx": {
+        "health_score": 0,
+        "index_score": 0,
+        "rank": 0
+      },
+      "ossuary": {
+        "risk_score": 100,
+        "risk_level": "CRITICAL",
+        "bus_factor": 0,
+        "concentration": 100,
+        "commits_yr": 0,
+        "contributors": 0
+      }
+    },
+    {
+      "name": "SPIRE",
+      "lfx_slug": "spire",
+      "ossuary_package": "spiffe/spire",
+      "lfx": {
+        "health_score": 3,
+        "index_score": 0,
+        "rank": 0
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 2,
+        "concentration": 64.1,
+        "commits_yr": 633,
+        "contributors": 57
+      }
+    },
+    {
+      "name": "Brigade",
+      "lfx_slug": "brigade",
+      "ossuary_package": "brigadecore/brigade",
+      "lfx": {
+        "health_score": 5,
+        "index_score": 0,
+        "rank": 0
+      },
+      "ossuary": {
+        "risk_score": 100,
+        "risk_level": "CRITICAL",
+        "bus_factor": 0,
+        "concentration": 100,
+        "commits_yr": 0,
+        "contributors": 0
+      }
+    },
+    {
+      "name": "RKT",
+      "lfx_slug": "rkt",
+      "ossuary_package": "rkt/rkt",
+      "lfx": {
+        "health_score": 50,
+        "index_score": 0,
+        "rank": 0
+      },
+      "ossuary": {
+        "risk_score": 100,
+        "risk_level": "CRITICAL",
+        "bus_factor": 0,
+        "concentration": 100,
+        "commits_yr": 0,
+        "contributors": 0
+      }
+    },
+    {
+      "name": "SPIFFE",
+      "lfx_slug": "spiffe",
+      "ossuary_package": "spiffe/spiffe",
+      "lfx": {
+        "health_score": 54,
+        "index_score": 0,
+        "rank": 0
+      },
+      "ossuary": {
+        "risk_score": 20,
+        "risk_level": "LOW",
+        "bus_factor": 1,
+        "concentration": 27.9,
+        "commits_yr": 27,
+        "contributors": 17
+      }
+    },
+    {
+      "name": "Zuul",
+      "lfx_slug": "zuul",
+      "ossuary_package": "zuul/zuul",
+      "lfx": {
+        "health_score": 62,
+        "index_score": 0,
+        "rank": 0
+      },
+      "ossuary": {
+        "risk_score": null,
+        "error": "(cached) Repository not found: https://github.com/zuul/zuul"
+      }
+    },
+    {
+      "name": "Tremor",
+      "lfx_slug": "tremor",
+      "ossuary_package": "tremor-rs/tremor-runtime",
+      "lfx": {
+        "health_score": 66,
+        "index_score": 0,
+        "rank": 0
+      },
+      "ossuary": {
+        "risk_score": 95,
+        "risk_level": "CRITICAL",
+        "bus_factor": 0,
+        "concentration": 100,
+        "commits_yr": 0,
+        "contributors": 0
+      }
+    },
+    {
+      "name": "Git",
+      "lfx_slug": "git",
+      "ossuary_package": "git/git",
+      "lfx": {
+        "health_score": 69,
+        "index_score": 0.86206,
+        "rank": 18
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 1,
+        "concentration": 33.1,
+        "commits_yr": 3551,
+        "contributors": 209
+      }
+    },
+    {
+      "name": "Django",
+      "lfx_slug": "django",
+      "ossuary_package": "django/django",
+      "lfx": {
+        "health_score": 74,
+        "index_score": 0.78746,
+        "rank": 126
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 7,
+        "concentration": 17.9,
+        "commits_yr": 890,
+        "contributors": 199
+      }
+    },
+    {
+      "name": "Axios",
+      "lfx_slug": "axios",
+      "ossuary_package": "axios/axios",
+      "lfx": {
+        "health_score": 76,
+        "index_score": 0.80018,
+        "rank": 94
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 4,
+        "concentration": 29.4,
+        "commits_yr": 291,
+        "contributors": 92
+      }
+    },
+    {
+      "name": "Linkerd",
+      "lfx_slug": "linkerd",
+      "ossuary_package": "linkerd/linkerd2",
+      "lfx": {
+        "health_score": 79,
+        "index_score": 0.5989,
+        "rank": 5070
+      },
+      "ossuary": {
+        "risk_score": 5,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 2,
+        "concentration": 75.7,
+        "commits_yr": 960,
+        "contributors": 32
+      }
+    },
+    {
+      "name": "CoreDNS",
+      "lfx_slug": "coredns",
+      "ossuary_package": "coredns/coredns",
+      "lfx": {
+        "health_score": 78,
+        "index_score": 0.60588,
+        "rank": 4509
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 1,
+        "concentration": 57.4,
+        "commits_yr": 622,
+        "contributors": 69
+      }
+    },
+    {
+      "name": "Lodash",
+      "lfx_slug": "lodash",
+      "ossuary_package": "lodash/lodash",
+      "lfx": {
+        "health_score": 84,
+        "index_score": 0.76907,
+        "rank": 194
+      },
+      "ossuary": {
+        "risk_score": 35,
+        "risk_level": "LOW",
+        "bus_factor": 1,
+        "concentration": 55.9,
+        "commits_yr": 34,
+        "contributors": 7
+      }
+    },
+    {
+      "name": "Curl",
+      "lfx_slug": "curl",
+      "ossuary_package": "curl/curl",
+      "lfx": {
+        "health_score": 83,
+        "index_score": 0.79931,
+        "rank": 97
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 2,
+        "concentration": 41.7,
+        "commits_yr": 3531,
+        "contributors": 143
+      }
+    },
+    {
+      "name": "FastAPI",
+      "lfx_slug": "fastapi",
+      "ossuary_package": "fastapi/fastapi",
+      "lfx": {
+        "health_score": 83,
+        "index_score": 0.74538,
+        "rank": 308
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 2,
+        "concentration": 40.2,
+        "commits_yr": 1331,
+        "contributors": 113
+      }
+    },
+    {
+      "name": "React",
+      "lfx_slug": "react",
+      "ossuary_package": "facebook/react",
+      "lfx": {
+        "health_score": 86,
+        "index_score": 0.86251,
+        "rank": 16
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 3,
+        "concentration": 26.9,
+        "commits_yr": 1094,
+        "contributors": 82
+      }
+    },
+    {
+      "name": "Envoy",
+      "lfx_slug": "envoy",
+      "ossuary_package": "envoyproxy/envoy",
+      "lfx": {
+        "health_score": 86,
+        "index_score": 0.62395,
+        "rank": 3287
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 1,
+        "concentration": 13.9,
+        "commits_yr": 2931,
+        "contributors": 256
+      }
+    },
+    {
+      "name": "TensorFlow",
+      "lfx_slug": "tensorflow",
+      "ossuary_package": "tensorflow/tensorflow",
+      "lfx": {
+        "health_score": 88,
+        "index_score": 0.74223,
+        "rank": 332
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 1,
+        "concentration": 34.6,
+        "commits_yr": 13824,
+        "contributors": 504
+      }
+    },
+    {
+      "name": "Kubernetes",
+      "lfx_slug": "k8s",
+      "ossuary_package": "kubernetes/kubernetes",
+      "lfx": {
+        "health_score": 90,
+        "index_score": 0.81766,
+        "rank": 60
+      },
+      "ossuary": {
+        "risk_score": 0,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 7,
+        "concentration": 37.7,
+        "commits_yr": 6982,
+        "contributors": 529
+      }
+    },
+    {
+      "name": "OpenTelemetry",
+      "lfx_slug": "opentelemetry",
+      "ossuary_package": "open-telemetry/opentelemetry-go",
+      "lfx": {
+        "health_score": 90,
+        "index_score": 0.77641,
+        "rank": 163
+      },
+      "ossuary": {
+        "risk_score": 5,
+        "risk_level": "VERY_LOW",
+        "bus_factor": 1,
+        "concentration": 65.6,
+        "commits_yr": 1092,
+        "contributors": 72
+      }
+    }
+  ]
+}
