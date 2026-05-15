@@ -229,6 +229,10 @@ class GitHubCollector(BaseCollector):
             if response.status_code == 404:
                 return None
 
+            if response.status_code == 401 and not _rotated and self._rotate_token():
+                logger.warning("HTTP 401 (auth failure). Rotated token, retrying.")
+                return await self._request(method, url, _rotated=True, **kwargs)
+
             if response.status_code >= 400:
                 self.last_error = (
                     f"HTTP {response.status_code} from api.github.com "
@@ -270,8 +274,8 @@ class GitHubCollector(BaseCollector):
         try:
             response = await self.client.post(self.GRAPHQL_URL, json=payload)
 
-            if response.status_code == 403 and not _rotated and self._rotate_token():
-                logger.warning("GraphQL rate limited. Rotated token, retrying.")
+            if response.status_code in (401, 403) and not _rotated and self._rotate_token():
+                logger.warning("GraphQL %d. Rotated token, retrying.", response.status_code)
                 return await self._graphql(query, variables, _rotated=True)
 
             if response.status_code >= 400:
