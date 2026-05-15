@@ -12,15 +12,23 @@ that affects produced scores or label boundaries.
 
 from __future__ import annotations
 
-METHODOLOGY_VERSION = "6.3"
+METHODOLOGY_VERSION = "6.4"
 """Active scoring methodology version (without ``v`` prefix; prose
-references add the ``v`` themselves). v6.3 lowered the frustration weight
-from +20 to +15 and removed the VADER sentiment branch from the score
-formula (see the factor-ablation pass)."""
+references add the ``v`` themselves). v6.4 adds three calibration fixes
+from Spring 2026 governance-decay cases: (1) burnout escalation (+10
+when frustration + bus_factor ≤ 2), (2) takeover detector two-mode
+tenure check (≥3y = governance concentration, <3y = xz pattern),
+(3) merge-author bus factor via GraphQL (effective_bf = min(code_bf,
+merge_bf))."""
 
 FRUSTRATION_WEIGHT = 15
 """Points added when economic/maintainer frustration is detected.
 Lowered from 20 in v6.3."""
+
+BURNOUT_ESCALATION_WEIGHT = 10
+"""Additional points when frustration is detected AND bus_factor <= 2.
+Added in v6.4: sole-maintainer burnout is categorically more dangerous
+than frustration in a large team."""
 
 SENTIMENT_IN_SCORE = False
 """Whether the VADER sentiment magnitude contributes to the final score.

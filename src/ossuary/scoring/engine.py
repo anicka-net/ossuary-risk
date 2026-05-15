@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from ossuary.scoring.factors import ProtectiveFactors, RiskBreakdown, RiskLevel
-from ossuary.scoring.methodology import FRUSTRATION_WEIGHT
+from ossuary.scoring.methodology import BURNOUT_ESCALATION_WEIGHT, FRUSTRATION_WEIGHT
 from ossuary.scoring.reputation import ReputationBreakdown, ReputationScorer
 
 
@@ -59,6 +59,9 @@ class PackageMetrics:
     takeover_shift: float = 0.0
     takeover_suspect: str = ""
     takeover_suspect_name: str = ""
+    takeover_suspect_tenure_years: float = 0.0
+    merge_bus_factor: int = 0
+    merge_concentration: float = 0.0
 
     # Sentiment analysis results
     average_sentiment: float = 0.0
@@ -248,6 +251,19 @@ class RiskScorer:
         if metrics.frustration_detected:
             pf.frustration_score = FRUSTRATION_WEIGHT
             pf.frustration_evidence = metrics.frustration_evidence
+            eff_bf = metrics.bus_factor
+            if metrics.merge_bus_factor > 0 and metrics.bus_factor > 0:
+                eff_bf = min(metrics.bus_factor, metrics.merge_bus_factor)
+            if eff_bf <= 2 and eff_bf > 0:
+                detail = f"bus_factor={metrics.bus_factor}"
+                if metrics.merge_bus_factor > 0 and metrics.merge_bus_factor < metrics.bus_factor:
+                    detail = (f"code bus_factor={metrics.bus_factor}, "
+                              f"merge bus_factor={metrics.merge_bus_factor}")
+                pf.burnout_escalation_score = BURNOUT_ESCALATION_WEIGHT
+                pf.burnout_escalation_evidence = (
+                    f"Frustration detected with {detail} "
+                    f"— sole-maintainer burnout risk"
+                )
 
         # Factor 9: Sentiment Analysis — no score contribution as of v6.3.
         # The factor-ablation pass found that the VADER magnitude signal never
@@ -271,19 +287,31 @@ class RiskScorer:
                 f"{metrics.lifetime_contributors} lifetime contributors"
             )
 
-        # Factor 11: Takeover Risk (+20) — xz-utils proportion shift detection
+        # Factor 11: Takeover Risk (+20) — proportion shift detection
         # Flags when a minor historical contributor suddenly dominates recent commits.
         # Threshold: >30% shift AND >40% of recent commits from that contributor.
+        # Two modes (v6.4): tenure < 3 years → newcomer takeover (xz pattern);
+        # tenure >= 3 years → governance concentration (last maintainer standing).
+        # Score is the same (+20) — governance concentration is still risky.
+        # Evidence text and recommendations differ.
         if (
             metrics.is_mature
             and metrics.takeover_shift > 30
         ):
             pf.takeover_risk_score = 20
             suspect = metrics.takeover_suspect_name or metrics.takeover_suspect
-            pf.takeover_risk_evidence = (
-                f"{suspect}: {metrics.takeover_shift:+.0f}pp shift in commit share "
-                f"on mature project (xz-utils pattern)"
-            )
+            if metrics.takeover_suspect_tenure_years >= 3:
+                pf.takeover_risk_evidence = (
+                    f"{suspect}: {metrics.takeover_shift:+.0f}pp shift in commit share "
+                    f"on mature project — governance concentration "
+                    f"(contributor tenure {metrics.takeover_suspect_tenure_years:.1f}y, "
+                    f"likely last maintainer standing)"
+                )
+            else:
+                pf.takeover_risk_evidence = (
+                    f"{suspect}: {metrics.takeover_shift:+.0f}pp shift in commit share "
+                    f"on mature project (xz-utils pattern)"
+                )
 
         return pf
 
@@ -345,9 +373,17 @@ class RiskScorer:
         if breakdown.protective_factors.frustration_score > 0:
             parts.append("ALERT: Economic frustration signals detected")
 
-        # Takeover alert
+        # Burnout escalation alert
+        if breakdown.protective_factors.burnout_escalation_score > 0:
+            parts.append("ALERT: Sole-maintainer burnout risk")
+
+        # Takeover alert — two modes based on evidence
         if breakdown.protective_factors.takeover_risk_score > 0:
-            parts.append("ALERT: Newcomer takeover pattern detected on mature project")
+            evidence = breakdown.protective_factors.takeover_risk_evidence or ""
+            if "last maintainer standing" in evidence:
+                parts.append("ALERT: Governance concentration — last maintainer standing")
+            else:
+                parts.append("ALERT: Newcomer takeover pattern detected on mature project")
 
         return f"{breakdown.risk_level.semaphore} {breakdown.risk_level.value} ({breakdown.final_score}). " + ". ".join(
             parts
@@ -375,12 +411,19 @@ class RiskScorer:
         if breakdown.protective_factors.frustration_score > 0:
             recs.insert(0, "URGENT: Maintainer frustration detected - elevated sabotage risk")
 
+        if breakdown.protective_factors.burnout_escalation_score > 0:
+            recs.insert(0, "CRITICAL: Frustrated sole maintainer — high burnout/abandonment risk")
+
         if breakdown.maintainer_concentration > 90 and breakdown.commits_last_year < 10:
             recs.insert(0, "HIGH PRIORITY: Single maintainer + low activity = prime takeover target")
 
-        # Takeover-specific recommendations
+        # Takeover-specific recommendations — two modes
         if breakdown.protective_factors.takeover_risk_score > 0:
-            recs.insert(0, "ALERT: New contributor dominates recent commits on mature project — review carefully (xz-utils pattern)")
+            evidence = breakdown.protective_factors.takeover_risk_evidence or ""
+            if "last maintainer standing" in evidence:
+                recs.insert(0, "ALERT: Governance fragility — contributor attrition concentrating maintenance on one person")
+            else:
+                recs.insert(0, "ALERT: New contributor dominates recent commits on mature project — review carefully (xz-utils pattern)")
 
         # Mature project recommendation — triggered by the evidence string,
         # not by a (structurally zero) maturity_score.
@@ -420,12 +463,20 @@ class RiskScorer:
 
         # Copy metrics
         breakdown.maintainer_concentration = metrics.maintainer_concentration
-        breakdown.bus_factor = metrics.bus_factor
         breakdown.elephant_factor = metrics.elephant_factor
         breakdown.inactive_contributor_ratio = metrics.inactive_contributor_ratio
         breakdown.commits_last_year = metrics.commits_last_year
         breakdown.unique_contributors = metrics.unique_contributors
         breakdown.weekly_downloads = metrics.weekly_downloads
+
+        # Effective bus factor: min of code-contributor and merge-author
+        # diversity when merge data is available. A project with 14 code
+        # contributors but 1 person doing all merges has an operational
+        # bus factor of 1.
+        effective_bf = metrics.bus_factor
+        if metrics.merge_bus_factor > 0 and metrics.bus_factor > 0:
+            effective_bf = min(metrics.bus_factor, metrics.merge_bus_factor)
+        breakdown.bus_factor = effective_bf
 
         # Calculate components — two-track scoring for mature projects
         if metrics.is_mature:
@@ -437,18 +488,18 @@ class RiskScorer:
             if metrics.commits_last_year == 0:
                 # Zero activity = abandoned, even if historically mature.
                 # Don't reward a project nobody's home for.
-                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, metrics.bus_factor)
+                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, effective_bf)
                 breakdown.activity_modifier = self.calculate_activity_modifier(0)
             elif metrics.commits_last_year < 4:
-                breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration, metrics.bus_factor)
+                breakdown.base_risk = self.calculate_base_risk(metrics.lifetime_concentration, effective_bf)
                 raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
                 breakdown.activity_modifier = min(0, raw_activity)
             else:
-                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, metrics.bus_factor)
+                breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, effective_bf)
                 raw_activity = self.calculate_activity_modifier(metrics.commits_last_year)
                 breakdown.activity_modifier = min(0, raw_activity)
         else:
-            breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, metrics.bus_factor)
+            breakdown.base_risk = self.calculate_base_risk(metrics.maintainer_concentration, effective_bf)
             breakdown.activity_modifier = self.calculate_activity_modifier(metrics.commits_last_year)
 
         breakdown.protective_factors = self.calculate_protective_factors(metrics, ecosystem)

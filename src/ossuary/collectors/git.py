@@ -126,6 +126,7 @@ class GitMetrics:
     takeover_shift: float = 0.0       # max % shift of any contributor (historical→recent)
     takeover_suspect: str = ""        # email of the contributor with highest shift
     takeover_suspect_name: str = ""   # display name
+    takeover_suspect_tenure_years: float = 0.0  # suspect's tenure in historical window
 
     def __post_init__(self):
         if self.commits is None:
@@ -429,6 +430,7 @@ class GitCollector(BaseCollector):
         takeover_shift = 0.0
         takeover_suspect = ""
         takeover_suspect_name = ""
+        takeover_suspect_tenure_years = 0.0
 
         if recent_commits and is_mature and total_recent >= 5:
             historical_commits = [c for c in commits if c.authored_date < taper_start]
@@ -519,6 +521,20 @@ class GitCollector(BaseCollector):
                     takeover_shift = shift
                     takeover_suspect = identity
                     takeover_suspect_name = name
+                    suspect_commits = sorted(
+                        [c for c in historical_commits
+                         if _normalize_email(c.author_email) == identity],
+                        key=lambda c: c.authored_date,
+                    )
+                    if len(suspect_commits) >= 2:
+                        takeover_suspect_tenure_years = (
+                            suspect_commits[-1].authored_date
+                            - suspect_commits[0].authored_date
+                        ).days / 365.25
+                    elif suspect_commits:
+                        takeover_suspect_tenure_years = 0.0
+                    else:
+                        takeover_suspect_tenure_years = 0.0
 
         return GitMetrics(
             total_commits=len(commits),
@@ -543,6 +559,7 @@ class GitCollector(BaseCollector):
             takeover_shift=takeover_shift,
             takeover_suspect=takeover_suspect,
             takeover_suspect_name=takeover_suspect_name,
+            takeover_suspect_tenure_years=takeover_suspect_tenure_years,
         )
 
     async def collect(self, repo_url: str, cutoff_date: Optional[datetime] = None) -> GitMetrics:

@@ -1,8 +1,11 @@
 """Reusable scoring functions for ossuary."""
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from dateutil.relativedelta import relativedelta
 
@@ -751,6 +754,20 @@ async def collect_package_data(
                 github_data.provisional_reasons.append(
                     f"github.repo_stargazers: {github_collector.last_error}"
                 )
+            try:
+                merge_data = await github_collector.get_merge_concentration(owner, repo)
+                github_data.merge_concentration = merge_data["merge_concentration"]
+                github_data.top_merger_login = merge_data["top_merger"]
+                github_data.merges_analyzed = merge_data["merges_analyzed"]
+                github_data.merge_bus_factor = merge_data["merge_bus_factor"]
+                logger.info(
+                    "merge_concentration: %.1f%%, merge_bus_factor=%d (%d merges)",
+                    merge_data["merge_concentration"],
+                    merge_data["merge_bus_factor"],
+                    merge_data["merges_analyzed"],
+                )
+            except Exception as exc:
+                logger.warning("merge_concentration failed: %s", exc)
     except Exception as e:
         warnings.append(f"GitHub data incomplete: {e}")
         # Create minimal github data for graceful degradation. The bare
@@ -1032,6 +1049,10 @@ def calculate_score_for_date(
         takeover_shift=git_metrics.takeover_shift,
         takeover_suspect=git_metrics.takeover_suspect,
         takeover_suspect_name=git_metrics.takeover_suspect_name,
+        takeover_suspect_tenure_years=git_metrics.takeover_suspect_tenure_years,
+        # Merge concentration (v6.4)
+        merge_bus_factor=github_data.merge_bus_factor,
+        merge_concentration=github_data.merge_concentration,
         # Sentiment
         average_sentiment=avg_sentiment,
         frustration_detected=total_frustration > 0,

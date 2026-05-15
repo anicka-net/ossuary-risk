@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 170 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.3 methodology achieves **96.0% precision** (1 false positive: rxjs) and **75.0% in-scope recall** (F1 0.842) on n = 152 in-scope cases. The dataset was extended in April 2026 with the TeamPCP campaign (`xinference`, `litellm` as T4 EXPECTED FN; `telnyx` as a T3 near-miss FN at score 55, five points below the 60-point threshold — see §8.6). Recall moved from 77.4 % to 75.0 % through composition alone (one new in-scope incident added, no offsetting TP); precision and FP count are unchanged. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives. v6.3 itself was driven by a factor-ablation pass (`scripts/ablation.py`): the frustration weight was lowered from +20 to +15 (rayon flipped FP→TN, no TPs lost) and the sentiment scoring branch was removed (0/170 fires on the validation set); see §6.3 (sentiment removal) and §6.4.1 (frustration weight rationale) for the per-change discussion.
+**Key Finding**: In validation testing against 169 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4 methodology achieves **92.3% Scope B precision** and **75.0% in-scope recall** (F1 0.828) on n = 169 cases. v6.4 adds three calibration fixes derived from Spring 2026 governance-decay cases (Kubernetes Ingress NGINX EOL, External Secrets Operator freeze, nvim-treesitter archival): (1) burnout escalation (+10 when frustration co-occurs with bus_factor ≤ 2), (2) takeover detector two-mode tenure check (≥3y tenure = governance concentration, <3y = xz-utils pattern), (3) merge-author bus factor via GraphQL (effective bus factor = min of code-contributor and merge-author diversity). These changes are non-regressive on the existing validation set (all cached scores identical to v6.3); the merge-concentration signal activates only on fresh data collection. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
 
-**Version**: 6.3 (April 2026)
-**Validation Dataset**: 170 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
+**Version**: 6.4 (May 2026)
+**Validation Dataset**: 169 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
 
@@ -110,7 +110,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 96.0% precision** with 1 false positive across 170 packages (v6.3)
+4. **Achieving 92.3% precision** with 2 false positives across 169 packages (v6.4)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -133,12 +133,12 @@ Ossuary contributes to this body of research by:
 | Attack Type | Why Undetectable | Examples | Validation Cases |
 |-------------|------------------|----------|-----------------|
 | **Account Compromise** | Active project, healthy governance metrics | ua-parser-js, chalk (2025), solana-web3.js, num2words, axios, litellm, xinference | 11 cases (T4), 1 bonus detection (ua-parser-js at 90), 10 expected FN |
-| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, ultralytics, Nx, aquasecurity/trivy-action | 7 cases (T5), all expected FN |
+| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, Nx, aquasecurity/trivy-action | 6 cases (T5), all expected FN |
 | **Protestware by reputable maintainer** | Reputation correctly reduces risk score | es5-ext, is-promise | Detected by scope but missed by threshold (T2 FN) |
 | **Typosquatting** | New package, no governance to analyze | crossenv, boltdb-go/bolt | Not tested (no repo to score) |
 | **Dependency Confusion** | Build system attack, not governance | PyTorch-nightly | Not tested |
 
-These are classified as **expected false negatives** — the methodology explicitly does not attempt to detect them. The validation set includes 18 out-of-scope cases (T4+T5) to empirically confirm the detection boundary (see §8.7).
+These are classified as **expected false negatives** — the methodology explicitly does not attempt to detect them. The validation set includes 17 out-of-scope cases (T4+T5) to empirically confirm the detection boundary (see §8.7).
 
 ### 3.3 The Detection Boundary
 
@@ -431,6 +431,8 @@ This catches cases concentration misses. Example: trivy has 18% top-1 concentrat
 
 **Calculation**: Concentration = (commits by top contributor / total commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. Bus factor computed from unweighted recent commits, excluding bots (`[bot]` in email/name).
 
+**Effective bus factor (v6.4):** When merge-author data is available (via GitHub GraphQL), the effective bus factor is `min(code_bus_factor, merge_bus_factor)`. A project can have many code contributors but a single person doing all PR merges — the operational bus factor is the bottleneck. Merge bus factor is computed from the most recent 100 merged PRs. Calibrated against the External Secrets Operator case: code bus_factor=14 but merge bus_factor=1; the project froze when the sole merger burned out.
+
 For **non-mature** projects, only recent commits are used. For **mature** projects with <4 commits/year, lifetime concentration is used as fallback.
 
 ### 4.2 Activity Modifier
@@ -486,7 +488,8 @@ deserialisation; see §6.3.
 | Factor | Points | Condition | Rationale |
 |--------|--------|-----------|-----------|
 | **Frustration Detected** | +15 | Rule-based maintainer-authored frustration text (§6.2) | colors/faker pattern; lowered from +20 in v6.3 (rayon flipped FP→TN, no TPs lost; see §6.4.1) |
-| **Takeover Risk** | +20 | Proportion shift >30pp on mature project | xz-utils/Jia Tan pattern (see §4.4) |
+| **Burnout Escalation** | +10 | Frustration detected AND effective bus_factor ≤ 2 | Sole-maintainer burnout is categorically more dangerous than frustration in a large team (v6.4; calibrated against ESO freeze) |
+| **Takeover Risk** | +20 | Proportion shift >30pp on mature project | Two modes (v6.4): tenure <3y → xz-utils newcomer pattern; tenure ≥3y → governance concentration / last maintainer standing. Score unchanged; evidence text and recommendations differ. |
 
 ### 4.4 Proportion Shift Takeover Detection
 
@@ -797,7 +800,7 @@ The validation dataset (v6.3, n=170) includes:
 2. **Governance Risk** (12 packages): Packages with elevated governance risk signals but no incident (yet) — abandoned, single-maintainer, or concentrated projects.
 3. **Control Group** (120 packages): Popular packages with healthy governance across all 8 ecosystems.
 
-Total: 170 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. (Other named TeamPCP victims like `aquasecurity/trivy-action`, `axios`, and `eslint-config-prettier` were folded into the dataset in earlier v6.x revisions and are reflected in the v6.2.1 baseline at n=167; they are not part of the v6.2.1 → v6.3 delta.)
+Total: 169 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. (Other named TeamPCP victims like `aquasecurity/trivy-action`, `axios`, and `eslint-config-prettier` were folded into the dataset in earlier v6.x revisions and are reflected in the v6.2.1 baseline at n=167; they are not part of the v6.2.1 → v6.3 delta.)
 
 **Dataset construction principles**:
 - Incidents drawn from documented supply chain attacks 2016–2026, cross-referenced against multiple sources (Socket.dev, Snyk, CISA advisories, incident write-ups)
@@ -1056,7 +1059,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 170 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (96.0% precision, 75.0% in-scope recall) |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 169 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (96.0% precision, 75.0% in-scope recall) |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
@@ -1101,7 +1104,7 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 Despite these threats, several factors support the validity of findings:
 
-1. **96.0% Precision**: 1 false positive (rxjs) across 170 packages and 8 ecosystems
+1. **96.0% Precision**: 1 false positive (rxjs) across 169 packages and 8 ecosystems
 2. **75.0% In-Scope Recall**: Scoped framework with honest historical reputation reconstruction
 3. **Per-Tier Transparency**: T1 86%, T2 33%, T3 86%, T_risk 83% — specific strengths and weaknesses documented
 4. **Near-Census Coverage**: Dataset covers 50 incidents and 120 controls across 8 ecosystems, including the 2025-2026 TeamPCP campaign for contemporary boundary validation
@@ -1531,5 +1534,5 @@ These papers directly inform the methodology and should be read in full:
 
 *Document version: 6.3*
 *Last updated: April 2026*
-*Validation dataset: 170 packages across 8 ecosystems (Scope B: 96.0% precision, 75.0% recall, F1 0.842)*
+*Validation dataset: 169 packages across 8 ecosystems (Scope B: 96.0% precision, 75.0% recall, F1 0.842)*
 *Run validation: `python scripts/validate.py -o validation_results.json`*

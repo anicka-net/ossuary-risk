@@ -87,6 +87,11 @@ class ProtectiveFactors:
     swaps in lifetime concentration for mature-but-quiet projects. See the
     v6.3 factor-ablation note."""
     takeover_risk_score: int = 0  # +20 for newcomer takeover signal
+    burnout_escalation_score: int = 0
+    """+10 when frustration is detected AND bus_factor <= 2 (v6.4).
+    Sole-maintainer burnout is categorically more dangerous than
+    frustration in a large team — the escalation makes the combined
+    signal strong enough to override healthy-looking activity metrics."""
 
     # Evidence for each factor
     reputation_evidence: Optional[str] = None
@@ -95,6 +100,7 @@ class ProtectiveFactors:
     sentiment_evidence: list[str] = field(default_factory=list)
     maturity_evidence: Optional[str] = None
     takeover_risk_evidence: Optional[str] = None
+    burnout_escalation_evidence: Optional[str] = None
 
     @property
     def total(self) -> int:
@@ -111,6 +117,7 @@ class ProtectiveFactors:
             + self.sentiment_score
             + self.maturity_score
             + self.takeover_risk_score
+            + self.burnout_escalation_score
         )
 
     def to_dict(self) -> dict:
@@ -141,6 +148,10 @@ class ProtectiveFactors:
             "takeover_risk": {
                 "score": self.takeover_risk_score,
                 "evidence": self.takeover_risk_evidence,
+            },
+            "burnout_escalation": {
+                "score": self.burnout_escalation_score,
+                "evidence": self.burnout_escalation_evidence,
             },
             "total": self.total,
         }

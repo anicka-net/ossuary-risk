@@ -96,6 +96,12 @@ class GitHubData:
     # Issues and PRs
     issues: list[IssueData] = field(default_factory=list)
 
+    # PR merge concentration (v6.4)
+    merge_concentration: float = 0.0
+    top_merger_login: str = ""
+    merges_analyzed: int = 0
+    merge_bus_factor: int = 0
+
     # Data-completeness tracking (see class docstring)
     fetch_errors: list[str] = field(default_factory=list)
     provisional_reasons: list[str] = field(default_factory=list)
@@ -407,6 +413,62 @@ class GitHubCollector(BaseCollector):
                 return items[0].get("login")
 
         return None
+
+    async def get_merge_concentration(self, owner: str, repo: str) -> dict:
+        """Compute who merges PRs and how concentrated that activity is.
+
+        Uses GraphQL to fetch the most recent 100 merged PRs (the REST
+        list endpoint omits ``merged_by``). One API call.
+        """
+        empty = {"merge_concentration": 0.0, "top_merger": "",
+                 "merges_analyzed": 0, "merge_bus_factor": 0}
+        query = """
+        query($owner: String!, $repo: String!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequests(states: MERGED, last: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+              nodes {
+                mergedBy { login }
+              }
+            }
+          }
+        }
+        """
+        data = await self._graphql(query, {"owner": owner, "repo": repo})
+        if not data:
+            return empty
+        nodes = (data.get("repository") or {}).get("pullRequests", {}).get("nodes", [])
+        if not nodes:
+            return empty
+
+        merger_counts: dict[str, int] = {}
+        for node in nodes:
+            merged_by = node.get("mergedBy") or {}
+            login = merged_by.get("login", "")
+            if login and "[bot]" not in login:
+                merger_counts[login] = merger_counts.get(login, 0) + 1
+
+        total_merges = sum(merger_counts.values())
+        if total_merges == 0:
+            return empty
+
+        sorted_mergers = sorted(merger_counts.values(), reverse=True)
+        top_merger = max(merger_counts, key=merger_counts.get)
+        top_pct = sorted_mergers[0] / total_merges * 100
+
+        cumulative = 0
+        merge_bf = 0
+        for count in sorted_mergers:
+            cumulative += count
+            merge_bf += 1
+            if cumulative >= total_merges * 0.5:
+                break
+
+        return {
+            "merge_concentration": top_pct,
+            "top_merger": top_merger,
+            "merges_analyzed": total_merges,
+            "merge_bus_factor": merge_bf,
+        }
 
     async def get_repo_contributors(self, owner: str, repo: str, limit: int = 10) -> list[dict]:
         """

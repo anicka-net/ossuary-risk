@@ -1974,6 +1974,9 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
                 result.reputation_tier = evidence.split("(")[1].split(")")[0]
 
         # Classify prediction
+        if breakdown.final_score is None:
+            result.error = "INSUFFICIENT_DATA (final_score is None)"
+            return result
         result.predicted_outcome = "risky" if breakdown.final_score >= RISK_THRESHOLD else "safe"
 
         # Determine correctness

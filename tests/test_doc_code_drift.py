@@ -354,7 +354,7 @@ def test_frustration_active_row_uses_current_weight():
     )
     frustration_rows = [
         line for line in section.splitlines()
-        if line.lstrip().startswith("|") and "Frustration" in line
+        if line.lstrip().startswith("|") and "**Frustration Detected**" in line
     ]
     assert frustration_rows, (
         "no Frustration row found in §4.3 Risk Increasers — table moved? "
