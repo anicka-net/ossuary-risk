@@ -324,8 +324,9 @@ def test_validation_scope_b_metrics_match_public_docs():
 
     prec = round(scope_b["precision"] * 100, 1)
     rec = round(scope_b["recall"] * 100, 1)
+    acc = round(scope_b["accuracy"] * 100, 1)
     f1 = round(scope_b["f1"], 3)
-    needles = [f"{prec:.1f}%", f"{rec:.1f}%", f"{f1:.3f}"]
+    needles = [f"{prec:.1f}%", f"{rec:.1f}%", f"{acc:.1f}%", f"{f1:.3f}"]
 
     for doc_name, doc in (
         ("README.md", README),
