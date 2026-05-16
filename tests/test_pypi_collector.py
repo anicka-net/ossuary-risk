@@ -158,3 +158,84 @@ class TestExtractRepoUrl:
             "Repository": "https://github.com/ijl/orjson",
         }}
         assert self.collector._extract_repo_url(info) == "https://github.com/ijl/orjson"
+
+    # Priority 5: long_description fallback
+    def test_long_description_github_url(self):
+        """Falls back to scanning description (long_description) for GitHub URL."""
+        info = {
+            "project_urls": {"Homepage": "https://example.com"},
+            "description": "Some package.\n\nSource: https://github.com/owner/repo\n",
+        }
+        assert self.collector._extract_repo_url(info) == "https://github.com/owner/repo"
+
+    def test_long_description_cleans_url(self):
+        """URLs from description are cleaned (subpaths stripped)."""
+        info = {
+            "project_urls": {},
+            "description": "See https://github.com/owner/repo/tree/main/docs for docs.",
+        }
+        assert self.collector._extract_repo_url(info) == "https://github.com/owner/repo"
+
+    def test_long_description_not_used_when_project_urls_has_repo(self):
+        """Priority 1 wins over description fallback."""
+        info = {
+            "project_urls": {"Repository": "https://github.com/correct/repo"},
+            "description": "Old link: https://github.com/wrong/repo",
+        }
+        assert self.collector._extract_repo_url(info) == "https://github.com/correct/repo"
+
+    def test_long_description_gitlab(self):
+        """GitLab URLs in description also work."""
+        info = {
+            "project_urls": {},
+            "description": "Hosted at https://gitlab.com/owner/repo.",
+        }
+        assert self.collector._extract_repo_url(info) == "https://gitlab.com/owner/repo"
+
+    def test_long_description_no_url(self):
+        """No GitHub URL in description still returns empty."""
+        info = {
+            "project_urls": {},
+            "description": "A nice package with no repo link.",
+        }
+        assert self.collector._extract_repo_url(info) == ""
+
+    def test_long_description_none(self):
+        """None description doesn't crash."""
+        info = {"project_urls": {}, "description": None}
+        assert self.collector._extract_repo_url(info) == ""
+
+    def test_long_description_markdown_link(self):
+        """Extracts URL from markdown link syntax."""
+        info = {
+            "project_urls": {},
+            "description": "See [the repo](https://github.com/owner/repo) for details.",
+        }
+        assert self.collector._extract_repo_url(info, "repo") == "https://github.com/owner/repo"
+
+    def test_long_description_rejects_unrelated_url(self):
+        """URLs in description that don't match the package name are skipped."""
+        info = {
+            "project_urls": {},
+            "description": "Uses https://github.com/rtfd/recommonmark for parsing.",
+        }
+        assert self.collector._extract_repo_url(info, "docutils") == ""
+
+    def test_long_description_name_match_normalized(self):
+        """Name matching normalizes hyphens and underscores."""
+        info = {
+            "project_urls": {},
+            "description": "Source: https://github.com/jupyter-widgets/ipywidgets",
+        }
+        assert self.collector._extract_repo_url(info, "ipywidgets") == "https://github.com/jupyter-widgets/ipywidgets"
+
+    def test_long_description_picks_matching_url(self):
+        """If description has multiple URLs, picks the one matching the package name."""
+        info = {
+            "project_urls": {},
+            "description": (
+                "Based on https://github.com/other/lib\n"
+                "Source: https://github.com/owner/mypackage"
+            ),
+        }
+        assert self.collector._extract_repo_url(info, "mypackage") == "https://github.com/owner/mypackage"

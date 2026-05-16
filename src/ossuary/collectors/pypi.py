@@ -201,7 +201,7 @@ class PyPICollector(BaseCollector):
         url = re.sub(r"/(issues|pulls|tree|blob|wiki|releases|actions|discussions)(/.*)?$", "", url)
         return url
 
-    def _extract_repo_url(self, info: dict) -> str:
+    def _extract_repo_url(self, info: dict, package_name: str = "") -> str:
         """Extract repository URL from package info."""
         project_urls = info.get("project_urls", {}) or {}
 
@@ -229,6 +229,19 @@ class PyPICollector(BaseCollector):
         if "github.com" in home_page or "gitlab.com" in home_page:
             return self._clean_repo_url(home_page)
 
+        # Priority 5: scan long_description for GitHub/GitLab URLs
+        import re
+        long_desc = info.get("description", "") or ""
+        if long_desc:
+            norm_name = package_name.lower().replace("-", "").replace("_", "")
+            for match in re.finditer(
+                r"https?://(?:www\.)?(?:github|gitlab)\.com/[^/\s)\"'>]+/[^/\s)\"'>]+",
+                long_desc,
+            ):
+                url = match.group(0).rstrip(".,;:!?")
+                if not norm_name or norm_name in url.lower().replace("-", "").replace("_", ""):
+                    return self._clean_repo_url(url)
+
         return ""
 
     async def collect(self, package_name: str) -> PyPIData:
@@ -255,7 +268,7 @@ class PyPICollector(BaseCollector):
             data.version = info.get("version", "")
             data.description = info.get("summary", "")
             data.homepage = info.get("home_page", "")
-            data.repository_url = self._extract_repo_url(info)
+            data.repository_url = self._extract_repo_url(info, package_name)
 
             # Get maintainer/author
             author = info.get("author", "")
