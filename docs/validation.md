@@ -61,7 +61,7 @@ For each incident: (1) Would Ossuary's signals have shown elevated risk before t
 | T3: Weak-gov compromise | 6/7 | **86%** | 1 miss: telnyx (T3 near-miss at score 55, org backing softens score) |
 | T_risk: Governance risk | 10/12 | **83%** | 2 misses: core-js (very active), devise (borderline drift) |
 | T4: Strong-gov compromise (OOS) | 1/11 | 9% | Expected — out of scope |
-| T5: CI/CD exploits (OOS) | 0/7 | 0% | Expected — out of scope |
+| T5: CI/CD exploits (OOS) | 0/6 | 0% | Expected — out of scope (7 defined, 6 evaluated; ultralytics = INSUFFICIENT_DATA) |
 
 **Combined in-scope (Scope B)**: 24/32 = 75.0% recall.
 
@@ -209,19 +209,19 @@ All 8 in-scope false negatives are explainable:
 
 ua-parser-js is a bonus detection — above threshold despite being T4, because the project had governance concentration signals at the 2021 cutoff.
 
-### T5: CI/CD pipeline exploits (7 cases)
+### T5: CI/CD pipeline exploits (7 defined, 6 evaluated)
 
 | Package | Score | Attack Vector |
 |---------|-------|---------------|
 | reviewdog/action-setup | 0 | CI/CD contributor access exploit |
 | codecov/codecov-action | 0 | Docker HMAC extraction |
 | web-infra-dev/rspack | 0 | GitHub Actions pwn request |
-| ultralytics | 0 | GitHub Actions cache poisoning |
+| ultralytics | *(INSUFFICIENT_DATA)* | GitHub Actions cache poisoning |
 | tj-actions/changed-files | 50 | Cascading CI/CD exploit (SpotBugs → reviewdog → tj-actions) |
 | nrwl/nx | 0 | pull_request_target exploit |
 | aquasecurity/trivy-action | 45 | TeamPCP — stolen credential force-pushed 75/76 version tags to inject stealer |
 
-All correctly score below threshold. CI/CD exploits target build infrastructure, not package governance.
+Six evaluated cases correctly score below threshold. ultralytics returns INSUFFICIENT_DATA due to a stale cached snapshot and is excluded from metrics. CI/CD exploits target build infrastructure, not package governance.
 
 ---
 
@@ -421,6 +421,6 @@ population.
 
 ---
 
-*Report generated from validation run on April 26, 2026*
+*Report generated from validation run on May 15, 2026*
 *Dataset: 170 defined cases (50 incidents, 120 controls), 169 evaluated, across 8 ecosystems*
-*Methodology version: 6.3*
+*Methodology version: 6.4*

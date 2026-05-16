@@ -794,13 +794,13 @@ collected.
 
 ### 8.1 Dataset Construction
 
-The validation dataset (v6.3, n=170) includes:
+The validation dataset (v6.4) defines 170 cases, 169 evaluated:
 
 1. **Known Incidents** (38 packages): Packages with documented supply chain incidents, spanning governance failures, protestware, account compromises, CI/CD exploits, and maintainer sabotage. Includes both in-scope and explicitly out-of-scope incidents.
 2. **Governance Risk** (12 packages): Packages with elevated governance risk signals but no incident (yet) — abandoned, single-maintainer, or concentrated projects.
 3. **Control Group** (120 packages): Popular packages with healthy governance across all 8 ecosystems.
 
-Total: 169 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. (Other named TeamPCP victims like `aquasecurity/trivy-action`, `axios`, and `eslint-config-prettier` were folded into the dataset in earlier v6.x revisions and are reflected in the v6.2.1 baseline at n=167; they are not part of the v6.2.1 → v6.3 delta.)
+Total: 170 defined, 169 evaluated across all 8 supported ecosystems (ultralytics returns INSUFFICIENT_DATA). The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. (Other named TeamPCP victims like `aquasecurity/trivy-action`, `axios`, and `eslint-config-prettier` were folded into the dataset in earlier v6.x revisions and are reflected in the v6.2.1 baseline at n=167; they are not part of the v6.2.1 → v6.3 delta.)
 
 **Dataset construction principles**:
 - Incidents drawn from documented supply chain attacks 2016–2026, cross-referenced against multiple sources (Socket.dev, Snyk, CISA advisories, incident write-ups)
@@ -837,7 +837,7 @@ Traditional recall penalizes the model for not detecting attacks it was never de
 
 Out-of-scope incidents (T4, T5) are tracked separately as "bonus detections" but do not count as TP or FN.
 
-### 8.4 Results (n=170, Scope B)
+### 8.4 Results (170 defined, 169 evaluated, Scope B n=152)
 
 ```
 In-scope incidents: 32 (T1=7, T2=6, T3=7, T_risk=12)
@@ -858,7 +858,7 @@ F1 Score:   0.828
 
 - **2 false positives** (rxjs, rayon) across 120 safe packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year. rayon (cargo) scores 65 HIGH due to burnout escalation (frustration × bus_factor ≤ 2); it was a TN at 55 in v6.3 and re-emerged in v6.4 as a deliberate trade-off for the burnout escalation signal.
 - **8 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), devise (borderline drift), es5-ext and is-promise (maintainer reputation correctly reduces score), telnyx (T3 near-miss at score 55, five points below the 60-point threshold — see §8.6).
-- **75.0% in-scope recall** reflects genuine detection capability with honest historical scoring. Recall moved from 77.4 % at n=167 (v6.2.1) to 75.0 % at n=170 (v6.3) through dataset composition alone — one new in-scope incident (telnyx) added without an offsetting TP — not a model regression.
+- **75.0% in-scope recall** reflects genuine detection capability with honest historical scoring. Recall moved from 77.4 % at n=167 (v6.2.1) to 75.0 % at n=170 (v6.3, now 169 evaluated in v6.4) through dataset composition alone — one new in-scope incident (telnyx) added without an offsetting TP — not a model regression.
 
 **Comparison with unscoped metrics**: Across all 49 evaluated incidents (including out-of-scope; one incident, ultralytics, is INSUFFICIENT_DATA), overall recall is 51.0%. This lower number is expected — 17 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) are fundamentally undetectable from governance signals.
 
@@ -873,7 +873,7 @@ F1 Score:   0.828
 | **T3: Weak-gov compromise** | 6/7 | **86%** | 1 miss: telnyx (org backing softens score below threshold) |
 | **T_risk: Governance risk** | 10/12 | **83%** | 2 misses: core-js (very active), devise (borderline) |
 | T4: Strong-gov compromise (OOS) | 1/11 | 9% | Expected — out of scope |
-| T5: CI/CD exploits (OOS) | 0/7 | 0% | Expected — out of scope |
+| T5: CI/CD exploits (OOS) | 0/6 | 0% | Expected — out of scope (7 defined, 6 evaluated; ultralytics = INSUFFICIENT_DATA) |
 
 T1 (governance decay, 86%) and T3 (weak-governance compromise, 86%) are the primary targets. T2 (protestware, 33%) is weakest because protestware maintainers tend to have strong reputations that correctly reduce their risk scores. This is a genuine trade-off: reputation DOES reduce attack probability, but doesn't prevent unilateral action.
 
@@ -902,11 +902,11 @@ scores therefore prefer reconstructable signals over current-state proxies.
 
 ### 8.7 Out-of-Scope Incident Analysis
 
-18 out-of-scope incidents are included to validate detection boundaries:
+18 out-of-scope incidents are defined (17 evaluated; ultralytics = INSUFFICIENT_DATA):
 
 **T4: Account compromise on healthy projects (11 cases)** — ua-parser-js (bonus detection at 90), eslint-scope (35), LottieFiles (45), chalk (35), cline (0), solana-web3.js (0), eslint-config-prettier (55), num2words (0), axios (0), litellm (0), xinference (0).
 
-**T5: CI/CD pipeline exploits (7 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), aquasecurity/trivy-action (45).
+**T5: CI/CD pipeline exploits (7 defined, 6 evaluated)** — reviewdog (0), codecov (0), rspack (0), ultralytics (INSUFFICIENT_DATA), tj-actions (50), nrwl/nx (0), aquasecurity/trivy-action (45).
 
 All correctly score below threshold except ua-parser-js (bonus detection at 90). A tool that flagged all credential-based attacks would need to flag every package, producing unacceptable false positive rates.
 
