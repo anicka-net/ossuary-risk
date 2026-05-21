@@ -1,6 +1,8 @@
 """Score a new package — simple input form."""
 
 from datetime import datetime
+from html import escape as html_escape
+from urllib.parse import quote as url_quote
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -176,7 +178,7 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
 
     # Link to package detail page
     st.markdown("")
-    st.markdown(f'<a href="/Package?name={pkg}&eco={eco}" target="_self">View full detail for {pkg}</a>', unsafe_allow_html=True)
+    st.markdown(f'<a href="/Package?name={url_quote(pkg)}&eco={url_quote(eco)}" target="_self">View full detail for {html_escape(pkg)}</a>', unsafe_allow_html=True)
 
 st.divider()
 col1, col2, col3, col4 = st.columns(4)

@@ -306,7 +306,7 @@ This detection relies on the proportion shift being visible in commit data. A mo
 
 | Metric | v1 (Feb 2026) | v2.1 (Feb 2026) | v3.0 (Mar 2026) | v3.1 (Mar 2026) | v6.1 (Apr 2026) | v6.3 (Apr 2026) | v6.4 (May 2026) |
 |--------|---------------|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|
-| Packages | 92 | 143 | 158 | 164 | 167 | 170 | 169 |
+| Packages | 92 | 143 | 158 | 164 | 167 | 170 | 170 |
 | Ecosystems | 2 | 8 | 8 | 8 | 8 | 8 | 8 |
 | Scope | All | All | All | Scope B | Scope B | Scope B | Scope B |
 | Accuracy | 92.4% | 91.6% | 89.2% | 94.7% | 94.7% | 94.1% | 93.4% |

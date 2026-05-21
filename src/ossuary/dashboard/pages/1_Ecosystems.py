@@ -1,5 +1,8 @@
 """Ecosystem overview — browse tracked packages by ecosystem."""
 
+from html import escape as html_escape
+from urllib.parse import quote as url_quote
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -187,8 +190,8 @@ if packages:
         c1, c2, c3, c4 = st.columns([3, 1, 2, 2])
         with c1:
             st.markdown(
-                f'<a href="/Package?name={pkg_name}&eco={eco}" target="_self" '
-                f'style="color:inherit;text-decoration:none;font-weight:600;">{pkg_name}</a>{tags}',
+                f'<a href="/Package?name={url_quote(pkg_name)}&eco={url_quote(eco)}" target="_self" '
+                f'style="color:inherit;text-decoration:none;font-weight:600;">{html_escape(pkg_name)}</a>{tags}',
                 unsafe_allow_html=True,
             )
         with c2:

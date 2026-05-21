@@ -289,11 +289,8 @@ class RiskScorer:
 
         # Factor 11: Takeover Risk (+20) — proportion shift detection
         # Flags when a minor historical contributor suddenly dominates recent commits.
-        # Threshold: >30% shift AND >40% of recent commits from that contributor.
-        # Two modes (v6.4): tenure < 3 years → newcomer takeover (xz pattern);
-        # tenure >= 3 years → governance concentration (last maintainer standing).
-        # Score is the same (+20) — governance concentration is still risky.
-        # Evidence text and recommendations differ.
+        # Threshold: >30pp shift on a mature project.
+        # Two modes (v6.4): tenure < 3y → xz-utils pattern; >= 3y → governance concentration.
         if (
             metrics.is_mature
             and metrics.takeover_shift > 30

@@ -72,7 +72,7 @@ npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub
 
 ```
 Final Score = Base Risk + Activity Modifier + Protective Factors
-             (20-100)      (-30 to +20)        (-70 to +20)
+             (20-100)      (-30 to +20)        (-105 to +45)
 ```
 
 **Base Risk** from maintainer concentration. **Activity Modifier** rewards active maintenance, penalizes abandonment. **Protective Factors** include maintainer reputation, funding (GitHub Sponsors), org ownership, visibility (downloads/stars), community size, and takeover detection.

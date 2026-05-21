@@ -1,7 +1,9 @@
 """Ossuary - OSS Supply Chain Risk Scoring Dashboard."""
 
 import os
+from html import escape as html_escape
 from pathlib import Path
+from urllib.parse import quote as url_quote
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -108,7 +110,7 @@ if eco_summary:
             st.markdown(
                 f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
                 f'margin-bottom:8px;border-left:3px solid {color};">'
-                f'<a href="/Ecosystems?eco={eco}" target="_self" style="color:inherit;text-decoration:none;"><strong>{eco}</strong></a><br>'
+                f'<a href="/Ecosystems?eco={url_quote(eco)}" target="_self" style="color:inherit;text-decoration:none;"><strong>{html_escape(eco)}</strong></a><br>'
                 f'<span style="font-family:monospace;font-size:1.4em;">{data["count"]}</span> '
                 f'<span style="color:#6c757d;">packages</span><br>'
                 f'<span style="color:#6c757d;font-size:0.85em;">'
@@ -153,9 +155,9 @@ if at_risk:
         col1, col2, col3, col4 = st.columns([3, 1, 2, 2])
         with col1:
             st.markdown(
-                f'<a href="/Package?name={p["name"]}&eco={p["ecosystem"]}" target="_self" '
-                f'style="color:inherit;text-decoration:none;"><strong>{p["name"]}</strong></a>'
-                f' · {p["ecosystem"]}{tags}',
+                f'<a href="/Package?name={url_quote(p["name"])}&eco={url_quote(p["ecosystem"])}" target="_self" '
+                f'style="color:inherit;text-decoration:none;"><strong>{html_escape(p["name"])}</strong></a>'
+                f' · {html_escape(p["ecosystem"])}{tags}',
                 unsafe_allow_html=True,
             )
         with col2:
@@ -199,8 +201,8 @@ if movers:
         col1, col2, col3 = st.columns([3, 2, 2])
         with col1:
             st.markdown(
-                f'<a href="/Package?name={p["name"]}&eco={p["ecosystem"]}" target="_self" '
-                f'style="color:inherit;text-decoration:none;"><strong>{p["name"]}</strong></a>'
+                f'<a href="/Package?name={url_quote(p["name"])}&eco={url_quote(p["ecosystem"])}" target="_self" '
+                f'style="color:inherit;text-decoration:none;"><strong>{html_escape(p["name"])}</strong></a>'
                 f' · {p["ecosystem"]}',
                 unsafe_allow_html=True,
             )

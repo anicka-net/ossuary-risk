@@ -110,7 +110,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 92.3% precision** with 2 false positives across 169 packages (v6.4)
+4. **Achieving 92.3% precision** with 2 false positives across 170 packages (v6.4)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -195,11 +195,11 @@ The 2025 npm wave demonstrates that governance scoring and credential/infrastruc
 | **Detection: Anomalous publish monitoring** | Rapid exploitation | Aikido detected chalk compromise in 5 minutes; 2.5M downloads still occurred in the 2-hour remediation window |
 | **Detection: Credential scanning** | Token reuse chains | The 2,349 tokens leaked by s1ngularity were publicly visible on GitHub; automated scanning would have flagged them |
 
-The critical insight for the thesis: **Ossuary cannot prevent the chalk attack** (score 20, correctly assessed as low governance risk), **but it can identify packages like `is` where governance weakness creates the preconditions for exactly this type of attack** (score 100). A security team using both Ossuary and credential monitoring would have:
+The critical insight for the thesis: **Ossuary cannot prevent the chalk attack** (score 35, correctly assessed as low governance risk), **but it can identify packages like `is` where governance weakness creates the preconditions for exactly this type of attack** (score 100). A security team using both Ossuary and credential monitoring would have:
 
 1. **Pre-attack**: Flagged `is` as CRITICAL risk (governance scoring), prioritized it for publish-access audit
 2. **During attack**: Detected anomalous publish from dormant account (credential monitoring)
-3. **Post-attack**: Known that chalk's governance was healthy (score 20) and focused remediation on the credential vector, not governance restructuring
+3. **Post-attack**: Known that chalk's governance was healthy (score 35) and focused remediation on the credential vector, not governance restructuring
 
 Neither tool alone provides this complete picture. The npm phishing wave is empirical evidence that the two dimensions — governance risk and credential/infrastructure security — require distinct measurement approaches used in concert.
 
@@ -218,7 +218,7 @@ Neither tool alone provides this complete picture. The npm phishing wave is empi
 
 ```
 Final Score = Base Risk + Activity Modifier + Protective Factors
-              (20-100)     (-30 to +20)        (-100 to +40)
+              (20-100)     (-30 to +20)        (-105 to +45)
 
 Score Range: 0-100 (clamped)
 ```
@@ -794,7 +794,7 @@ collected.
 
 ### 8.1 Dataset Construction
 
-The validation dataset (v6.4) defines 170 cases, 169 evaluated:
+The validation dataset (v6.4, n=170):
 
 1. **Known Incidents** (38 packages): Packages with documented supply chain incidents, spanning governance failures, protestware, account compromises, CI/CD exploits, and maintainer sabotage. Includes both in-scope and explicitly out-of-scope incidents.
 2. **Governance Risk** (12 packages): Packages with elevated governance risk signals but no incident (yet) — abandoned, single-maintainer, or concentrated projects.
@@ -1059,7 +1059,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 169 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (92.3% precision, 75.0% in-scope recall) |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 170 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (92.3% precision, 75.0% in-scope recall) |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
@@ -1104,7 +1104,7 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 Despite these threats, several factors support the validity of findings:
 
-1. **92.3% Precision**: 2 false positives (rxjs, rayon) across 169 packages and 8 ecosystems
+1. **92.3% Precision**: 2 false positives (rxjs, rayon) across 170 packages and 8 ecosystems
 2. **75.0% In-Scope Recall**: Scoped framework with honest historical reputation reconstruction
 3. **Per-Tier Transparency**: T1 86%, T2 33%, T3 86%, T_risk 83% — specific strengths and weaknesses documented
 4. **Near-Census Coverage**: Dataset covers 170 packages (50 incidents + 120 controls) across 8 ecosystems, including the 2025-2026 TeamPCP campaign for contemporary boundary validation
