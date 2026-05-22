@@ -70,6 +70,9 @@ validation_results*.json
 thesis/
 REVIEW_METHODOLOGY.md
 
+# AI session context (personal, not pushed)
+CONTEXT.md
+
 # OS
 .DS_Store
 Thumbs.db
