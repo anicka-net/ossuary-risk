@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -128,6 +128,10 @@ class GitMetrics:
     takeover_suspect_name: str = ""   # display name
     takeover_suspect_tenure_years: float = 0.0  # suspect's tenure in historical window
 
+    # Error tracking — set when git operations fail, so downstream can
+    # distinguish "no data" from "collection error"
+    collection_error: Optional[str] = None
+
     def __post_init__(self):
         if self.commits is None:
             self.commits = []
@@ -145,6 +149,7 @@ class GitCollector(BaseCollector):
         """
         self.repos_path = Path(repos_path or os.getenv("REPOS_PATH", "./repos"))
         self.repos_path.mkdir(parents=True, exist_ok=True)
+        self.last_error: Optional[str] = None
 
     def is_available(self) -> bool:
         """Git collector is always available."""
@@ -221,7 +226,7 @@ class GitCollector(BaseCollector):
         Returns:
             List of CommitData objects
         """
-        cmd = ["git", "log", "--all", f"--format={self._LOG_FORMAT}"]
+        cmd = ["git", "log", f"--format={self._LOG_FORMAT}"]
         if since:
             cmd.append(f"--since={since.isoformat()}")
         if until:
@@ -232,7 +237,9 @@ class GitCollector(BaseCollector):
             capture_output=True, text=False, timeout=300,
         )
         if result.returncode != 0:
-            logger.warning(f"git log failed: {result.stderr[:200]}")
+            err_msg = result.stderr[:200] if result.stderr else "unknown error"
+            logger.warning(f"git log failed: {err_msg}")
+            self.last_error = f"git log failed: {err_msg}"
             return []
 
         # Decode with replacement for non-UTF8 author names (e.g. Latin-1)
@@ -251,10 +258,10 @@ class GitCollector(BaseCollector):
                         sha=parts[0],
                         author_name=parts[1],
                         author_email=parts[2],
-                        authored_date=datetime.fromtimestamp(int(parts[3])),
+                        authored_date=datetime.fromtimestamp(int(parts[3]), tz=timezone.utc).replace(tzinfo=None),
                         committer_name=parts[4],
                         committer_email=parts[5],
-                        committed_date=datetime.fromtimestamp(int(parts[6])),
+                        committed_date=datetime.fromtimestamp(int(parts[6]), tz=timezone.utc).replace(tzinfo=None),
                         message=parts[7],
                     )
                 )
@@ -281,7 +288,7 @@ class GitCollector(BaseCollector):
         if not commits:
             return GitMetrics()
 
-        cutoff = cutoff_date or datetime.now()
+        cutoff = cutoff_date or datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Sort commits by date (needed for first/last and historical analysis)
         sorted_commits = sorted(commits, key=lambda c: c.authored_date)
@@ -575,4 +582,7 @@ class GitCollector(BaseCollector):
         """
         repo_path = self.clone_or_update(repo_url)
         commits = self.extract_commits(repo_path)
-        return self.calculate_metrics(commits, cutoff_date)
+        metrics = self.calculate_metrics(commits, cutoff_date)
+        if not commits and self.last_error:
+            metrics.collection_error = self.last_error
+        return metrics

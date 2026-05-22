@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -710,10 +710,12 @@ async def collect_package_data(
             return None, [f"Failed to collect git data from {repo_url}: {e}"]
 
     if not all_commits:
+        if git_collector.last_error:
+            return None, [f"Git collection failed: {git_collector.last_error}"]
         return None, ["No commits found in repository"]
 
     # 3. Calculate current metrics to get top contributor
-    current_metrics = git_collector.calculate_metrics(all_commits, datetime.now())
+    current_metrics = git_collector.calculate_metrics(all_commits, datetime.now(timezone.utc).replace(tzinfo=None))
 
     # 4. Find top contributor's GitHub username
     top_contributor_username = None
@@ -908,7 +910,7 @@ def calculate_score_for_date(
     github_data = collected_data.github_data
     # A scoring run is "historical" when the cutoff is meaningfully in the past
     # (more than 1 day ago), not merely a few seconds behind datetime.now().
-    is_historical = (datetime.now() - cutoff_date).days > 1
+    is_historical = (datetime.now(timezone.utc).replace(tzinfo=None) - cutoff_date).days > 1
 
     # For historical scoring, reconstruct what's verifiable at the cutoff date:
     # - Repos: filter to those created before cutoff (created_at available via API)
@@ -1162,7 +1164,7 @@ async def score_package(
     Returns:
         ScoringResult with breakdown or error
     """
-    cutoff = cutoff_date or datetime.now()
+    cutoff = cutoff_date or datetime.now(timezone.utc).replace(tzinfo=None)
 
     # Check cache (skip when force=True to ensure re-scoring). Use the
     # lookup-only ``get_package`` here: if the row does not exist, that
@@ -1310,7 +1312,7 @@ async def get_historical_scores(
         sorted_commits = sorted(collected_data.all_commits, key=lambda c: c.authored_date)
         reference_date = sorted_commits[-1].authored_date
     else:
-        reference_date = datetime.now()
+        reference_date = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # Generate monthly cutoff dates going backward
     cutoff_dates = []

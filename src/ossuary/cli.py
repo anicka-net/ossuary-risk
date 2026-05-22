@@ -394,7 +394,7 @@ def _display_results(breakdown):
         console.print(f"  • {rec}")
 
 
-@app.command()
+@app.command(hidden=True)
 def scan(
     file: str = typer.Argument(..., help="Dependency file to scan (requirements.txt, pyproject.toml, package.json, Cargo.toml, go.mod, Gemfile, composer.json, *.csproj)"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output JSON report file"),
@@ -652,7 +652,7 @@ def movers(
         console.print()
 
 
-@app.command("rescore-invalid")
+@app.command("rescore-invalid", hidden=True)
 def rescore_invalid(
     ecosystem: Optional[str] = typer.Option(
         None, "--ecosystem", "-e",
@@ -814,7 +814,7 @@ async def _rescore_invalid_run(targets: list[tuple[str, str, Optional[str]]]):
     )
 
 
-@app.command()
+@app.command(hidden=True)
 def history(
     package: str = typer.Argument(..., help="Package name (e.g., 'requests', 'openSUSE/aaa_base')"),
     ecosystem: Optional[str] = typer.Option(None, "--ecosystem", "-e", help="Package ecosystem (required if name exists in multiple ecosystems)"),
@@ -3178,7 +3178,7 @@ async def _seed():
     console.print("Dashboard should now show tracked packages.")
 
 
-@app.command("seed-suse-base")
+@app.command("seed-suse-base", hidden=True)
 def seed_suse_base():
     """Score the bundled SUSE seed (136 packages, no osc required).
 
@@ -3194,7 +3194,7 @@ def seed_suse_base():
     asyncio.run(_seed_custom(seed_path, limit=0, concurrent=3, skip_fresh=True, fresh_days=7))
 
 
-@app.command("discover-suse")
+@app.command("discover-suse", hidden=True)
 def discover_suse(
     project: str = typer.Option("openSUSE:Factory", "--project", "-p", help="OBS project to scan"),
     output: str = typer.Option("suse_packages.json", "--output", "-o", help="Output JSON file"),
@@ -3367,7 +3367,7 @@ async def _seed_custom(
             console.print(f"  {detail}")
 
 
-@app.command("seed-suse")
+@app.command("seed-suse", hidden=True)
 def seed_suse(
     file: str = typer.Option("suse_packages.json", "--file", "-f", help="Discovery JSON file"),
     limit: int = typer.Option(0, "--limit", "-l", help="Score first N packages only (0=all)"),

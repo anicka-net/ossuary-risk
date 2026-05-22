@@ -309,7 +309,7 @@ class GitHubCollector(BaseCollector):
         """Get GitHub user profile."""
         return await self._get(f"/users/{username}")
 
-    async def get_user_repos(self, username: str, max_pages: int = 3) -> list[dict]:
+    async def get_user_repos(self, username: str, max_pages: int = 10) -> list[dict]:
         """Get all public repos for a user."""
         repos = []
         page = 1
@@ -474,24 +474,34 @@ class GitHubCollector(BaseCollector):
             "merge_bus_factor": merge_bf,
         }
 
-    async def get_repo_contributors(self, owner: str, repo: str, limit: int = 10) -> list[dict]:
+    async def get_repo_contributors(
+        self, owner: str, repo: str, limit: int = 100, max_pages: int = 5
+    ) -> list[dict]:
         """
         Get top contributors for a repository.
 
         Args:
             owner: Repository owner
             repo: Repository name
-            limit: Maximum number of contributors to return
+            limit: Contributors per page (max 100)
+            max_pages: Maximum pages to fetch
 
         Returns:
             List of contributor dicts with login, contributions count
         """
-        contributors = await self._get(
-            f"/repos/{owner}/{repo}/contributors",
-            params={"per_page": limit}
-        )
-        if not contributors or not isinstance(contributors, list):
-            return []
+        contributors: list[dict] = []
+        page = 1
+        while page <= max_pages:
+            data = await self._get(
+                f"/repos/{owner}/{repo}/contributors",
+                params={"per_page": min(limit, 100), "page": page},
+            )
+            if not data or not isinstance(data, list):
+                break
+            contributors.extend(data)
+            if len(data) < min(limit, 100):
+                break
+            page += 1
         return contributors
 
     async def get_repo_info(self, owner: str, repo: str) -> Optional[dict]:
@@ -567,7 +577,11 @@ class GitHubCollector(BaseCollector):
 
         # Try to get org members (may require permissions)
         members = await self._get(f"/orgs/{owner}/members", params={"role": "admin"})
-        admin_count = len(members) if isinstance(members, list) else 1
+        if isinstance(members, list):
+            admin_count = len(members)
+        else:
+            logger.warning(f"Could not fetch org admins for {owner} (API error or permissions); defaulting to 0")
+            admin_count = 0
 
         return {"is_org": True, "admin_count": max(admin_count, 1)}
 
@@ -580,13 +594,18 @@ class GitHubCollector(BaseCollector):
         max_comment_fetches: int = 10,
     ) -> list[IssueData]:
         """
-        Get issues and PRs from a repository.
+        Get recent issues and PRs from a repository.
+
+        Intentionally fetches a single page of recent issues (sorted by
+        updated_at).  Frustration and governance-dispute signals are derived
+        from *recent* activity; paginating deeper would add API cost without
+        improving signal quality.
 
         Args:
             owner: Repository owner
             repo: Repository name
             state: Issue state filter (all, open, closed)
-            per_page: Number of issues to fetch
+            per_page: Number of issues to fetch (single page)
             max_comment_fetches: Max issues to fetch comments for (API call each)
 
         Returns:
