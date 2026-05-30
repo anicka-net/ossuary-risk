@@ -1908,6 +1908,151 @@ VALIDATION_CASES = [
               "Score 0 (VERY_LOW). Same T4 profile as axios.",
         repo_url="https://github.com/xorbitsai/inference",
     ),
+
+    # =========================================================================
+    # 2026-05 INCIDENT SWEEP (post-v6.4)
+    # =========================================================================
+
+    # --- IN-SCOPE: GOVERNANCE DECAY ---
+
+    # jest-canvas-mock (npm) — Shai-Hulud campaign, 2026-05-19
+    # Dormant ~3 years, 10M monthly downloads, no OIDC trusted publishing.
+    # Shai-Hulud specifically targeted dormant high-download packages.
+    ValidationCase(
+        name="jest-canvas-mock",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_failure",
+        tier="T1",
+        incident_date="2026-05-19",
+        cutoff_date="2026-05-18",
+        notes="Shai-Hulud campaign targeted dormant packages. ~3 years without "
+              "a legitimate update, 10M monthly downloads, no OIDC trusted "
+              "publishing configured. Classic governance decay → exploited.",
+        repo_url="https://github.com/hustcc/jest-canvas-mock",
+    ),
+
+    # timeago.js (npm) — Shai-Hulud campaign, 2026-05-19
+    # Same sweep as jest-canvas-mock: long dormant, targeted for abandonment.
+    ValidationCase(
+        name="timeago.js",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="governance_failure",
+        tier="T1",
+        incident_date="2026-05-19",
+        cutoff_date="2026-05-18",
+        notes="Shai-Hulud campaign targeted dormant packages. Long period "
+              "without updates. Same pattern as jest-canvas-mock.",
+        repo_url="https://github.com/hustcc/timeago.js",
+    ),
+
+    # --- IN-SCOPE: GOVERNANCE RISK ---
+
+    # fsnotify (go) — maintainer dispute, May 2026
+    # Contributors removed from org, unclear maintainer roles. 321K dependents.
+    # No malware published, but governance signals are concerning.
+    # Kubernetes opened issue evaluating forks.
+    ValidationCase(
+        name="fsnotify/fsnotify",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="governance_risk",
+        tier="T_risk",
+        notes="Maintainer dispute: contributors removed from GitHub org, unclear "
+              "roles, rushed merges, funding disagreements. 10.7K stars, 321K "
+              "dependent projects. No malware — pure governance signal. "
+              "Kubernetes evaluating forks (kubernetes/kubernetes#138812).",
+        repo_url="https://github.com/fsnotify/fsnotify",
+    ),
+
+    # --- IN-SCOPE: WEAK-GOV COMPROMISE ---
+
+    # node-ipc (npm) — inactive maintainer account compromise, 2026-05-15
+    # SECOND incident on this package (2022 protestware already in dataset as T2).
+    # This time external actor compromised the inactive maintainer 'atiertant'
+    # account and injected credential-stealing malware via DNS exfiltration.
+    ValidationCase(
+        name="node-ipc",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-05-15",
+        cutoff_date="2026-05-14",
+        notes="SECOND incident (2022 protestware is separate T2 entry). Inactive "
+              "maintainer 'atiertant' account compromised. Malicious versions "
+              "9.1.6/9.2.3/12.0.1 injected credential stealer with DNS TXT "
+              "exfiltration. Governance weakness: package retained 690K weekly "
+              "downloads despite 2022 sabotage history, inactive maintainers.",
+    ),
+
+    # laravel-lang/lang (packagist) — credential compromise, 2026-05-23
+    # One credential with org-wide push access. Attackers rewrote 700+ historical
+    # Git tags to point at malicious fork commits. Third-party packages, not
+    # official Laravel.
+    # RECLASSIFIED T3→T4: Ossuary governance signals (concentration, bus factor,
+    # activity) show healthy project. The "single org-wide credential" weakness is
+    # access-control configuration — analogous to a stolen publish token — not
+    # visible in the governance surface Ossuary measures.
+    ValidationCase(
+        name="laravel-lang/lang",
+        ecosystem="packagist",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T4",
+        incident_date="2026-05-23",
+        cutoff_date="2026-05-22",
+        notes="EXPECTED FN: One credential with org-wide push access across 4 "
+              "repos. Attackers rewrote 700+ historical Git tags to point at "
+              "malicious fork commits. Third-party localization packages, not "
+              "official Laravel. Healthy governance (score 5); weakness is "
+              "access-control configuration (single org-wide credential), not "
+              "governance decay. Same profile as T4 cases.",
+        repo_url="https://github.com/Laravel-Lang/lang",
+    ),
+
+    # --- OUT OF SCOPE: CI/CD EXPLOIT ---
+
+    # @tanstack/router (npm) — Shai-Hulud/TeamPCP, 2026-05-12
+    # Well-maintained project. CI/CD exploit chaining pull_request_target
+    # workflow, GitHub Actions cache poisoning, and OIDC token theft.
+    # Malicious versions carried valid SLSA Build Level 3 attestations.
+    ValidationCase(
+        name="@tanstack/router",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T5",
+        incident_date="2026-05-12",
+        cutoff_date="2026-05-11",
+        notes="EXPECTED FN: TeamPCP/Shai-Hulud campaign. CI/CD exploit chaining "
+              "pull_request_target workflow, GitHub Actions cache poisoning, and "
+              "OIDC token theft from runner memory. 84 malicious versions across "
+              "42 TanStack packages with valid SLSA provenance attestations. "
+              "Well-maintained project — pure CI/CD weakness, not governance.",
+        repo_url="https://github.com/TanStack/router",
+    ),
+
+    # pytorch-lightning (pypi) — ShaiWorm, 2026-04-30
+    # Popular deep learning framework (11M downloads/month). Version 2.6.3
+    # shipped hidden execution chain downloading ShaiWorm credential stealer.
+    # Build/release pipeline breached — mechanism under investigation.
+    ValidationCase(
+        name="pytorch-lightning",
+        ecosystem="pypi",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T4",
+        incident_date="2026-04-30",
+        cutoff_date="2026-04-29",
+        notes="EXPECTED FN: Version 2.6.3 shipped ShaiWorm credential stealer "
+              "via hidden execution chain. 11M monthly downloads, Lightning AI "
+              "org-backed, professional governance. Build/release pipeline "
+              "breached — mechanism under investigation. Microsoft Defender "
+              "detected and notified maintainer.",
+        repo_url="https://github.com/Lightning-AI/pytorch-lightning",
+    ),
 ]
 
 
