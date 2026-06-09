@@ -159,8 +159,9 @@ class GitCollector(BaseCollector):
         """Get local path for a repository."""
         # Create a hash-based directory name to avoid path issues
         url_hash = hashlib.md5(repo_url.encode()).hexdigest()[:12]
-        # Extract repo name for readability
-        repo_name = repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        # Extract repo name for readability (trailing .git only —
+        # substring replace would mangle e.g. foo.github.io)
+        repo_name = re.sub(r"\.git$", "", repo_url.rstrip("/").split("/")[-1])
         return self.repos_path / f"{repo_name}_{url_hash}"
 
     def clone_or_update(self, repo_url: str) -> Path:
@@ -180,6 +181,22 @@ class GitCollector(BaseCollector):
                 logger.info(f"Updating existing repository: {repo_path}")
                 repo = Repo(repo_path)
                 repo.remotes.origin.fetch()
+                # fetch only updates refs/remotes/origin/*; `git log` reads
+                # HEAD, so point the local branch at the fetched tip or the
+                # history stays frozen at first-clone time. update-ref (not
+                # reset --hard) because the clone is blobless — touching the
+                # worktree would fault in file blobs we never read.
+                try:
+                    branch = repo.active_branch
+                    tracking = branch.tracking_branch()
+                    if tracking is not None:
+                        repo.git.update_ref(
+                            f"refs/heads/{branch.name}", tracking.commit.hexsha
+                        )
+                except (TypeError, GitCommandError, ValueError) as e:
+                    # detached HEAD or missing tracking ref: history may be
+                    # stale, but a fetch-only repo is still usable
+                    logger.warning(f"Could not fast-forward {repo_path}: {e}")
                 return repo_path
             except (InvalidGitRepositoryError, GitCommandError) as e:
                 logger.warning(f"Failed to update repository, re-cloning: {e}")

@@ -201,6 +201,19 @@ class PyPICollector(BaseCollector):
         url = re.sub(r"/(issues|pulls|tree|blob|wiki|releases|actions|discussions)(/.*)?$", "", url)
         return url
 
+    @staticmethod
+    def _is_repo_link(url: str) -> bool:
+        """True when a github/gitlab URL plausibly points at a repository.
+
+        Funding/profile paths (github.com/sponsors/<user>) would otherwise
+        win a priority slot, fail to clone, and get negative-cached.
+        """
+        if "github.com" not in url and "gitlab.com" not in url:
+            return False
+        import re
+
+        return not re.search(r"(?:github|gitlab)\.com/sponsors(?:/|$)", url)
+
     def _extract_repo_url(self, info: dict, package_name: str = "") -> str:
         """Extract repository URL from package info."""
         project_urls = info.get("project_urls", {}) or {}
@@ -216,17 +229,17 @@ class PyPICollector(BaseCollector):
         # Priority 2: homepage if it points to a code host
         for key in ["homepage", "home"]:
             url = urls_lower.get(key, "")
-            if url and ("github.com" in url or "gitlab.com" in url):
+            if url and self._is_repo_link(url):
                 return self._clean_repo_url(url)
 
         # Priority 3: scan all project_urls values for github/gitlab links
         for url in project_urls.values():
-            if "github.com" in url or "gitlab.com" in url:
+            if self._is_repo_link(url):
                 return self._clean_repo_url(url)
 
         # Priority 4: legacy home_page field
         home_page = info.get("home_page", "") or ""
-        if "github.com" in home_page or "gitlab.com" in home_page:
+        if self._is_repo_link(home_page):
             return self._clean_repo_url(home_page)
 
         # Priority 5: scan long_description for GitHub/GitLab URLs
@@ -235,11 +248,17 @@ class PyPICollector(BaseCollector):
         if long_desc:
             norm_name = package_name.lower().replace("-", "").replace("_", "")
             for match in re.finditer(
-                r"https?://(?:www\.)?(?:github|gitlab)\.com/[^/\s)\"'>]+/[^/\s)\"'>]+",
+                r"https?://(?:www\.)?(?:github|gitlab)\.com/([^/\s)\"'>]+/[^/\s)\"'>]+)",
                 long_desc,
             ):
                 url = match.group(0).rstrip(".,;:!?")
-                if not norm_name or norm_name in url.lower().replace("-", "").replace("_", ""):
+                if not self._is_repo_link(url):
+                    continue
+                # Match the package name against the owner/repo path only —
+                # matching the full URL lets short names like "git" or "io"
+                # match the host part of any link.
+                path = match.group(1).rstrip(".,;:!?")
+                if not norm_name or norm_name in path.lower().replace("-", "").replace("_", ""):
                     return self._clean_repo_url(url)
 
         return ""

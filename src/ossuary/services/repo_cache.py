@@ -182,11 +182,15 @@ def classify_failure(warning: str) -> Optional[str]:
     if not warning:
         return None
     text = warning.lower()
-    # Transient — never negative-cache.
+    # Transient — never negative-cache. HTTP codes are matched as
+    # standalone tokens (not preceded by word chars, '/', or '-') so a
+    # repo URL like .../error-500-pages doesn't read as a server error.
     if any(token in text for token in (
-        "rate limit", "rate-limit", "429", "500", "502", "503", "504",
-        "timeout", "transport", "insufficient_data",
+        "rate limit", "rate-limit", "timeout", "transport",
+        "insufficient_data",
     )):
+        return None
+    if re.search(r"(?<![\w/-])(429|500|502|503|504)(?![\w-])", text):
         return None
     if "no repository url" in text:
         return FailureKind.NO_REPO_URL

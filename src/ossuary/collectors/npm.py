@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -210,12 +211,15 @@ class NpmCollector(BaseCollector):
             elif isinstance(repo, str):
                 data.repository_url = repo
 
-            # Clean up repository URL
+            # Clean up repository URL (trailing .git only — substring
+            # replace would mangle e.g. foo.github.io)
             if data.repository_url:
-                data.repository_url = (
-                    data.repository_url.replace("git+", "")
-                    .replace("git://", "https://")
-                    .replace(".git", "")
+                data.repository_url = re.sub(
+                    r"\.git$",
+                    "",
+                    data.repository_url.replace("git+", "").replace(
+                        "git://", "https://"
+                    ),
                 )
                 if data.repository_url.startswith("ssh://"):
                     data.repository_url = data.repository_url.replace("ssh://git@", "https://")

@@ -239,3 +239,38 @@ class TestExtractRepoUrl:
             ),
         }
         assert self.collector._extract_repo_url(info, "mypackage") == "https://github.com/owner/mypackage"
+
+    def test_sponsors_link_not_treated_as_repo(self):
+        """A Funding entry pointing at github.com/sponsors/<user> must not
+        win priority 3 — it would fail to clone and get negative-cached."""
+        info = {
+            "project_urls": {"Funding": "https://github.com/sponsors/someone"},
+            "description": "",
+        }
+        assert self.collector._extract_repo_url(info, "mypackage") == ""
+
+    def test_sponsors_link_skipped_falls_through_to_description(self):
+        info = {
+            "project_urls": {"Funding": "https://github.com/sponsors/someone"},
+            "description": "Source: https://github.com/owner/mypackage",
+        }
+        assert (
+            self.collector._extract_repo_url(info, "mypackage")
+            == "https://github.com/owner/mypackage"
+        )
+
+    def test_short_name_does_not_match_url_host(self):
+        """Name guard must match against the owner/repo path only — a
+        package named 'git' would otherwise match the host of any link."""
+        info = {
+            "project_urls": {},
+            "description": "Badge: https://github.com/unrelated/project",
+        }
+        assert self.collector._extract_repo_url(info, "git") == ""
+
+    def test_short_name_still_matches_in_path(self):
+        info = {
+            "project_urls": {},
+            "description": "Source: https://github.com/owner/git",
+        }
+        assert self.collector._extract_repo_url(info, "git") == "https://github.com/owner/git"

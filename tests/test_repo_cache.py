@@ -870,6 +870,14 @@ class TestClassifyFailure:
         assert classify_failure("") is None
         assert classify_failure(None) is None  # type: ignore[arg-type]
 
+    def test_http_code_in_repo_url_is_not_transient(self):
+        """'500' inside a repo URL must not read as a server error —
+        otherwise a permanent 404 is re-probed on every run."""
+        from ossuary.services.repo_cache import FailureKind, classify_failure
+        assert classify_failure(
+            "Repository not found: https://github.com/x/error-500-pages"
+        ) == FailureKind.REPO_NOT_FOUND
+
 
 class TestStoreNegativeWritesTypedKind:
     """``store_negative`` must populate both ``failure_reason`` (for

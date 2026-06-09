@@ -192,7 +192,10 @@ class GitHubCollector(BaseCollector):
         for pattern in patterns:
             match = re.search(pattern, repo_url)
             if match:
-                return match.group(1), match.group(2).replace(".git", "")
+                # Strip query/fragment leftovers, then only a *trailing*
+                # .git — substring replace would mangle foo.github.io.
+                name = match.group(2).split("#")[0].split("?")[0]
+                return match.group(1), re.sub(r"\.git$", "", name)
 
         return None, None
 
@@ -214,9 +217,11 @@ class GitHubCollector(BaseCollector):
         try:
             response = await self.client.request(method, url, **kwargs)
 
-            # Check rate limit
+            # Check rate limit. Only treat exhaustion as blocking when the
+            # request itself was rejected — the last allowed request of a
+            # window returns 200 with remaining=0 and must not be discarded.
             remaining = int(response.headers.get("X-RateLimit-Remaining", 1))
-            if remaining == 0:
+            if remaining == 0 and response.status_code in (403, 429):
                 reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
                 wait_time = max(reset_time - time.time(), self.RATE_LIMIT_PAUSE)
                 if not _rotated and self._rotate_token():
@@ -429,7 +434,7 @@ class GitHubCollector(BaseCollector):
         query = """
         query($owner: String!, $repo: String!) {
           repository(owner: $owner, name: $repo) {
-            pullRequests(states: MERGED, last: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+            pullRequests(states: MERGED, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
               nodes {
                 mergedBy { login }
               }
@@ -565,7 +570,17 @@ class GitHubCollector(BaseCollector):
         return "none"
 
     async def get_org_admins(self, owner: str, repo: str) -> dict:
-        """Check if repo is org-owned and estimate admin count."""
+        """Check if repo is org-owned and count *public* org members.
+
+        ``role=admin`` on the members endpoint is only honoured when the
+        token belongs to an org member; for everyone else GitHub silently
+        serves the public-members list, so the same package would score
+        differently depending on whose token ran the scan. We therefore
+        query public members explicitly: it is the one membership signal
+        that is observable and identical for every caller. ``admin_count``
+        is kept as the field name for snapshot-cache compatibility but
+        means "public org members, capped at 100".
+        """
         repo_data = await self.get_repo_info(owner, repo)
         if not repo_data:
             return {"is_org": False, "admin_count": 0}
@@ -575,12 +590,11 @@ class GitHubCollector(BaseCollector):
         if owner_type != "Organization":
             return {"is_org": False, "admin_count": 0}
 
-        # Try to get org members (may require permissions)
-        members = await self._get(f"/orgs/{owner}/members", params={"role": "admin"})
+        members = await self._get(f"/orgs/{owner}/members", params={"per_page": 100})
         if isinstance(members, list):
             admin_count = len(members)
         else:
-            logger.warning(f"Could not fetch org admins for {owner} (API error or permissions); defaulting to 0")
+            logger.warning(f"Could not fetch org members for {owner} (API error); defaulting to 0")
             admin_count = 0
 
         return {"is_org": True, "admin_count": max(admin_count, 1)}
@@ -628,7 +642,8 @@ class GitHubCollector(BaseCollector):
                 body=issue.get("body", "") or "",
                 state=issue.get("state", ""),
                 is_pull_request="pull_request" in issue,
-                author_login=issue.get("user", {}).get("login", ""),
+                # "user" is JSON null for deleted accounts
+                author_login=(issue.get("user") or {}).get("login", ""),
                 created_at=issue.get("created_at", ""),
                 updated_at=issue.get("updated_at", ""),
                 closed_at=issue.get("closed_at"),
@@ -641,7 +656,7 @@ class GitHubCollector(BaseCollector):
                     issue_obj.comments = [
                         {
                             "id": c.get("id"),
-                            "author": c.get("user", {}).get("login", ""),
+                            "author": (c.get("user") or {}).get("login", ""),
                             "body": c.get("body", ""),
                             "created_at": c.get("created_at", ""),
                         }
@@ -796,10 +811,12 @@ class GitHubCollector(BaseCollector):
             data.maintainer_account_created = user_profile.get("created_at", "")
             data.maintainer_public_repos = user_profile.get("public_repos", 0)
 
-        # Repo list for reputation scoring.
+        # Repo list for reputation scoring. A failed page deep in the
+        # pagination leaves last_error set with a partial list — record
+        # that too, so undercounted stars are flagged provisional.
         logger.info(f"Fetching repos for {username}...")
         repos = await self.get_user_repos(username)
-        if not repos:
+        if not repos or self.last_error:
             self._record_failure(data, "user_repos", essential=False)
         data.maintainer_repos = repos
         data.maintainer_total_stars = sum(
