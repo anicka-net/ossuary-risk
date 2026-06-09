@@ -394,7 +394,7 @@ This classification catches stable infrastructure (argon2, dosfstools, logrotate
 
 | Component | Non-Mature | Mature |
 |-----------|-----------|--------|
-| Base risk | Recent (12-month) concentration | **Lifetime** concentration when <4 commits/year; recent otherwise |
+| Base risk | Recent (12-month) concentration | **Lifetime** concentration when 1–3 commits/year; recent otherwise (incl. zero commits, where "recent concentration" defaults to 100% — an abandoned project gets no diversity credit from its past) |
 | Activity modifier | -30 to +20 | **+20** when zero recent commits (truly abandoned); otherwise clamped to ≤0 |
 | Takeover detection | N/A | **+20** if proportion shift detected |
 
@@ -431,7 +431,7 @@ This catches cases concentration misses. Example: trivy has 18% top-1 concentrat
 
 **Calculation**: Concentration = (commits by top contributor / total commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. Bus factor computed from unweighted recent commits, excluding bots (`[bot]` in email/name).
 
-**Effective bus factor (v6.4):** When merge-author data is available (via GitHub GraphQL), the effective bus factor is `min(code_bus_factor, merge_bus_factor)`. A project can have many code contributors but a single person doing all PR merges — the operational bus factor is the bottleneck. Merge bus factor is computed from the most recent 100 merged PRs. Calibrated against the External Secrets Operator case: code bus_factor=14 but merge bus_factor=1; the project froze when the sole merger burned out.
+**Effective bus factor (v6.4):** When merge-author data is available (via GitHub GraphQL), the effective bus factor is `min(code_bus_factor, merge_bus_factor)`. A project can have many code contributors but a single person doing all PR merges — the operational bus factor is the bottleneck. Merge bus factor is computed from the most recent 100 merged PRs; the signal requires **≥10 merged PRs** in the sample (below that, a bus-factor estimate from a handful of merges is noise and the signal is treated as unavailable). For historical (T-1) scoring the aggregates are re-derived from the PRs in the sample merged *before* the cutoff, so current-day merge behaviour does not leak into past scores; when fewer than 10 sampled PRs predate the cutoff, the signal is unavailable for that run. Calibrated against the External Secrets Operator case: code bus_factor=14 but merge bus_factor=1; the project froze when the sole merger burned out.
 
 For **non-mature** projects, only recent commits are used. For **mature** projects with <4 commits/year, lifetime concentration is used as fallback.
 
@@ -469,10 +469,10 @@ Protective factors can reduce (or increase) risk based on governance quality sig
 | **Tier-1 Reputation** | -25 | Score ≥60 | Established maintainers have more to lose |
 | **Tier-2 Reputation** | -10 | Score ≥30 | Some track record |
 | **GitHub Sponsors** | -15 | Has sponsors | Economic sustainability reduces frustration |
-| **Organization (3+ admins)** | -15 | Org with succession | Reduces bus factor |
-| **Massive Visibility** | -20 | >50M weekly downloads | High scrutiny |
-| **High Visibility** | -10 | >10M weekly downloads | Moderate scrutiny |
-| **Distributed Governance** | -10 | <40% concentration | Already healthy |
+| **Organization (3+ public members)** | -15 | Org with succession depth | Reduces bus factor. Public-member count is a *proxy*: GitHub only reveals real admin counts to org-member tokens, so the deterministic token-independent observable is the public-members list (capped at 100). |
+| **Massive Visibility** | -20 | >50M weekly downloads, or >50K repo stars when no registry download signal exists (github ecosystem) | High scrutiny |
+| **High Visibility** | -10 | >10M weekly downloads, or >10K repo stars (same fallback) | Moderate scrutiny |
+| **Distributed Governance** | -10 | <40% concentration AND ≥10 commits/year | Already healthy; the activity guard keeps near-dormant projects from claiming diversity credit off a handful of recent commits |
 | **Active Community** | -10 | >20 contributors | Community resilience |
 | **CII Best Practices** | -10 | Badge present | Security maturity |
 | **Project Maturity** | 0 (informational) | Mature project (see §4.0) | Benefit is activity-penalty suppression + lifetime concentration fallback, not a score bonus |
@@ -489,7 +489,9 @@ deserialisation; see §6.3.
 |--------|--------|-----------|-----------|
 | **Frustration Detected** | +15 | Rule-based maintainer-authored frustration text (§6.2) | colors/faker pattern; lowered from +20 in v6.3 (rayon flipped FP→TN, no TPs lost; see §6.4.1) |
 | **Burnout Escalation** | +10 | Frustration detected AND effective bus_factor ≤ 2 | Sole-maintainer burnout is categorically more dangerous than frustration in a large team (v6.4; calibrated against ESO freeze) |
-| **Takeover Risk** | +20 | Proportion shift >30pp on mature project | Two modes (v6.4): tenure <3y → xz-utils newcomer pattern; tenure ≥3y → governance concentration / last maintainer standing. Score unchanged; evidence text and recommendations differ. |
+| **Takeover Risk** | +20 | Proportion shift >30pp on mature project | Two modes (v6.4): tenure <3y → xz-utils newcomer pattern; tenure ≥3y → governance concentration / last maintainer standing. Tenure = span of the suspect's full commit history up to the cutoff. Score unchanged; evidence text and recommendations differ. |
+
+When a takeover pattern is detected, a **negative activity modifier is zeroed**: on a mature, busy project the commit volume *is* the attack (Jia Tan's surge made xz look "actively maintained"), so the activity bonus must not cancel the takeover signal. The combined swing on an active project can therefore reach +50 (+20 takeover, up to +30 of suppressed activity bonus).
 
 ### 4.4 Proportion Shift Takeover Detection
 
@@ -505,17 +507,23 @@ proportion_shift = recent_share% - historical_share%
 
 Where:
 - **recent_share%** = contributor's commits in last 12 months / total recent commits × 100
-- **historical_share%** = contributor's commits before last 12 months / total historical commits × 100
+- **historical_share%** = contributor's commits before the ~14-month mark / total historical commits × 100
+
+The two windows deliberately do not touch: commits aged 12–14 months sit in a buffer zone counted in neither share. This mirrors the tapered concentration window (§4.1) and keeps the shift estimate from oscillating when a burst of commits crosses the 12-month boundary between two scoring runs.
 
 If any contributor's proportion shift exceeds **+30 percentage points** on a mature project with ≥5 recent commits, a **takeover risk** flag is raised (+20 points).
 
 #### Guards Against False Positives
 
-Two filters prevent false alarms from established maintainers and automated tooling:
+Four filters prevent false alarms from established maintainers, automated tooling, and routine organizational churn:
 
 1. **Bot filtering**: Contributors with `[bot]` in their email or name are excluded (e.g., dependabot, renovate). Bots can dominate recent commits on quiet projects without representing a takeover risk.
 
 2. **Historical share threshold**: Only contributors with **<10% of historical commits** (measured against the full pre-recent window) are considered as takeover suspects. Established maintainers (e.g., a project creator at 20% historical share) naturally fluctuate in activity — that's not a takeover signal. The 10% threshold catches Jia Tan (~7.6% historical share against the full xz-utils history at the late-2024 cutoff used by the code's regression check) while filtering out long-time contributors like project founders whose share temporarily increases. A name-merged historical share is also computed to handle contributors who use multiple email identities (e.g., domain changes).
+
+3. **Mega-repo tenure guard**: On projects with very large commit counts (e.g. curl at 34K), even decade-long contributors hold small percentage shares, so the <10% threshold alone would flag them. Suspects with **≥100 historical commits spanning ≥4 years** are treated as established and skipped. (Jia Tan: 135 commits over 2.2 years → not suppressed. Viktor Szakats on curl: 1,160 commits over 4.9 years → suppressed.)
+
+4. **Org-continuity guard**: If the suspect's email-domain organization already held **≥30% of historical commits**, the shift is treated as an internal handoff (a new `@suse.com` employee taking over a `@suse.de`-maintained project), not a hostile takeover. Generic mail domains (gmail etc.) are excluded from this check, and domain variants of the same org are merged.
 
 #### Design Rationale
 
@@ -542,7 +550,7 @@ Reputation provides a composite assessment of maintainer trustworthiness and inv
 
 | Signal | Points | Threshold |
 |--------|--------|-----------|
-| **Account Tenure** | +15 | >5 years on GitHub |
+| **Account Tenure** | +15 | ≥5 years on GitHub |
 | **Portfolio Quality** | +15 | ≥50 original repos with ≥10 stars each |
 | **Total Stars** | +15 | ≥50,000 stars across repos |
 | **Sponsor Support** | +15 | ≥10 GitHub sponsors |
@@ -1275,8 +1283,8 @@ The [CHAOSS project](https://chaoss.community/) (Community Health Analytics for 
 
 | CHAOSS Metric | Description | Ossuary Equivalent |
 |---------------|-------------|-------------------|
-| **Contributor Absence Factor** (Bus Factor) | Minimum contributors for 50% of commits | Maintainer Concentration |
-| **Elephant Factor** | Minimum *organizations* for 50% of commits | Not measured (individual focus) |
+| **Contributor Absence Factor** (Bus Factor) | Minimum contributors for 50% of commits | Bus factor (direct CHAOSS implementation, feeds base risk; §4.1) |
+| **Elephant Factor** | Minimum *organizations* for 50% of commits | Computed from email domains and reported in the breakdown (`chaoss_signals`); not a score input |
 | **Activity Dates and Times** | Commit frequency patterns | Activity Modifier |
 | **Change Request Closure Ratio** | PR/issue responsiveness | Not directly measured |
 
@@ -1520,7 +1528,7 @@ These papers directly inform the methodology and should be read in full:
 9. Synopsys. (2022). "Open Source Security and Risk Analysis Report."
 10. OpenSSF Scorecard - https://securityscorecards.dev/
 11. **Goggins, S., Germonprez, M., & Lumbard, K. (2021). "Making Open Source Project Health Transparent."** IEEE Computer, 54(8), 104–111. https://doi.org/10.1109/MC.2021.3084015 — Key paper on the CHAOSS project and its approach to community health metrics.
-12. **Avelino, G., Passos, L., Hora, A., & Valente, M. T. (2016). "A Novel Approach for Estimating Truck Factors."** 24th IEEE International Conference on Program Comprehension (ICPC), 1–10. https://arxiv.org/abs/1604.06766 — Defines the algorithm Ossuary's bus factor metric is based on: minimum contributors whose departure causes >50% of files to become orphaned.
+12. **Avelino, G., Passos, L., Hora, A., & Valente, M. T. (2016). "A Novel Approach for Estimating Truck Factors."** 24th IEEE International Conference on Program Comprehension (ICPC), 1–10. https://arxiv.org/abs/1604.06766 — Foundational truck-factor work (file-orphan formulation). Ossuary implements the commit-share variant standardized by CHAOSS (minimum contributors accounting for 50% of recent commits; §4.1), not the file-ownership algorithm — the commit-share form needs no blob-level data and matches the blobless-clone collection design.
 13. CHAOSS Contributor Absence Factor metric definition - https://chaoss.community/kb/metric-contributor-absence-factor/
 14. CISA Alert AA25-266A. "Widespread Supply Chain Compromise Impacting npm Ecosystem." September 23, 2025. https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem
 15. CERT/CC VU#534320. "npm ecosystem design weaknesses enabling supply chain compromise." https://kb.cert.org/vuls/id/534320
