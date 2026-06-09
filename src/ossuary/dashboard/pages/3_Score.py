@@ -97,7 +97,7 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
             f'<div style="display:flex;align-items:baseline;gap:16px;">'
             f'<span style="font-size:2.2em;font-family:monospace;font-weight:700;color:#6c757d;">⚪</span>'
             f'<span style="font-size:1.4em;color:#6c757d;font-weight:600;">INSUFFICIENT DATA</span>'
-            f'<span style="color:#6c757d;">{pkg} · {eco}</span>'
+            f'<span style="color:#6c757d;">{html_escape(pkg)} · {html_escape(eco)}</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -153,7 +153,7 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
         f'<div style="display:flex;align-items:baseline;gap:16px;">'
         f'<span style="font-size:2.5em;font-family:monospace;font-weight:700;color:{color};">{score}</span>'
         f'<span style="font-size:1.2em;color:{color};">{level}</span>{provisional_marker}'
-        f'<span style="color:#6c757d;">{pkg} · {eco}</span>'
+        f'<span style="color:#6c757d;">{html_escape(pkg)} · {html_escape(eco)}</span>'
         f'</div>',
         unsafe_allow_html=True,
     )

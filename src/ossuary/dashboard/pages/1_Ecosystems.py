@@ -81,7 +81,19 @@ all_in_eco = get_packages_by_ecosystem(selected)
 cta1, cta2, _ = st.columns([2, 2, 4])
 
 
-def _show_result(result: dict, verb: str) -> None:
+# Action results are stashed in session_state and rendered on the
+# *next* run: st.rerun() aborts the current script run, so anything
+# rendered just before it (success/failure message, the list of failed
+# packages) would never reach the user.
+def _stash_result(result: dict, verb: str) -> None:
+    st.session_state["eco_action_result"] = (result, verb)
+
+
+def _show_stashed_result() -> None:
+    stashed = st.session_state.pop("eco_action_result", None)
+    if not stashed:
+        return
+    result, verb = stashed
     if result["errors"]:
         st.warning(
             f"{result['success']} succeeded, {len(result['errors'])} "
@@ -90,6 +102,8 @@ def _show_result(result: dict, verb: str) -> None:
     else:
         st.success(f"{verb} {result['success']} packages.")
 
+
+_show_stashed_result()
 
 with cta1:
     if unscored and st.button(
@@ -102,7 +116,7 @@ with cta1:
     ):
         with st.spinner(f"Retrying {len(unscored)} {selected} packages…"):
             result = retry_packages(unscored)
-        _show_result(result, "Retried")
+        _stash_result(result, "Retried")
         st.rerun()
 
 with cta2:
@@ -122,7 +136,7 @@ with cta2:
         ]
         with st.spinner(f"Re-scoring {len(targets)} {selected} packages…"):
             result = rescore_packages(targets)
-        _show_result(result, "Re-scored")
+        _stash_result(result, "Re-scored")
         st.rerun()
 
 if unscored:

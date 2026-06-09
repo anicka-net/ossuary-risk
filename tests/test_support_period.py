@@ -155,6 +155,29 @@ class TestDeriveProductSupportPeriod:
         # Critical subset only contains the scored one.
         assert all(c.package_name == "scored" for c in result.critical_components)
 
+    def test_all_unscored_is_indeterminate_not_supportable(self):
+        # Regression: an SBOM whose components all failed scoring used to
+        # return the CRA floor with cra_minimum_supportable=True — the most
+        # favourable compliance verdict from zero evidence.
+        result = derive_product_support_period([], components_unscored=12)
+        assert result.cra_minimum_supportable is False
+        assert result.horizon_months == 0
+        assert result.critical_selection_method == "indeterminate_no_scored_components"
+        assert result.components_total == 12
+        assert result.components_scored == 0
+
+    def test_all_negative_scores_is_indeterminate(self):
+        components = [self._component("a", -1, ""), self._component("b", -1, "")]
+        result = derive_product_support_period(components)
+        assert result.cra_minimum_supportable is False
+        assert result.horizon_months == 0
+
+    def test_empty_sbom_still_vacuously_supportable(self):
+        # No components at all (no third-party deps) is genuinely different
+        # from "components exist but none scored".
+        result = derive_product_support_period([], components_unscored=0)
+        assert result.cra_minimum_supportable is True
+
     def test_critical_top_n_zero_raises(self):
         # Regression: critical_top_n=0 used to silently return the CRA floor
         # ("supportable") regardless of how risky the dependencies were.

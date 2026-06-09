@@ -158,6 +158,7 @@ def derive_product_support_period(
     dependents_count: Optional[dict[str, int]] = None,
     critical_top_n: int = DEFAULT_CRITICAL_TOP_N,
     table: Optional[list[tuple[int, int, str]]] = None,
+    components_unscored: int = 0,
 ) -> ProductSupportPeriod:
     """Compute the product-level implied support period from per-component scores.
 
@@ -180,6 +181,14 @@ def derive_product_support_period(
     an empty critical subset, which would silently fall back to the CRA
     floor and report the product as supportable regardless of dependency
     health — bypassing the analytic. ``ValueError`` is raised in that case.
+
+    ``components_unscored`` is the count of SBOM components that exist but
+    could not be scored (INSUFFICIENT_DATA, fetch failure). When *no*
+    component has a score and unscored components exist, the verdict is
+    indeterminate — zero evidence must not produce the most favourable
+    compliance answer (``cra_minimum_supportable=True`` at the CRA floor).
+    A genuinely empty dependency set (no components at all) is still
+    vacuously supportable.
     """
     if critical_top_n < 1:
         raise ValueError(
@@ -187,7 +196,24 @@ def derive_product_support_period(
             "a smaller value would coerce a 'CRA-supportable' verdict regardless of "
             "dependency health and is not allowed."
         )
+
+    def _indeterminate(method: str, total: int, scored: int) -> ProductSupportPeriod:
+        return ProductSupportPeriod(
+            horizon_months=0,
+            cra_minimum_supportable=False,
+            critical_top_n=critical_top_n,
+            critical_selection_method=method,
+            limiting_components=[],
+            critical_components=[],
+            components_total=total,
+            components_scored=scored,
+        )
+
     if not component_scores:
+        if components_unscored > 0:
+            return _indeterminate(
+                "indeterminate_no_scored_components", components_unscored, 0
+            )
         return ProductSupportPeriod(
             horizon_months=CRA_MINIMUM_SUPPORT_MONTHS,
             cra_minimum_supportable=True,
@@ -245,15 +271,12 @@ def derive_product_support_period(
     critical = [estimates_by_name[n] for n in critical_names]
 
     if not critical:
-        return ProductSupportPeriod(
-            horizon_months=CRA_MINIMUM_SUPPORT_MONTHS,
-            cra_minimum_supportable=True,
-            critical_top_n=critical_top_n,
-            critical_selection_method=method,
-            limiting_components=[],
-            critical_components=[],
-            components_total=len(component_scores),
-            components_scored=scored_count,
+        # Components were listed but none carried a usable score — same
+        # zero-evidence situation as the empty-input indeterminate case.
+        return _indeterminate(
+            "indeterminate_no_scored_components",
+            len(component_scores) + components_unscored,
+            scored_count,
         )
 
     horizon = min(c.horizon_months for c in critical)

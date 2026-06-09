@@ -219,7 +219,14 @@ class TestApiCacheAge:
 
     @patch("ossuary.api.main.score_package")
     def test_get_score_zero_max_age_forces_rescore(self, mock_score_package):
-        """max_age=0 should disable cache reuse."""
+        """max_age=0 forces a re-score but must keep the cache *write*.
+
+        use_cache=False skips the store block in score_package too, so
+        the fresh score would never persist — the next default request,
+        the dashboard, and movers would all keep the stale value. The
+        correct shape is force=True with use_cache=True (the same
+        pattern the CLI and dashboard rescore paths use).
+        """
         mock_score_package.return_value = ScoringResult(
             success=True,
             breakdown=RiskBreakdown(
@@ -233,8 +240,28 @@ class TestApiCacheAge:
         asyncio.run(_get_score("flask", "pypi", None, 0))
 
         kwargs = mock_score_package.await_args.kwargs
-        assert kwargs["use_cache"] is False
+        assert kwargs["use_cache"] is True
+        assert kwargs["force"] is True
         assert kwargs["freshness_days"] is None
+
+    @patch("ossuary.api.main.score_package")
+    def test_get_score_lowercases_ecosystem(self, mock_score_package):
+        """/score/PyPI/flask must behave like /score/pypi/flask (the CLI
+        lowercases ecosystem input; the API mirrors it)."""
+        mock_score_package.return_value = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="flask",
+                ecosystem="pypi",
+                final_score=10,
+                risk_level=RiskLevel.VERY_LOW,
+            ),
+        )
+
+        asyncio.run(_get_score("flask", "PyPI", None, 7))
+
+        args = mock_score_package.await_args.args
+        assert args[1] == "pypi"
 
 
 class TestApiResponses:

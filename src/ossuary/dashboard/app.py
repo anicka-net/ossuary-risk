@@ -203,7 +203,7 @@ if movers:
             st.markdown(
                 f'<a href="/Package?name={url_quote(p["name"])}&eco={url_quote(p["ecosystem"])}" target="_self" '
                 f'style="color:inherit;text-decoration:none;"><strong>{html_escape(p["name"])}</strong></a>'
-                f' · {p["ecosystem"]}',
+                f' · {html_escape(p["ecosystem"])}',
                 unsafe_allow_html=True,
             )
         with col2:

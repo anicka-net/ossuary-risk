@@ -87,9 +87,14 @@ def parse_purl(purl: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
     if not ecosystem:
         return None, None, None
 
-    if "@" in rest:
-        name_part, version = rest.rsplit("@", 1)
-        version = unquote(version)
+    # Split off the version at the last "@" — but only one that appears
+    # after the last "/". An unencoded scoped npm purl without a version
+    # ("pkg:npm/@babel/core") would otherwise split at the scope's "@",
+    # yielding an empty name and a garbage version.
+    last_slash = rest.rfind("/")
+    at_pos = rest.rfind("@")
+    if at_pos > last_slash and at_pos > 0:
+        name_part, version = rest[:at_pos], unquote(rest[at_pos + 1:])
     else:
         name_part, version = rest, None
 
@@ -142,6 +147,14 @@ def _iter_cyclonedx_components(raw: dict) -> Iterator[SBOMComponent]:
 
 def _iter_spdx_components(raw: dict) -> Iterator[SBOMComponent]:
     document_describes = set(raw.get("documentDescribes") or [])
+    # Tools like syft and the GitHub SBOM export declare the root via a
+    # DESCRIBES relationship instead of documentDescribes — without this
+    # the product would be scored as one of its own dependencies.
+    for rel in raw.get("relationships", []) or []:
+        if rel.get("relationshipType") == "DESCRIBES":
+            related = rel.get("relatedSpdxElement")
+            if related:
+                document_describes.add(related)
     for idx, package in enumerate(raw.get("packages", []) or []):
         spdx_id = package.get("SPDXID")
         # Skip the root document package (the product itself, not a dependency).
@@ -150,8 +163,10 @@ def _iter_spdx_components(raw: dict) -> Iterator[SBOMComponent]:
 
         purl = None
         for ref in package.get("externalRefs", []) or []:
+            # SPDX 2.2 documents and several emitters spell the category
+            # with an underscore; 2.3 uses the hyphen.
             if (
-                ref.get("referenceCategory") == "PACKAGE-MANAGER"
+                ref.get("referenceCategory") in ("PACKAGE-MANAGER", "PACKAGE_MANAGER")
                 and ref.get("referenceType") == "purl"
             ):
                 purl = ref.get("referenceLocator")

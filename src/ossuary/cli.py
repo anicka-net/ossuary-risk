@@ -1632,6 +1632,7 @@ def score_sbom(
     # data). Both render as a dash; see the table-print site below.
     rows: list[tuple[str, str, str, Optional[int], str]] = []
     component_summaries: list[dict] = []  # for support-period derivation
+    unscored_components = 0  # INSUFFICIENT_DATA rows excluded from the rollup
 
     for component in sbom.components:
         eco = component.ecosystem or ecosystem_default
@@ -1660,6 +1661,7 @@ def score_sbom(
         # rather than feeding NULL into the formula — see the same-shape
         # guard in `support-period-sbom`.
         if bd.risk_level == RiskLevel.INSUFFICIENT_DATA:
+            unscored_components += 1
             continue
         component_summaries.append({
             "name": bd.package_name,
@@ -1681,6 +1683,9 @@ def score_sbom(
         component_summaries,
         dependents_count=dependents,
         critical_top_n=critical_top_n,
+        # Components that exist but produced no score: with zero scored
+        # components the verdict must be indeterminate, not the CRA floor.
+        components_unscored=len(failed) + unscored_components,
     )
 
     if not output_json:
@@ -2001,6 +2006,7 @@ def support_period_sbom(
         component_summaries,
         dependents_count=dependents,
         critical_top_n=critical_top_n,
+        components_unscored=len(failed),
     )
 
     if output_json:
@@ -2982,6 +2988,7 @@ def diff(
             "added": [after_pkgs[n] for n in added_names],
             "removed": [before_pkgs[n] for n in removed_names],
             "changed": changed,
+            "data_state_transitions": data_state_transitions,
             "unchanged_count": unchanged_count,
         }, indent=2))
         return
@@ -2989,8 +2996,19 @@ def diff(
     after_file = after_data.get("file", after)
     console.print(f"\n[bold]Dependency diff:[/bold] {after_file}\n")
 
+    # Scan reports include INSUFFICIENT_DATA rows with score/concentration
+    # null — render those as "—" instead of crashing the formatter.
+    def _fmt_score(value) -> str:
+        return f"{value:3d}" if value is not None else "  —"
+
+    def _fmt_conc(value) -> str:
+        return f"{value:.0f}%" if value is not None else "—"
+
     if added_names:
-        added_sorted = sorted(added_names, key=lambda n: -after_pkgs[n]["score"])
+        added_sorted = sorted(
+            added_names,
+            key=lambda n: -(after_pkgs[n]["score"] if after_pkgs[n]["score"] is not None else -1),
+        )
         console.print(f"[bold green]Added ({len(added_names)} package{'s' if len(added_names) != 1 else ''}):[/bold green]")
         for name in added_sorted:
             r = after_pkgs[name]
@@ -2999,8 +3017,8 @@ def diff(
                 "LOW": "green", "VERY_LOW": "green",
             }.get(r["risk_level"], "white")
             console.print(
-                f"  {name:40s} [{color}]{r['score']:3d}  {r['risk_level']:10s}[/{color}] "
-                f"{r['concentration']:.0f}% conc  {r['commits_last_year']} commits/yr"
+                f"  {name:40s} [{color}]{_fmt_score(r['score'])}  {r['risk_level']:10s}[/{color}] "
+                f"{_fmt_conc(r['concentration'])} conc  {r['commits_last_year']} commits/yr"
             )
         console.print()
 
@@ -3008,7 +3026,7 @@ def diff(
         console.print(f"[bold red]Removed ({len(removed_names)} package{'s' if len(removed_names) != 1 else ''}):[/bold red]")
         for name in removed_names:
             r = before_pkgs[name]
-            console.print(f"  {name:40s} [dim]{r['score']:3d}  {r['risk_level']}[/dim]")
+            console.print(f"  {name:40s} [dim]{_fmt_score(r['score'])}  {r['risk_level']}[/dim]")
         console.print()
 
     if changed:
@@ -3023,7 +3041,19 @@ def diff(
             )
         console.print()
 
-    if not added_names and not removed_names and not changed:
+    if data_state_transitions:
+        console.print(
+            f"[bold magenta]Data-state transitions "
+            f"({len(data_state_transitions)} package{'s' if len(data_state_transitions) != 1 else ''}):[/bold magenta]"
+        )
+        for t in data_state_transitions:
+            console.print(
+                f"  {t['package']:40s} {_fmt_score(t['old_score'])} -> "
+                f"{_fmt_score(t['new_score'])}  now {t['risk_level']}"
+            )
+        console.print()
+
+    if not added_names and not removed_names and not changed and not data_state_transitions:
         console.print("[dim]No differences found.[/dim]\n")
 
     # Summary

@@ -186,11 +186,21 @@ async def root():
 async def _get_score(
     package: str, ecosystem: str, repo_url: Optional[str], max_age: int,
 ) -> ScoringResult:
-    """Score a package, using cache when fresh enough."""
-    use_cache = max_age > 0
+    """Score a package, using cache when fresh enough.
+
+    ``max_age=0`` means "force re-score": skip the cache *read* but keep
+    the write (``force=True``). ``use_cache=False`` would skip the store
+    block too, so the fresh score would never persist and every other
+    consumer (dashboard, movers, the next default request) would keep
+    seeing the stale value.
+    """
+    # The CLI lowercases ecosystem input; mirror that here so
+    # /score/PyPI/flask doesn't 422.
+    ecosystem = ecosystem.lower()
+    force = max_age == 0
 
     result = await score_package(
-        package, ecosystem, repo_url=repo_url, use_cache=use_cache,
+        package, ecosystem, repo_url=repo_url, use_cache=True, force=force,
         freshness_days=max_age if max_age > 0 else None,
     )
 

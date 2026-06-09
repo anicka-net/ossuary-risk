@@ -21,6 +21,14 @@ class TestPurlParsing:
         # Some toolchains emit @ unescaped in the namespace.
         assert parse_purl("pkg:npm/lodash@4.17.21") == ("npm", "lodash", "4.17.21")
 
+    def test_npm_scoped_unencoded_with_version(self):
+        assert parse_purl("pkg:npm/@babel/core@7.23.0") == ("npm", "@babel/core", "7.23.0")
+
+    def test_npm_scoped_unencoded_no_version(self):
+        # Regression: rsplit("@", 1) used to hit the scope's leading @,
+        # producing name="" and version="babel/core".
+        assert parse_purl("pkg:npm/@babel/core") == ("npm", "@babel/core", None)
+
     def test_pypi(self):
         assert parse_purl("pkg:pypi/requests@2.31.0") == ("pypi", "requests", "2.31.0")
 

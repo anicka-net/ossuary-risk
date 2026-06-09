@@ -6,6 +6,7 @@ load_dotenv()
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from html import escape as html_escape
 
 from ossuary.db.session import init_db
 from ossuary.services.scorer import score_package, get_historical_scores
@@ -115,15 +116,28 @@ if not pkg_name:
 
 # -- Score the package --
 
+class _ScoreFailure(Exception):
+    """Raised inside the cached scorer so st.cache_data does not pin a
+    transient failure for the full TTL — a one-off network hiccup would
+    otherwise show "Could not score" for an hour with no retry."""
+
+    def __init__(self, result):
+        self.result = result
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _score(name, eco):
-    return run_async(score_package(name, eco))
+    result = run_async(score_package(name, eco))
+    if not result.success:
+        raise _ScoreFailure(result)
+    return result
 
 with st.status(f"Analyzing {pkg_name}...", expanded=False) as status:
-    result = _score(pkg_name, pkg_eco)
-    if result.success:
+    try:
+        result = _score(pkg_name, pkg_eco)
         status.update(label=f"{pkg_name} scored", state="complete")
-    else:
+    except _ScoreFailure as exc:
+        result = exc.result
         status.update(label=f"Error: {result.error}", state="error")
 
 if not result.success or not result.breakdown:
@@ -161,7 +175,7 @@ if risk_value == "INSUFFICIENT_DATA":
         f'<div style="display:flex;align-items:baseline;gap:16px;">'
         f'<span style="font-size:2.2em;font-family:monospace;font-weight:700;color:#6c757d;">⚪</span>'
         f'<span style="font-size:1.4em;color:#6c757d;font-weight:600;">INSUFFICIENT DATA</span>'
-        f'<span style="color:#6c757d;font-size:0.95em;">{pkg_name} · {pkg_eco}</span>'
+        f'<span style="color:#6c757d;font-size:0.95em;">{html_escape(pkg_name)} · {html_escape(pkg_eco)}</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -216,7 +230,7 @@ st.markdown(
     f'<div style="display:flex;align-items:baseline;gap:16px;">'
     f'<span style="font-size:2.5em;font-family:monospace;font-weight:700;color:{color};">{score}</span>'
     f'<span style="font-size:1.2em;color:{color};">{level}</span>{provisional_marker}'
-    f'<span style="color:#6c757d;font-size:0.95em;">{pkg_name} · {pkg_eco}</span>'
+    f'<span style="color:#6c757d;font-size:0.95em;">{html_escape(pkg_name)} · {html_escape(pkg_eco)}</span>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -339,7 +353,7 @@ with cols[0]:
             f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
             f'border-left:3px solid {COLORS["low"]};">'
             f'<span style="color:#6c757d;font-size:0.8em;">Nearest safe</span><br>'
-            f'<strong>{s["name"]}</strong><br>'
+            f'<strong>{html_escape(s["name"])}</strong><br>'
             f'<span style="font-family:monospace;color:{risk_color(sl)};">{sc}</span> {sl}'
             f'</div>',
             unsafe_allow_html=True,
@@ -352,7 +366,7 @@ with cols[1]:
         f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
         f'border-left:3px solid {color};background:{COLORS.get("bg_" + level.lower().replace(" ","_"), "#f8f9fa")};">'
         f'<span style="color:#6c757d;font-size:0.8em;">This package</span><br>'
-        f'<strong>{pkg_name}</strong><br>'
+        f'<strong>{html_escape(pkg_name)}</strong><br>'
         f'<span style="font-family:monospace;color:{color};">{score}</span> {level}'
         f'</div>',
         unsafe_allow_html=True,
@@ -367,7 +381,7 @@ with cols[2]:
             f'<div style="padding:12px;border:1px solid #ecf0f1;border-radius:4px;'
             f'border-left:3px solid {COLORS["critical"]};">'
             f'<span style="color:#6c757d;font-size:0.8em;">Nearest risky</span><br>'
-            f'<strong>{r["name"]}</strong><br>'
+            f'<strong>{html_escape(r["name"])}</strong><br>'
             f'<span style="font-family:monospace;color:{risk_color(rl)};">{rc}</span> {rl}'
             f'</div>',
             unsafe_allow_html=True,
