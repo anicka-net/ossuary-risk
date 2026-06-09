@@ -87,10 +87,6 @@ class RiskScorer:
     Range: 0-100 (higher = riskier)
     """
 
-    # Tier-1 maintainer thresholds
-    TIER1_REPOS_THRESHOLD = 500
-    TIER1_STARS_THRESHOLD = 100_000
-
     # Download thresholds for visibility factor
     MASSIVE_VISIBILITY_THRESHOLD = 50_000_000
     HIGH_VISIBILITY_THRESHOLD = 10_000_000
@@ -354,6 +350,18 @@ class RiskScorer:
         elif breakdown.activity_modifier == 0:
             if metrics and metrics.is_mature and metrics.commits_last_year < 4:
                 parts.append("Low recent activity (expected for mature project)")
+            elif (
+                metrics
+                and metrics.commits_last_year >= 12
+                and breakdown.protective_factors.takeover_risk_score > 0
+            ):
+                # The takeover rule zeroed a negative activity modifier —
+                # the project is active; saying "low activity" here would
+                # mislabel it.
+                parts.append(
+                    "Activity bonus suppressed: high commit volume is part "
+                    "of the takeover pattern"
+                )
             else:
                 parts.append("Low activity (4-11 commits/year)")
 

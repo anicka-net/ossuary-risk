@@ -545,8 +545,14 @@ class GitCollector(BaseCollector):
                     takeover_shift = shift
                     takeover_suspect = identity
                     takeover_suspect_name = name
+                    # Tenure spans the suspect's full commit history up
+                    # to the cutoff — including their recent commits.
+                    # Using only the historical window systematically
+                    # understated tenure by the recent-window length
+                    # (~14 months), flipping the two-mode labeling for
+                    # contributors near the 3-year boundary.
                     suspect_commits = sorted(
-                        [c for c in historical_commits
+                        [c for c in commits
                          if _normalize_email(c.author_email) == identity],
                         key=lambda c: c.authored_date,
                     )
@@ -555,8 +561,6 @@ class GitCollector(BaseCollector):
                             suspect_commits[-1].authored_date
                             - suspect_commits[0].authored_date
                         ).days / 365.25
-                    elif suspect_commits:
-                        takeover_suspect_tenure_years = 0.0
                     else:
                         takeover_suspect_tenure_years = 0.0
 
