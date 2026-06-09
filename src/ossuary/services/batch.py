@@ -689,7 +689,13 @@ async def batch_score(
                     registry = probed.get(id(entry))
                     if registry is not None and registry.repo_url:
                         entry.repo_url = registry.repo_url
-                        prefetched_per_entry[id(entry)] = registry
+                        # Only reuse the probe result downstream when it
+                        # was fully clean — stashing one with transient
+                        # fetch_errors (e.g. downloads endpoint 5xx)
+                        # would bake the planning-time failure into the
+                        # score instead of letting score time retry.
+                        if not registry.fetch_errors:
+                            prefetched_per_entry[id(entry)] = registry
                         result.probe_resolved += 1
 
         # Group by canonical repo URL up front; entries inside a group

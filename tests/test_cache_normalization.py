@@ -60,13 +60,26 @@ class TestNormalizePackageName:
             ("cargo", "Serde_json"),
             ("rubygems", "Rails"),
             ("go", "github.com/Spf13/cobra"),
-            ("github", "anicka-net/ossuary-risk"),
             ("packagist", "symfony/Console"),
             ("nuget", "Newtonsoft.Json"),
         ],
     )
     def test_other_ecosystems_pass_through(self, ecosystem, given):
         assert normalize_package_name(given, ecosystem) == given
+
+    @pytest.mark.parametrize(
+        "given,expected",
+        [
+            # GitHub owner/repo is case-insensitive (the snapshot layer
+            # already relies on this in canonicalize_repo_url) — case
+            # variants must resolve to one Package row.
+            ("anicka-net/ossuary-risk", "anicka-net/ossuary-risk"),
+            ("Anicka-Net/Ossuary-Risk", "anicka-net/ossuary-risk"),
+            ("  Pandas-Dev/Pandas/  ", "pandas-dev/pandas"),
+        ],
+    )
+    def test_github_case_insensitive(self, given, expected):
+        assert normalize_package_name(given, "github") == expected
 
 
 class TestGetOrCreatePackageDedup:

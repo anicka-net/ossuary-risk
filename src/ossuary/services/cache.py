@@ -21,11 +21,16 @@ _PYPI_NORMALIZE_RE = re.compile(r"[-_.]+")
 def normalize_package_name(name: str, ecosystem: str) -> str:
     """Return the canonical name used for DB lookup and storage.
 
-    Currently normalises PyPI names per PEP 503 (lowercase, runs of ``_``,
-    ``-`` and ``.`` collapsed to a single ``-``). Other ecosystems are
-    pass-through pending evidence of similar duplication bugs — speculative
-    normalisation is worse than no normalisation because it hides legitimate
-    name distinctions (e.g. case-sensitive scoped npm packages).
+    Normalises PyPI names per PEP 503 (lowercase, runs of ``_``, ``-``
+    and ``.`` collapsed to a single ``-``) and github ``owner/repo``
+    names to lowercase (GitHub treats owner and repo names as
+    case-insensitive — the snapshot layer already relies on this in
+    ``canonicalize_repo_url``, so without it ``Foo/Bar`` and
+    ``foo/bar`` split into two Package rows while sharing one snapshot
+    cache). Other ecosystems are pass-through pending evidence of
+    similar duplication bugs — speculative normalisation is worse than
+    no normalisation because it hides legitimate name distinctions
+    (e.g. case-sensitive scoped npm packages).
 
     Reason this exists: ``get_or_create_package`` previously did a
     case-sensitive ``Package.name == name`` lookup, so the same logical
@@ -36,6 +41,8 @@ def normalize_package_name(name: str, ecosystem: str) -> str:
     """
     if ecosystem == "pypi":
         return _PYPI_NORMALIZE_RE.sub("-", name.strip().lower())
+    if ecosystem == "github":
+        return name.strip().strip("/").lower()
     return name
 
 
@@ -114,9 +121,11 @@ class ScoreCache:
     def get_current_score(self, package: Package) -> Optional[Score]:
         """Get most recent current score for a package.
 
-        Current scores use a live cutoff timestamp close to the calculation time.
-        Historical month snapshots use older cutoff dates and must not satisfy
-        current-cache lookups.
+        Current scores use a live cutoff timestamp close to the calculation
+        time. Rows tagged ``is_historical`` (explicit --cutoff runs, monthly
+        backfill) are computed with current-only signals neutralized and are
+        excluded — without the tag, a --cutoff run from earlier in the
+        freshness window would be served as today's score.
         """
         fresh_cutoff = utcnow_naive() - self.freshness_threshold
         return (
@@ -124,6 +133,7 @@ class ScoreCache:
             .filter(
                 Score.package_id == package.id,
                 Score.cutoff_date >= fresh_cutoff,
+                Score.is_historical.is_(False),
             )
             .order_by(Score.cutoff_date.desc(), Score.calculated_at.desc())
             .first()
@@ -134,11 +144,20 @@ class ScoreCache:
     ) -> list[Score]:
         """Retrieve cached historical scores for a package.
 
-        Returns scores ordered by cutoff_date descending (most recent first).
+        Returns scores ordered by cutoff_date descending (most recent
+        first). Only rows tagged ``is_historical`` with a computed score
+        qualify — otherwise a package scored repeatedly via batch/API
+        would accumulate enough current rows to be served as a fake
+        "monthly" series (near-identical points days apart), and
+        INSUFFICIENT_DATA rows would inject ``None`` into trend output.
         """
         return (
             self.session.query(Score)
-            .filter(Score.package_id == package.id)
+            .filter(
+                Score.package_id == package.id,
+                Score.is_historical.is_(True),
+                Score.final_score.isnot(None),
+            )
             .order_by(Score.cutoff_date.desc())
             .limit(months)
             .all()
@@ -160,6 +179,7 @@ class ScoreCache:
         weekly_downloads: Optional[int] = 0,
         sentiment_modifier: int = 0,
         is_provisional: bool = False,
+        is_historical: bool = False,
     ) -> Score:
         """Store a calculated score in the database.
 
@@ -172,6 +192,11 @@ class ScoreCache:
         computed but a non-essential signal failed (e.g. GitHub
         Sponsors lookup) — the score is conservative and should be
         retried via ``rescore-invalid``.
+
+        ``is_historical=True`` flags rows from an explicit --cutoff run
+        or the monthly history backfill. They are computed with
+        current-only signals neutralized, so they must never be served
+        as a package's current score (see :meth:`get_current_score`).
         """
         score = Score(
             package_id=package.id,
@@ -189,6 +214,7 @@ class ScoreCache:
             unique_contributors=unique_contributors,
             weekly_downloads=weekly_downloads,
             is_provisional=is_provisional,
+            is_historical=is_historical,
         )
         self.session.add(score)
         return score

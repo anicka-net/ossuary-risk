@@ -45,7 +45,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import asdict, fields, is_dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -125,7 +125,11 @@ logger = logging.getLogger(__name__)
 # CommitData, GitHubData, IssueData) changes in a way that breaks
 # deserialisation. Methodology bumps do NOT touch this — the formula reads
 # the same raw data whether it's v6.3 or v6.5.
-COLLECTOR_VERSION = 1
+# v2: GitHubData.merged_prs (raw per-PR merge sample). Old blobs lack the
+# sample, carry aggregates from the pre-fix `last: 100` query (oldest PRs)
+# and were collected before clone_or_update fast-forwarded stale clones —
+# all three argue for forced re-collection.
+COLLECTOR_VERSION = 2
 
 
 # Freshness SLA bands (days) for the current-scoring path. See
@@ -251,16 +255,26 @@ def serialise_collected_data(data: Any) -> dict:
 
 
 def _parse_datetime(value: Any) -> Optional[datetime]:
-    """Best-effort ISO-string → datetime parser. Returns None on falsy input."""
+    """Best-effort ISO-string → naive-UTC datetime parser.
+
+    Converts to UTC *before* stripping tzinfo — plain ``replace(tzinfo=
+    None)`` keeps the clock-face of whatever offset the string carried,
+    skewing non-UTC timestamps. Returns None on falsy input.
+    """
     if not value:
         return None
     if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
         return value
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
             return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=None)
     return None
 
 

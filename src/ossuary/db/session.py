@@ -114,6 +114,30 @@ def _autoapply_simple_migrations(connection) -> None:
         connection.execute(text(
             "ALTER TABLE scores ADD COLUMN data_snapshot_at DATETIME"
         ))
+    if "is_historical" not in existing_cols:
+        # Without the tag, a --cutoff row written inside the freshness
+        # window satisfied get_current_score, and accumulated current
+        # rows satisfied the monthly-history lookup. Backfill: a row is
+        # historical when its cutoff predates its calculation by more
+        # than a day (current rows have cutoff ≈ calculated_at).
+        logger.warning(
+            "Auto-migrating scores schema: adding is_historical column + "
+            "backfilling from cutoff_date/calculated_at distance"
+        )
+        connection.execute(text(
+            "ALTER TABLE scores ADD COLUMN is_historical "
+            "BOOLEAN NOT NULL DEFAULT 0"
+        ))
+        if connection.dialect.name == "sqlite":
+            connection.execute(text(
+                "UPDATE scores SET is_historical = 1 "
+                "WHERE julianday(calculated_at) - julianday(cutoff_date) > 1"
+            ))
+        else:
+            connection.execute(text(
+                "UPDATE scores SET is_historical = TRUE "
+                "WHERE calculated_at > cutoff_date + INTERVAL '1 day'"
+            ))
 
     if "packages" in inspector.get_table_names():
         package_cols = {col["name"] for col in inspector.get_columns("packages")}

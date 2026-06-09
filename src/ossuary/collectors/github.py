@@ -7,6 +7,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Optional
 
 import httpx
@@ -101,10 +102,78 @@ class GitHubData:
     top_merger_login: str = ""
     merges_analyzed: int = 0
     merge_bus_factor: int = 0
+    # Raw per-PR sample behind the aggregates above: list of
+    # ``{"login": str, "merged_at": ISO-8601 str}``. Kept so historical
+    # (T-1) scoring can re-derive the merge signals from PRs merged
+    # before the cutoff instead of leaking current-day merge behaviour
+    # into past scores.
+    merged_prs: list[dict] = field(default_factory=list)
 
     # Data-completeness tracking (see class docstring)
     fetch_errors: list[str] = field(default_factory=list)
     provisional_reasons: list[str] = field(default_factory=list)
+
+
+# Minimum merged-PR sample for the merge-author signals. A handful of
+# merges makes the bus-factor estimate noise (one PR → merge_bus_factor
+# = 1, which would spuriously lower the effective bus factor). Applies
+# both to quiet repos and to historical cutoffs where only a few of the
+# latest-100 sample predate the cutoff.
+MIN_MERGE_SAMPLE = 10
+
+
+def compute_merge_stats(merged_prs: list[dict], cutoff: Optional[datetime] = None) -> dict:
+    """Derive merge-concentration aggregates from a ``(login, merged_at)`` sample.
+
+    ``cutoff`` (naive UTC) restricts the sample to PRs merged on or
+    before that date so T-1 scoring doesn't leak current-day merge
+    behaviour. Returns the zeroed dict (= signal unavailable) when the
+    sample after filtering is below ``MIN_MERGE_SAMPLE``.
+    """
+    empty = {"merge_concentration": 0.0, "top_merger": "",
+             "merges_analyzed": 0, "merge_bus_factor": 0}
+
+    merger_counts: dict[str, int] = {}
+    for pr in merged_prs:
+        login = pr.get("login", "")
+        if not login or "[bot]" in login:
+            continue
+        if cutoff is not None:
+            merged_at = pr.get("merged_at", "")
+            if not merged_at:
+                continue
+            try:
+                merged_dt = datetime.fromisoformat(
+                    merged_at.replace("Z", "+00:00")
+                ).replace(tzinfo=None)
+            except ValueError:
+                continue
+            if merged_dt > cutoff:
+                continue
+        merger_counts[login] = merger_counts.get(login, 0) + 1
+
+    total_merges = sum(merger_counts.values())
+    if total_merges < MIN_MERGE_SAMPLE:
+        return empty
+
+    sorted_mergers = sorted(merger_counts.values(), reverse=True)
+    top_merger = max(merger_counts, key=merger_counts.get)
+    top_pct = sorted_mergers[0] / total_merges * 100
+
+    cumulative = 0
+    merge_bf = 0
+    for count in sorted_mergers:
+        cumulative += count
+        merge_bf += 1
+        if cumulative >= total_merges * 0.5:
+            break
+
+    return {
+        "merge_concentration": top_pct,
+        "top_merger": top_merger,
+        "merges_analyzed": total_merges,
+        "merge_bus_factor": merge_bf,
+    }
 
 
 class GitHubCollector(BaseCollector):
@@ -427,15 +496,20 @@ class GitHubCollector(BaseCollector):
         """Compute who merges PRs and how concentrated that activity is.
 
         Uses GraphQL to fetch the most recent 100 merged PRs (the REST
-        list endpoint omits ``merged_by``). One API call.
+        list endpoint omits ``merged_by``). One API call. The raw
+        ``(login, merged_at)`` sample is returned alongside the
+        aggregates so historical scoring can re-derive the signals
+        from PRs merged before a cutoff.
         """
         empty = {"merge_concentration": 0.0, "top_merger": "",
-                 "merges_analyzed": 0, "merge_bus_factor": 0}
+                 "merges_analyzed": 0, "merge_bus_factor": 0,
+                 "merged_prs": []}
         query = """
         query($owner: String!, $repo: String!) {
           repository(owner: $owner, name: $repo) {
             pullRequests(states: MERGED, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
               nodes {
+                mergedAt
                 mergedBy { login }
               }
             }
@@ -449,35 +523,19 @@ class GitHubCollector(BaseCollector):
         if not nodes:
             return empty
 
-        merger_counts: dict[str, int] = {}
+        merged_prs = []
         for node in nodes:
             merged_by = node.get("mergedBy") or {}
             login = merged_by.get("login", "")
-            if login and "[bot]" not in login:
-                merger_counts[login] = merger_counts.get(login, 0) + 1
+            if login:
+                merged_prs.append({
+                    "login": login,
+                    "merged_at": node.get("mergedAt", "") or "",
+                })
 
-        total_merges = sum(merger_counts.values())
-        if total_merges == 0:
-            return empty
-
-        sorted_mergers = sorted(merger_counts.values(), reverse=True)
-        top_merger = max(merger_counts, key=merger_counts.get)
-        top_pct = sorted_mergers[0] / total_merges * 100
-
-        cumulative = 0
-        merge_bf = 0
-        for count in sorted_mergers:
-            cumulative += count
-            merge_bf += 1
-            if cumulative >= total_merges * 0.5:
-                break
-
-        return {
-            "merge_concentration": top_pct,
-            "top_merger": top_merger,
-            "merges_analyzed": total_merges,
-            "merge_bus_factor": merge_bf,
-        }
+        stats = compute_merge_stats(merged_prs)
+        stats["merged_prs"] = merged_prs
+        return stats
 
     async def get_repo_contributors(
         self, owner: str, repo: str, limit: int = 100, max_pages: int = 5

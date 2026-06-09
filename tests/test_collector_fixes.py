@@ -123,6 +123,53 @@ class TestMergeConcentrationWindow:
         asyncio.run(run())
 
 
+class TestComputeMergeStats:
+    """Merge aggregates are re-derived from the raw (login, merged_at)
+    sample so historical scoring can exclude post-cutoff merges."""
+
+    def _sample(self):
+        # 30 merges across 3 humans, Jan..Sep 2024; bot noise mixed in.
+        prs = [
+            {"login": f"user{i % 3}", "merged_at": f"2024-0{(i % 9) + 1}-01T00:00:00Z"}
+            for i in range(30)
+        ]
+        prs.append({"login": "dependabot[bot]", "merged_at": "2024-05-01T00:00:00Z"})
+        return prs
+
+    def test_no_cutoff_uses_full_sample(self):
+        from ossuary.collectors.github import compute_merge_stats
+
+        stats = compute_merge_stats(self._sample())
+        assert stats["merges_analyzed"] == 30  # bot excluded
+        assert stats["merge_bus_factor"] == 2
+
+    def test_cutoff_excludes_later_merges(self):
+        from datetime import datetime
+
+        from ossuary.collectors.github import compute_merge_stats
+
+        stats = compute_merge_stats(self._sample(), cutoff=datetime(2024, 3, 15))
+        assert stats["merges_analyzed"] == 12  # Jan-Mar only
+
+    def test_below_min_sample_returns_unavailable(self):
+        from datetime import datetime
+
+        from ossuary.collectors.github import compute_merge_stats
+
+        stats = compute_merge_stats(self._sample(), cutoff=datetime(2024, 1, 15))
+        assert stats["merge_bus_factor"] == 0
+        assert stats["merges_analyzed"] == 0
+
+    def test_missing_timestamp_excluded_when_cutoff_given(self):
+        from datetime import datetime
+
+        from ossuary.collectors.github import compute_merge_stats
+
+        prs = [{"login": "u1", "merged_at": ""}] * 20
+        stats = compute_merge_stats(prs, cutoff=datetime(2024, 6, 1))
+        assert stats["merge_bus_factor"] == 0
+
+
 class TestIssuesDeletedAuthor:
     """GitHub serves `"user": null` for deleted accounts; that must not
     crash get_issues (a crash dumps the whole GitHub family into the

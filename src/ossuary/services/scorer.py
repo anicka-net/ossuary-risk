@@ -1,5 +1,6 @@
 """Reusable scoring functions for ossuary."""
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -333,6 +334,14 @@ async def cached_collect(
             # npm/pypi caller that recorded real download counts —
             # those would over-credit the visibility bonus here.
             data.weekly_downloads = 0
+            # Likewise drop the donor package's registry-derived fetch
+            # errors: with downloads zeroed they describe a signal this
+            # caller doesn't use, and inheriting them would wrongly
+            # push this package into INSUFFICIENT_DATA (and persist
+            # that state forward via the re-keyed snapshot below).
+            data.fetch_errors = [
+                e for e in data.fetch_errors if e.startswith("github.")
+            ]
         return data, True
 
     if use_cache:
@@ -459,6 +468,15 @@ async def cached_collect(
                             prefetched_registry.weekly_downloads or 0
                         )
                         data.repo_url = prefetched_registry.repo_url
+                        # The donor's registry-derived fetch errors are
+                        # superseded by this caller's clean registry
+                        # probe (gated above on no fetch_errors) —
+                        # inheriting them would mislabel this package
+                        # INSUFFICIENT_DATA for the donor's failure.
+                        data.fetch_errors = [
+                            e for e in data.fetch_errors
+                            if e.startswith("github.")
+                        ]
                         # Persist a snapshot keyed to this package so
                         # subsequent same-package lookups hit the cheap
                         # package-keyed path (and so this package gets
@@ -548,11 +566,13 @@ async def cached_collect(
                     if data is not None and data.fetch_errors:
                         data = None
                     if data is not None:
-                        # Refresh auxiliary families in place. Failure
-                        # flags from each family are appended to
-                        # data.fetch_errors / data.provisional_reasons
-                        # so the INSUFFICIENT_DATA / provisional
-                        # semantics inherit naturally.
+                        # Refresh auxiliary families in place. The
+                        # refresh mutates github_data's provisional
+                        # list; the scorer reads the *top-level*
+                        # CollectedData copy, so rebuild it afterwards
+                        # — otherwise a successful refresh never clears
+                        # the stale flag and a refresh failure never
+                        # sets a new one.
                         try:
                             await _refresh_auxiliary_families(
                                 stale.repo_url, data.github_data,
@@ -565,6 +585,30 @@ async def cached_collect(
                                 ecosystem, package_name, exc,
                             )
                         else:
+                            data.provisional_reasons = [
+                                r for r in data.provisional_reasons
+                                if not _is_aux_provisional_entry(r)
+                            ]
+                            for r in data.github_data.provisional_reasons:
+                                if (
+                                    _is_aux_provisional_entry(r)
+                                    and r not in data.provisional_reasons
+                                ):
+                                    data.provisional_reasons.append(r)
+                            # The probe validated only GitHub pushed_at;
+                            # the registry-derived downloads in the blob
+                            # keep ageing. Overlay the fresh value when
+                            # the share-path registry probe already
+                            # fetched one this run.
+                            if (
+                                prefetched_registry is not None
+                                and not prefetched_registry.fetch_errors
+                                and prefetched_registry.weekly_downloads
+                                is not None
+                            ):
+                                data.weekly_downloads = (
+                                    prefetched_registry.weekly_downloads
+                                )
                             # Persist the refreshed data as a new
                             # snapshot row. Append-only — the old
                             # snapshot stays for audit.
@@ -666,11 +710,14 @@ async def collect_package_data(
     if not repo_url:
         return None, [f"Package '{package_name}' not found on {ecosystem} (no repository URL)"]
 
-    # 2. Collect ALL git commits (not filtered by date)
+    # 2. Collect ALL git commits (not filtered by date). Clone and log
+    # run in a worker thread — they are blocking subprocess/git work and
+    # would otherwise freeze the event loop (the API serves /score from
+    # async handlers; a large clone froze every concurrent request).
     git_collector = GitCollector()
     try:
-        repo_path = git_collector.clone_or_update(repo_url)
-        all_commits = git_collector.extract_commits(repo_path)
+        repo_path = await asyncio.to_thread(git_collector.clone_or_update, repo_url)
+        all_commits = await asyncio.to_thread(git_collector.extract_commits, repo_path)
     except Exception as e:
         err_str = str(e)
         is_not_found = (
@@ -688,8 +735,12 @@ async def collect_package_data(
                 f"registry homepage fallback ({fallback})."
             )
             try:
-                repo_path = git_collector.clone_or_update(fallback)
-                all_commits = git_collector.extract_commits(repo_path)
+                repo_path = await asyncio.to_thread(
+                    git_collector.clone_or_update, fallback
+                )
+                all_commits = await asyncio.to_thread(
+                    git_collector.extract_commits, repo_path
+                )
                 repo_url = fallback
             except Exception as e2:
                 err_str2 = str(e2)
@@ -762,6 +813,7 @@ async def collect_package_data(
                 github_data.top_merger_login = merge_data["top_merger"]
                 github_data.merges_analyzed = merge_data["merges_analyzed"]
                 github_data.merge_bus_factor = merge_data["merge_bus_factor"]
+                github_data.merged_prs = merge_data.get("merged_prs", [])
                 logger.info(
                     "merge_concentration: %.1f%%, merge_bus_factor=%d (%d merges)",
                     merge_data["merge_concentration"],
@@ -801,13 +853,18 @@ async def collect_package_data(
     # `fetch_errors` list).
     provisional_reasons = list(github_data.provisional_reasons)
 
-    # Parse account created date
+    # Parse account created date. Normalise to naive UTC: the cache
+    # rehydration path (repo_cache._parse_datetime) produces naive
+    # datetimes, and a tz-aware value here makes ReputationScorer
+    # discard the historical cutoff (it rebuilds `now` from the aware
+    # tzinfo) — same package, same cutoff, different tenure depending
+    # on cache state.
     maintainer_account_created = None
     if github_data.maintainer_account_created:
         try:
             maintainer_account_created = datetime.fromisoformat(
                 github_data.maintainer_account_created.replace("Z", "+00:00")
-            )
+            ).astimezone(timezone.utc).replace(tzinfo=None)
         except ValueError:
             pass
 
@@ -954,6 +1011,43 @@ def calculate_score_for_date(
     elif collected_data.repo_stargazers > 0:
         factor_availability["visibility"] = "current_repo_stars_proxy"
 
+    # Merge-author signals (v6.4). Re-derive from the raw per-PR sample
+    # so historical cutoffs only see PRs merged before the cutoff —
+    # the aggregates on github_data describe *current* merge behaviour
+    # and would leak into T-1 scores. Legacy blobs without the raw
+    # sample fall back to the stored aggregates for current scoring and
+    # to "signal unavailable" (0) for historical scoring.
+    from ossuary.collectors.github import compute_merge_stats
+
+    if github_data.merged_prs:
+        merge_stats = compute_merge_stats(
+            github_data.merged_prs,
+            cutoff=cutoff_date if is_historical else None,
+        )
+        merge_bus_factor = merge_stats["merge_bus_factor"]
+        merge_concentration = merge_stats["merge_concentration"]
+        factor_availability["merge_signals"] = (
+            "historical_reconstruction" if is_historical else "current_observed"
+        )
+        if merge_bus_factor == 0:
+            factor_availability["merge_signals"] = "unavailable_insufficient_sample"
+    elif is_historical:
+        merge_bus_factor = 0
+        merge_concentration = 0.0
+        factor_availability["merge_signals"] = "unavailable_historical_neutralized"
+        if github_data.merge_bus_factor > 0:
+            warnings.append(
+                "Historical scoring disables merge-author signals: the cached "
+                "merged-PR sample has no timestamps, so current-day merge "
+                "behaviour cannot be excluded."
+            )
+    else:
+        merge_bus_factor = github_data.merge_bus_factor
+        merge_concentration = github_data.merge_concentration
+        factor_availability["merge_signals"] = (
+            "current_observed" if merge_bus_factor > 0 else "missing"
+        )
+
     use_issue_sentiment = not is_historical
     if github_data.issues:
         if use_issue_sentiment:
@@ -1052,9 +1146,9 @@ def calculate_score_for_date(
         takeover_suspect=git_metrics.takeover_suspect,
         takeover_suspect_name=git_metrics.takeover_suspect_name,
         takeover_suspect_tenure_years=git_metrics.takeover_suspect_tenure_years,
-        # Merge concentration (v6.4)
-        merge_bus_factor=github_data.merge_bus_factor,
-        merge_concentration=github_data.merge_concentration,
+        # Merge concentration (v6.4) — cutoff-aware, see derivation above
+        merge_bus_factor=merge_bus_factor,
+        merge_concentration=merge_concentration,
         # Sentiment
         average_sentiment=avg_sentiment,
         frustration_detected=total_frustration > 0,
@@ -1102,12 +1196,14 @@ def _rebuild_breakdown(cached_score, package_name: str, ecosystem: str) -> Optio
             sentiment_score=pf.get("sentiment", {}).get("score", 0),
             maturity_score=pf.get("maturity", {}).get("score", 0),
             takeover_risk_score=pf.get("takeover_risk", {}).get("score", 0),
+            burnout_escalation_score=pf.get("burnout_escalation", {}).get("score", 0),
             reputation_evidence=pf.get("reputation", {}).get("evidence"),
             funding_evidence=pf.get("funding", {}).get("evidence"),
             frustration_evidence=pf.get("frustration", {}).get("evidence", []),
             sentiment_evidence=pf.get("sentiment", {}).get("evidence", []),
             maturity_evidence=pf.get("maturity", {}).get("evidence"),
             takeover_risk_evidence=pf.get("takeover_risk", {}).get("evidence"),
+            burnout_escalation_evidence=pf.get("burnout_escalation", {}).get("evidence"),
         )
 
         risk_level = RiskLevel(cached_score.risk_level)
@@ -1173,7 +1269,13 @@ async def score_package(
     # subsequent collection then fails.
     if use_cache and not force:
         with session_scope() as session:
-            cache = ScoreCache(session, freshness_days=freshness_days or ScoreCache(session).freshness_threshold.days)
+            # freshness_days=0 is a legitimate value ("never serve cached"),
+            # so test for None instead of falsiness.
+            cache = (
+                ScoreCache(session)
+                if freshness_days is None
+                else ScoreCache(session, freshness_days=freshness_days)
+            )
             package = cache.get_package(package_name, ecosystem)
 
             cached_score = None
@@ -1220,7 +1322,11 @@ async def score_package(
 
         is_invalid = breakdown.risk_level == RiskLevel.INSUFFICIENT_DATA
         with session_scope() as session:
-            cache = ScoreCache(session, freshness_days=freshness_days or ScoreCache(session).freshness_threshold.days)
+            cache = (
+                ScoreCache(session)
+                if freshness_days is None
+                else ScoreCache(session, freshness_days=freshness_days)
+            )
             package = cache.get_or_create_package(
                 package_name, ecosystem, collected_data.repo_url
             )
@@ -1249,9 +1355,14 @@ async def score_package(
                 unique_contributors=None if is_invalid else breakdown.unique_contributors,
                 weekly_downloads=None if is_invalid else breakdown.weekly_downloads,
                 is_provisional=breakdown.is_provisional,
+                is_historical=cutoff_date is not None,
             )
             score.data_snapshot_at = data_snapshot_at
-            cache.mark_analyzed(package)
+            # last_analyzed feeds the current-score freshness gate; a
+            # --cutoff run produced no current score, so it must not
+            # refresh the gate.
+            if cutoff_date is None:
+                cache.mark_analyzed(package)
 
     return ScoringResult(success=True, breakdown=breakdown, warnings=warnings)
 
@@ -1325,8 +1436,12 @@ async def get_historical_scores(
     # Sort chronologically (oldest first)
     cutoff_dates.sort()
 
-    # Calculate score for each month
-    historical_scores = []
+    # Calculate score for each month. Keep the breakdown paired with its
+    # HistoricalScore: a failed month leaves a hole in the list, and a
+    # positional zip against cutoff_dates would misalign every row after
+    # the hole (breakdown computed for one month stored under another).
+    historical_scores: list[HistoricalScore] = []
+    historical_breakdowns: list[RiskBreakdown] = []
     for i, cutoff in enumerate(cutoff_dates):
         if progress_callback:
             progress_callback(i + 1, len(cutoff_dates))
@@ -1343,6 +1458,7 @@ async def get_historical_scores(
                 commits_year=breakdown.commits_last_year,
                 contributors=breakdown.unique_contributors,
             ))
+            historical_breakdowns.append(breakdown)
         except Exception as e:
             warnings.append(f"Failed to calculate score for {cutoff.date()}: {e}")
             # Continue with other dates
@@ -1357,10 +1473,7 @@ async def get_historical_scores(
             cache.clear_scores_for_cutoffs(package, [hs.date for hs in historical_scores])
 
             # Store new scores
-            for hs, cutoff in zip(historical_scores, cutoff_dates):
-                breakdown = calculate_score_for_date(
-                    package_name, ecosystem, collected_data, cutoff
-                )
+            for hs, breakdown in zip(historical_scores, historical_breakdowns):
                 cache.store_score(
                     package=package,
                     cutoff_date=hs.date,
@@ -1375,6 +1488,7 @@ async def get_historical_scores(
                     unique_contributors=hs.contributors,
                     weekly_downloads=collected_data.weekly_downloads,
                     is_provisional=breakdown.is_provisional,
+                    is_historical=True,
                 )
 
     return historical_scores, warnings

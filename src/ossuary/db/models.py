@@ -184,6 +184,13 @@ class Score(Base):
     # Reasons live in ``breakdown['provisional_reasons']``.
     is_provisional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # True for rows produced by an explicit --cutoff run or the monthly
+    # history backfill. Historical rows are computed with neutralized
+    # current-only signals (sponsors zeroed, visibility disabled), so
+    # they must never satisfy a current-score cache lookup — and
+    # current rows must never pollute the monthly history series.
+    is_historical: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # When the underlying CollectedData snapshot was fetched. Distinct
     # from ``calculated_at`` (when the formula was run): a methodology
     # bump can produce a fresh ``calculated_at`` against an older
