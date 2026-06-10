@@ -70,6 +70,10 @@ Agents must always follow these rules:
 - Do not treat unavailable historical data as if it were observed data.
 - Do not round partial verification up into a stronger claim than was
   actually tested.
+- Do not assert external-API semantics (GitHub REST/GraphQL ordering,
+  pagination, parameter behavior; registry endpoints) from documentation,
+  memory, or a review finding alone — reproduce the behavior with a live
+  call before code or fixes rely on it.
 
 ## 4. Stable Interfaces
 
@@ -103,8 +107,18 @@ Minimum verification depends on the change:
 - CLI/API behavior: run the relevant command path or targeted tests
 - scoring logic: run the targeted scoring tests and inspect the affected
   methodology text for consistency
+- collector logic or external-API semantics: reproduce the claimed
+  behavior with a one-off live call against the real API (minimal
+  GraphQL query, `curl`, or equivalent) and record the observed result.
+  This applies in both directions: before accepting a review finding
+  about API behavior, and before writing new code that assumes it.
 - validation logic or reported results: rerun the relevant validation path
   or state exactly why it was not rerun
+- published numbers: any value that appears in `README.md`, `docs/`, or
+  dashboard text and also exists in `validation_results.json` must be
+  pinned by a drift test (`tests/test_doc_code_drift.py`) in the same
+  workstream. Presence checks are not sufficient — they pass on stale
+  documents; pin the value against the artifact.
 - docs/thesis-facing claims: cross-check wording against the current code,
   validation artifacts, and source documents
 - docs-only: code tests are not required, but claims must match the repo
@@ -117,6 +131,19 @@ python3 -m pytest -q tests
 
 If verification could not be run, say exactly what could not be run and why.
 
+Change verification does not audit the standing pipeline: diff-scoped
+review (human or AI) does not reliably examine long-stable code outside
+the diff, so defects there survive any number of change reviews. Before
+headline numbers are published (concretely: before the metrics in
+`docs/validation.md` / `README.md` are updated for an external
+milestone), the maintainer triggers a whole-pipeline audit:
+subsystem-scoped adversarial review of the data-collection layer with
+live-API verification of findings, then a from-scratch re-collection
+(bump `COLLECTOR_VERSION` in `src/ossuary/services/repo_cache.py` to
+invalidate all snapshots) to test whether results reproduce. See
+`docs/validation.md` § "June 2026 pipeline-integrity revalidation" for
+the precedent and rationale.
+
 ## 7. Academic Honesty Rules
 
 This repository supports academic work. Agents must protect that.
@@ -126,6 +153,12 @@ Required behavior:
 - distinguish observed data from estimates and proxies
 - distinguish current-state scoring from historical reconstruction
 - distinguish measured validation results from interpretation
+- name the mechanism when describing metric movements: every sentence
+  about a metric change in a public document states what caused it — the
+  package(s) and factor(s) that flipped, or the dataset-composition /
+  reclassification change if no score moved. Causal prose without a
+  named mechanism cannot be checked by any test and is where stale
+  claims hide.
 - preserve source traceability for nontrivial factual claims
 - keep AI assistance transparent where it materially affected the work
 - keep thesis text the author's own unless the user explicitly asks for

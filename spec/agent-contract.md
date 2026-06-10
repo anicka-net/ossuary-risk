@@ -88,7 +88,9 @@ Verification is mandatory.
 |---|---|
 | CLI/API behavior | affected command path or targeted tests |
 | scoring logic | targeted scoring tests; check docs for consistency |
+| collector / external-API semantics | one-off live call reproducing the claimed behavior; applies to review findings and new assumptions alike |
 | validation scripts/results | rerun affected validation path or explain why not |
+| published numbers in README/docs/dashboard that also exist in `validation_results.json` | pin against the artifact in `tests/test_doc_code_drift.py`; presence checks are insufficient |
 | dashboard methodology/validation text | compare against current docs and artifacts |
 | docs-only | no code tests required, but factual consistency must be checked |
 
@@ -97,6 +99,15 @@ Baseline suite:
 ```bash
 python3 -m pytest -q tests
 ```
+
+Diff-scoped verification does not audit the standing pipeline. Before
+headline numbers in `docs/validation.md` / `README.md` are updated for
+an external milestone, the maintainer triggers a whole-pipeline audit:
+subsystem-scoped adversarial review of the data-collection layer with
+live-API verification of findings, then a from-scratch re-collection
+(`COLLECTOR_VERSION` bump in `src/ossuary/services/repo_cache.py`) to
+test whether results reproduce. Precedent: `docs/validation.md`
+§ "June 2026 pipeline-integrity revalidation".
 
 ### Phase 5: Report
 
@@ -132,6 +143,9 @@ Agents must:
 - keep limitations visible when data are incomplete
 - preserve citation and provenance discipline when asked to summarize sources
 - state uncertainty explicitly when a claim cannot be fully verified
+- name the causal mechanism when describing metric movements in public
+  documents: the package and factor that flipped, or the
+  dataset-composition / reclassification change if no score moved
 
 Agents must not:
 
