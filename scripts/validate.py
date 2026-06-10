@@ -2053,6 +2053,120 @@ VALIDATION_CASES = [
               "detected and notified maintainer.",
         repo_url="https://github.com/Lightning-AI/pytorch-lightning",
     ),
+
+    # ===================================================================
+    # 2026-06 INCIDENT SWEEP — Hades / Shai-Hulud bioinformatics cluster
+    # ===================================================================
+    # Second temporal-holdout increment after the 2026-05 sweep. On
+    # 2026-06-08 the Shai-Hulud "Hades" worm trojanized six legitimate
+    # PyPI bioinformatics packages by stealing the PyPI API tokens of
+    # 2-3 shared maintainers who controlled all six (Monarch Initiative /
+    # AnacletoLAB / P2GX academic ecosystem). A malicious .pth file runs
+    # a Bun credential stealer at Python startup. PyPI removed all six
+    # packages, so registry data is gone — these are scored as
+    # ecosystem="github" against the source repos (same convention as
+    # fsnotify/fsnotify); the governance signal is the only scoreable
+    # object and is identical between routes. Scored T-1 at the
+    # 2026-06-07 cutoff against the FROZEN v6.4 model (holdout discipline).
+    #
+    # Tier: all six are T3 (weak-governance + account compromise,
+    # in-scope). These are 1-3 contributor academic projects with high
+    # maintainer concentration — none meets the "strong governance" bar
+    # that defines T4 (cf. pytorch-lightning, Lightning AI org-backed).
+    # The attack exploited exactly the concentration Ossuary measures.
+    #
+    # Pre-incident scores (frozen v6.4, 2026-06-07 cutoff): gpsea 70,
+    # ensmallen 65, embiggen 65 → flagged (TP); pyphetools 50,
+    # ppkt2synergy 45, phenopacket-store-toolkit 15 → missed (FN).
+    # 3/6 detected. Sources: Endor Labs "Shai-Hulud Hades wave",
+    # BleepingComputer 2026-06-09, Socket "Mini Shai-Hulud, Miasma,
+    # and Hades".
+    ValidationCase(
+        name="P2GX/gpsea",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-06-08",
+        cutoff_date="2026-06-07",
+        notes="PyPI package 'gpsea' (genotype-phenotype association). "
+              "Single-maintainer project: 100% concentration, 1 contributor, "
+              "72 commits/yr. PyPI package removed post-incident; scored "
+              "against source repo. Shared-maintainer PyPI token theft.",
+        repo_url="https://github.com/P2GX/gpsea",
+    ),
+    ValidationCase(
+        name="AnacletoLAB/ensmallen",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-06-08",
+        cutoff_date="2026-06-07",
+        notes="PyPI package 'ensmallen' (GRAPE graph library). High "
+              "concentration (82%, 2 contributors). PyPI package removed "
+              "post-incident; scored against source repo. Shared-maintainer "
+              "PyPI token theft.",
+        repo_url="https://github.com/AnacletoLAB/ensmallen",
+    ),
+    ValidationCase(
+        name="monarch-initiative/embiggen",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-06-08",
+        cutoff_date="2026-06-07",
+        notes="PyPI package 'embiggen' (GRAPE embeddings). Single-maintainer "
+              "project: 100% concentration, 1 contributor, low activity. PyPI "
+              "package removed post-incident; scored against source repo. "
+              "Shared-maintainer PyPI token theft.",
+        repo_url="https://github.com/monarch-initiative/embiggen",
+    ),
+    ValidationCase(
+        name="monarch-initiative/pyphetools",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-06-08",
+        cutoff_date="2026-06-07",
+        notes="EXPECTED FN: PyPI package 'pyphetools' (phenopacket tooling). "
+              "High concentration (83%, 2 contributors) but scores 50 — the "
+              "org-membership proxy credit (-15) for monarch-initiative pulls "
+              "it below the threshold. PyPI package removed post-incident; "
+              "scored against source repo. Shared-maintainer PyPI token theft.",
+        repo_url="https://github.com/monarch-initiative/pyphetools",
+    ),
+    ValidationCase(
+        name="P2GX/ppkt2synergy",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-06-08",
+        cutoff_date="2026-06-07",
+        notes="EXPECTED FN: PyPI package 'ppkt2synergy'. Lowest concentration "
+              "in the cluster (47%, 3 contributors) — broadest contributor "
+              "base scores 45, below threshold. PyPI package removed "
+              "post-incident; scored against source repo. Shared-maintainer "
+              "PyPI token theft.",
+        repo_url="https://github.com/P2GX/ppkt2synergy",
+    ),
+    ValidationCase(
+        name="monarch-initiative/phenopacket-store-toolkit",
+        ecosystem="github",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T3",
+        incident_date="2026-06-08",
+        cutoff_date="2026-06-07",
+        notes="EXPECTED FN: PyPI package 'phenopacket-store-toolkit'. Small "
+              "codebase (base 60) + inactivity + org credit score 15 "
+              "(VERY_LOW). PyPI package removed post-incident; scored against "
+              "source repo. Shared-maintainer PyPI token theft.",
+        repo_url="https://github.com/monarch-initiative/phenopacket-store-toolkit",
+    ),
 ]
 
 

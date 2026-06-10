@@ -128,18 +128,18 @@ Interactive docs at `http://localhost:8100/docs`.
 
 ## Validation
 
-Validated on 177 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4):
+Validated on 183 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4):
 
 | Metric | All incidents | In-scope only (Scope B) |
 |--------|--------------|------------------------|
-| **Accuracy** | 83.6% | 93.6% |
-| **Precision** | 93.8% | 93.3% |
-| **Recall** | 52.6% | 77.8% |
-| **F1 Score** | 0.674 | 0.848 |
+| **Accuracy** | 82.5% | 92.0% |
+| **Precision** | 94.3% | 93.9% |
+| **Recall** | 52.4% | 73.8% |
+| **F1 Score** | 0.673 | 0.827 |
 
 Ossuary detects governance risk, not all supply chain attacks. The "in-scope" metrics count only incidents where governance weakness was observable before the attack — governance decay, protestware, weak-governance compromise, and governance risk. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset but not counted against recall.
 
-2 false positives (rxjs, rayon). 8 in-scope false negatives, all explainable (community forks, reputation-protected maintainers, near-miss org-backed solo projects).
+2 false positives (rxjs, rayon). 11 in-scope false negatives, all explainable (community forks, reputation-protected maintainers, near-miss org-backed solo projects, and small concentrated academic projects in the June 2026 Hades cluster).
 
 See [validation report](docs/validation.md) for full analysis.
 
