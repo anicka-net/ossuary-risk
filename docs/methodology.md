@@ -171,7 +171,7 @@ The waves were causally linked: credentials stolen in the s1ngularity attack (Au
 | Package | Ossuary | Scorecard | Classification | Why |
 |---------|---------|-----------|----------------|-----|
 | **`is`** | **100 CRITICAL** | 3.4 | **True Positive** | Single inactive maintainer (100% concentration, 0 commits/year), no protective factors |
-| **eslint-config-prettier** | 55 MODERATE | 4.5 | Expected FN | Prettier org, active development, 32 commits/year, multiple contributors — sits just below the 60 threshold |
+| **eslint-config-prettier** | 45 MODERATE | 4.5 | Expected FN | Prettier org, active development, 32 commits/year, multiple contributors — well below the 60 threshold |
 | **chalk** | 35 LOW | 3.8 | Expected FN | Sindre Sorhus (Tier 1 reputation), established project, strong protective factors |
 
 All three were compromised by the same attack class (credential phishing), yet Ossuary correctly scored them on opposite sides of the risk threshold. This is not a bug — it reflects the fundamental distinction between **governance vulnerability** and **attack occurrence**:
@@ -180,7 +180,7 @@ All three were compromised by the same attack class (credential phishing), yet O
 
 **chalk** — chalk is maintained by Sindre Sorhus, one of npm's most prolific contributors (Tier 1 reputation in Ossuary's system), with an active contributor base and organizational backing. Ossuary scored it 35 LOW. The attacker phished a co-maintainer (Qix-) via a fake `npmjs.help` domain and published malicious versions that intercepted cryptocurrency wallet transactions. The attack succeeded not because of governance weakness but because npm's authentication infrastructure allowed phishable TOTP-based MFA and long-lived publish tokens.
 
-**eslint-config-prettier** — Part of the Prettier organization with active development (32 commits/year). Ossuary scored it 55 MODERATE — just below the 60 threshold. Maintainer JounQin was phished via the typosquatted `npnjs.com` domain, and malicious versions delivered a Windows RAT via disguised postinstall scripts. Again, the attack vector was credential theft against a well-governed project.
+**eslint-config-prettier** — Part of the Prettier organization with active development (32 commits/year). Ossuary scored it 45 MODERATE — below the 60 threshold. Maintainer JounQin was phished via the typosquatted `npnjs.com` domain, and malicious versions delivered a Windows RAT via disguised postinstall scripts. Again, the attack vector was credential theft against a well-governed project.
 
 #### The Complementarity Argument
 
@@ -895,7 +895,7 @@ T1 (governance decay, 89%) and T3 (weak-governance compromise, 88%) are the prim
 | node-ipc | 50 | T2 | Active development masks bus-factor-1 risk |
 | polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
 | devise | 40 | T_risk | Borderline; concentration drift from minor changes |
-| core-js | 40 | T_risk | High activity gives discount despite 92% concentration |
+| core-js | 50 | T_risk | High activity gives discount despite 92% concentration; v6.4 burnout escalation raised 40→50 |
 | es5-ext | 40 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
 | is-promise | 35 | T2 | Reputation correctly reconstructed at 2020 cutoff |
 | telnyx | 55 | T3 | T3 near-miss at score 55, five points below the 60-point threshold; org backing (-15) softens an otherwise risky bus-factor-1 / 97 % concentration profile |
@@ -912,9 +912,9 @@ scores therefore prefer reconstructable signals over current-state proxies.
 
 21 out-of-scope incidents are included to validate detection boundaries:
 
-**T4: Account compromise on healthy projects (11 cases)** — ua-parser-js (bonus detection at 90), eslint-scope (35), LottieFiles (45), chalk (35), cline (0), solana-web3.js (0), eslint-config-prettier (55), num2words (0), axios (0), litellm (0), xinference (0).
+**T4: Account compromise on healthy projects (13 cases)** — ua-parser-js (bonus detection at 90), eslint-scope (35), LottieFiles (45), chalk (35), cline (0), solana-web3.js (0), eslint-config-prettier (45), num2words (20), axios (0), litellm (0), xinference (0), pytorch-lightning (0), laravel-lang/lang (5).
 
-**T5: CI/CD pipeline exploits (7 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), aquasecurity/trivy-action (45).
+**T5: CI/CD pipeline exploits (8 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), @tanstack/router (0), aquasecurity/trivy-action (80 — post-incident bonus detection: the attacker's force-pushed tag rewrite is itself visible in current git history).
 
 All correctly score below threshold except ua-parser-js (bonus detection at 90). A tool that flagged all credential-based attacks would need to flag every package, producing unacceptable false positive rates.
 
@@ -1114,7 +1114,7 @@ Despite these threats, several factors support the validity of findings:
 
 1. **93.3% Precision**: 2 false positives (rxjs, rayon) across 177 packages and 8 ecosystems
 2. **77.8% In-Scope Recall**: Scoped framework with honest historical reputation reconstruction
-3. **Per-Tier Transparency**: T1 86%, T2 33%, T3 86%, T_risk 83% — specific strengths and weaknesses documented
+3. **Per-Tier Transparency**: T1 89%, T2 33%, T3 88%, T_risk 85% — specific strengths and weaknesses documented
 4. **Near-Census Coverage**: Dataset covers 177 packages (57 incidents + 120 controls) across 8 ecosystems, including the 2025-2026 TeamPCP campaign for contemporary boundary validation
 5. **CHAOSS Bus Factor**: Contributor diversity metric catches patterns missed by top-1 concentration (e.g. trivy: 18% top-1 but bus factor 3)
 6. **T-1 Detection on the worked examples**: event-stream, colors, coa scored CRITICAL and xz-utils scored HIGH at their pre-incident cutoffs (see §8.9); the small worked-example set is illustrative, not a separate recall claim
@@ -1541,6 +1541,6 @@ These papers directly inform the methodology and should be read in full:
 ---
 
 *Document version: 6.4*
-*Last updated: May 2026*
+*Last updated: June 2026*
 *Validation dataset: 177 packages across 8 ecosystems (Scope B: 93.3% precision, 77.8% recall, F1 0.848)*
 *Run validation: `python scripts/validate.py -o validation_results.json`*

@@ -341,6 +341,109 @@ def test_validation_scope_b_metrics_match_public_docs():
             )
 
 
+def test_validation_unscoped_metrics_match_public_docs():
+    """The unscoped (all-incidents) column in README and validation.md
+    must agree with the artifact. The June 2026 review found this view
+    entirely unpinned — Scope B was checked, the unscoped numbers could
+    drift freely."""
+    data = _load_validation_artifact()
+    unscoped = data.get("scopes", {}).get("unscoped")
+    if not unscoped:
+        pytest.skip("legacy artifact (no 'scopes.unscoped' block); skip.")
+
+    prec = round(unscoped["precision"] * 100, 1)
+    rec = round(unscoped["recall"] * 100, 1)
+    acc = round(unscoped["accuracy"] * 100, 1)
+    f1 = round(unscoped["f1"], 3)
+    needles = [f"{prec:.1f}%", f"{rec:.1f}%", f"{acc:.1f}%", f"{f1:.3f}"]
+
+    for doc_name, doc in (
+        ("README.md", README),
+        ("docs/validation.md", VALIDATION_DOC),
+    ):
+        for needle in needles:
+            assert needle in doc, (
+                f"{doc_name} must include unscoped metric '{needle}' "
+                f"(from validation_results.json). Re-run validate.py "
+                f"and update the doc."
+            )
+
+
+def test_scope_b_confusion_matrix_matches_artifact():
+    """The rendered Scope B confusion matrices (validation.md ASCII
+    matrix, methodology §8.4 block) must carry the artifact's TP/FP/
+    TN/FN. The June 2026 review found validation.md still showing the
+    v6.3 matrix (TP=24) two dataset revisions later."""
+    data = _load_validation_artifact()
+    scope_b = data.get("scopes", {}).get("scope_b")
+    if not scope_b:
+        pytest.skip("legacy artifact; skip.")
+    cm = scope_b["confusion_matrix"]
+
+    assert f"{cm['TP']} (TP)" in VALIDATION_DOC, (
+        f"validation.md confusion matrix must show {cm['TP']} (TP)"
+    )
+    assert f"{cm['FN']} (FN)" in VALIDATION_DOC
+    assert f"{cm['TN']} (TN)" in VALIDATION_DOC
+    for label, key in (("TP", "TP"), ("FN", "FN"), ("FP", "FP"), ("TN", "TN")):
+        needle = f"{label}: {cm[key]}"
+        assert needle in METHODOLOGY, (
+            f"methodology §8.4 block must contain '{needle}'"
+        )
+
+
+def test_oos_tier_case_counts_in_analysis_sections():
+    """The out-of-scope *analysis* sections (validation.md OOS tables,
+    methodology §8.7) must use the artifact's T4/T5 counts. §3.2 was
+    already pinned; these two surfaces were not, and both said 11/7
+    after the dataset moved to 13/8."""
+    data = _load_validation_artifact()
+    per_tier = data.get("scopes", {}).get("per_tier_incidents")
+    if not per_tier:
+        pytest.skip("legacy artifact; skip.")
+
+    t4 = per_tier["T4"]["detected"] + per_tier["T4"]["missed"]
+    t5 = per_tier["T5"]["detected"] + per_tier["T5"]["missed"]
+
+    assert f"({t4} cases)" in VALIDATION_DOC and f"({t5} cases)" in VALIDATION_DOC, (
+        f"validation.md OOS section headings must say ({t4} cases) for "
+        f"T4 and ({t5} cases) for T5 per the artifact."
+    )
+    sec = _section_text(METHODOLOGY, "### 8.7 Out-of-Scope Incident Analysis")
+    assert f"({t4} cases)" in sec and f"({t5} cases)" in sec, (
+        f"methodology §8.7 must say ({t4} cases)/{t5} cases) per the artifact."
+    )
+
+
+def test_scope_b_fn_table_scores_match_artifact():
+    """Every in-scope false negative's published score (validation.md FN
+    table and methodology §8.6 table) must match the artifact. The June
+    2026 review found core-js listed at 40 in three places while the
+    artifact said 50 (the v6.4 burnout escalation had moved it)."""
+    data = _load_validation_artifact()
+    fns = data.get("false_negatives_scope_b")
+    if not fns:
+        pytest.skip("legacy artifact (no false_negatives_scope_b); skip.")
+
+    for fn in fns:
+        # Docs use display names that can differ from artifact case
+        # names (polyfillpolyfill/polyfill-library → polyfill.io); match
+        # on a stable stem instead of the full name.
+        stem = re.split(r"[/.]", fn["name"].split("/")[-1])[0][:8].lower()
+        rows = [
+            line
+            for doc in (VALIDATION_DOC, METHODOLOGY)
+            for line in doc.splitlines()
+            if line.startswith("|") and stem in line.lower()
+        ]
+        score_rows = [r for r in rows if f"| {fn['score']} |" in r]
+        assert score_rows, (
+            f"No FN-table row for {fn['name']!r} carries its artifact "
+            f"score {fn['score']} (searched stem {stem!r} in "
+            f"validation.md + methodology.md). Stale score?"
+        )
+
+
 # --- Frustration weight: negative check on active-doc sections ----------
 
 def test_frustration_active_row_uses_current_weight():
