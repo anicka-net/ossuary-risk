@@ -827,7 +827,7 @@ Traditional recall penalizes the model for not detecting attacks it was never de
 |------|-------|-----------|-------|
 | T1 | Governance decay → compromise | Yes | 9 |
 | T2 | Protestware / sabotage | Yes | 6 |
-| T3 | Account compromise + weak governance | Yes | 8 |
+| T3 | Account compromise + weak governance | Yes | 14 |
 | T_risk | Governance risk, no incident | Yes | 13 |
 | T4 | Account compromise + strong governance | No | 13 |
 | T5 | CI/CD pipeline exploit | No | 8 |
@@ -881,7 +881,7 @@ F1 Score:   0.827
 | **T3: Weak-gov compromise** | 10/14 | **71%** | 4 misses: telnyx (org backing) + 3 Hades cluster (pyphetools, ppkt2synergy, phenopacket-store-toolkit) |
 | **T_risk: Governance risk** | 11/13 | **85%** | 2 misses: core-js (very active), devise (borderline) |
 | T4: Strong-gov compromise (OOS) | 1/13 | 8% | Expected — out of scope |
-| T5: CI/CD exploits (OOS) | 0/8 | 0% | Expected — out of scope |
+| T5: CI/CD exploits (OOS) | 1/8 | 13% | Expected — out of scope; the 1 is trivy-action (post-incident bonus) |
 
 T1 (governance decay, 89%) and T3 (weak-governance compromise, 71%) are the primary targets. T2 (protestware, 33%) is weakest because protestware maintainers tend to have strong reputations that correctly reduce their risk scores. This is a genuine trade-off: reputation DOES reduce attack probability, but doesn't prevent unilateral action.
 
@@ -919,7 +919,7 @@ scores therefore prefer reconstructable signals over current-state proxies.
 
 **T5: CI/CD pipeline exploits (8 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), @tanstack/router (0), aquasecurity/trivy-action (80 — post-incident bonus detection: the attacker's force-pushed tag rewrite is itself visible in current git history).
 
-All correctly score below threshold except ua-parser-js (bonus detection at 90). A tool that flagged all credential-based attacks would need to flag every package, producing unacceptable false positive rates.
+All correctly score below threshold except ua-parser-js (bonus detection at 90) and aquasecurity/trivy-action (80 — post-incident: the score reflects the attacker's own force-pushed tag rewrite, not pre-incident signal, so it is not counted as detection capability). A tool that flagged all credential-based attacks would need to flag every package, producing unacceptable false positive rates.
 
 ### 8.8 The Scoped Validation Contribution
 
@@ -1107,7 +1107,7 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 |--------|-------------|------------|
 | **Small Incident Sample** | 63 incident/risk packages in validation set (42 in-scope) | This is a near-census, not a sample. Cross-referencing CNCF (89), IQT Labs (182), and Ladisa et al. (94) catalogs identified ~63 total scorable governance-relevant incidents across our 8 ecosystems; we include the contemporary cohort (TeamPCP campaign added in v6.3, May 2026 sweep and June 2026 Hades cluster in v6.4 — see §8.1). The population IS small — governance-detectable attacks are rare events. |
 | **Class Imbalance** | 63 incidents vs 120 controls (1:1.9 ratio) | Reported precision and recall separately; F1 accounts for imbalance; metrics reported both scoped (Scope B) and unscoped |
-| **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the near-complete population, not a sample from a larger one; temporal holdout analysis performed (≤2022 dev / 2023+ holdout) but holdout has only 3 in-scope incidents |
+| **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the near-complete population, not a sample from a larger one. Two prospective temporal holdouts exist on the frozen v6.4 model: the May 2026 sweep (7 incidents, 4/4 in-scope detected) and the June 2026 Hades cluster (6 T3 incidents, 3/6 detected) — genuine post-freeze tests, not refits. The earlier retrospective split (≤2022 dev / 2023+ holdout) had only 3 in-scope incidents |
 | **Confidence Intervals** | Point estimates reported without confidence intervals | Bootstrap CIs reported: precision 86–100%, recall 62–91%, F1 74–94%. Wide recall CI reflects genuine uncertainty from small population |
 | **ML Comparison** | Hand-tuned formula not validated against learned alternatives | Five ML models tested (LR, SVM, RF, Gradient Boosting, XGBoost) on the v6.2.1 baseline (n=167, F1 0.857). Best ML achieves F1 0.787 vs hand-tuned 0.857. ML validates feature selection and threshold (PR-optimal = 60) but cannot match precision (80% vs 96%) due to small n and nonlinear interactions. The v6.3 dataset extension (TeamPCP campaign) shifted in-scope F1 to 0.842 through composition; the hand-tuned vs ML gap is unchanged in direction. |
 

@@ -595,6 +595,62 @@ def test_detection_scope_per_tier_counts_match_artifact():
         )
 
 
+def test_per_tier_detection_rates_match_artifact():
+    """The per-tier detection tables in validation.md and methodology.md
+    ('| T3: Weak-gov compromise | 10/14 | ...') must carry the artifact's
+    detected/total fraction for every tier. The June 2026 Copilot review
+    caught T5 still showing 0/8 two artifact revisions after trivy-action
+    became a 1/8 post-incident bonus — the headline tests pinned the
+    combined matrix but not the per-tier rows."""
+    data = _load_validation_artifact()
+    per_tier = data.get("scopes", {}).get("per_tier_incidents")
+    if not per_tier:
+        pytest.skip("legacy artifact (no per-tier block); skip.")
+
+    for doc_name, doc in (("validation.md", VALIDATION_DOC),
+                          ("methodology.md", METHODOLOGY)):
+        for tier, info in per_tier.items():
+            detected = info["detected"]
+            total = detected + info["missed"]
+            fraction = f"{detected}/{total}"
+            rows = [
+                line for line in doc.splitlines()
+                if line.startswith("|") and f"{tier}:" in line
+            ]
+            if not rows:
+                continue  # tier not tabulated in this doc
+            assert any(fraction in row for row in rows), (
+                f"{doc_name}: no per-tier table row for {tier} carries "
+                f"the artifact fraction {fraction}. Stale detection rate?"
+            )
+
+
+def test_in_scope_fn_count_phrase_matches_artifact():
+    """Every doc that states 'N in-scope false negatives' must use the
+    artifact's Scope B FN count. The June 2026 Copilot review caught
+    validation.md still saying 'All 8 in-scope false negatives' (with an
+    8-row table) after the Hades increment took the count to 11 — the
+    FN-score test passed because the new rows existed in methodology.md."""
+    data = _load_validation_artifact()
+    scope_b = data.get("scopes", {}).get("scope_b")
+    if not scope_b:
+        pytest.skip("legacy artifact; skip.")
+    fn = scope_b["confusion_matrix"]["FN"]
+
+    phrase_re = re.compile(r"(\d+)\s+in-scope false negatives")
+    for doc_name, doc in (("validation.md", VALIDATION_DOC),
+                          ("methodology.md", METHODOLOGY),
+                          ("README.md", README)):
+        counts = {int(m.group(1)) for m in phrase_re.finditer(doc)}
+        if not counts:
+            continue  # doc doesn't use the phrase
+        assert counts == {fn}, (
+            f"{doc_name} states 'N in-scope false negatives' with "
+            f"N={sorted(counts)}, but the artifact has FN={fn}. "
+            f"Stale count(s)."
+        )
+
+
 # --- §3.3 worked-example scores must match the artifact -----------------
 
 def test_detection_boundary_table_scores_match_artifact():

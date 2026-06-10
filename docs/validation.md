@@ -61,7 +61,7 @@ For each incident: (1) Would Ossuary's signals have shown elevated risk before t
 | T3: Weak-gov compromise | 10/14 | **71%** | 4 misses: telnyx (score 55, org backing) + 3 Hades cluster (pyphetools 50, ppkt2synergy 45, phenopacket-store-toolkit 15) |
 | T_risk: Governance risk | 11/13 | **85%** | 2 misses: core-js (very active), devise (borderline drift) |
 | T4: Strong-gov compromise (OOS) | 1/13 | 8% | Expected — out of scope |
-| T5: CI/CD exploits (OOS) | 0/8 | 0% | Expected — out of scope |
+| T5: CI/CD exploits (OOS) | 1/8 | 13% | Expected — out of scope; the 1 is trivy-action (post-incident bonus) |
 
 **Combined in-scope (Scope B)**: 31/42 = 73.8% recall.
 
@@ -188,7 +188,7 @@ factor in this ecosystem.
 
 ## In-Scope False Negative Analysis
 
-All 8 in-scope false negatives are explainable:
+All 11 in-scope false negatives are explainable:
 
 | Package | Score | Tier | Why missed |
 |---------|-------|------|-----------|
@@ -200,6 +200,9 @@ All 8 in-scope false negatives are explainable:
 | es5-ext | 40 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
 | is-promise | 35 | T2 | Reputation correctly reconstructed at 2020 cutoff |
 | telnyx | 55 | T3 | T3 near-miss at 55, five points below the 60-point threshold; org backing (-15) softens an otherwise risky bus-factor-1 / 97% concentration profile |
+| pyphetools | 50 | T3 | June 2026 Hades cluster; 83% concentration but monarch-initiative org-membership proxy (-15) pulls it below threshold |
+| ppkt2synergy | 45 | T3 | June 2026 Hades cluster; lowest concentration in the cluster (47%, 3 contributors) |
+| phenopacket-store-toolkit | 15 | T3 | June 2026 Hades cluster; small codebase (base 60) + inactivity + org credit |
 
 **faker**: The original Marak/faker.js repo was deleted. We evaluate the community fork (faker-js/faker), which has healthy governance — score 0 is correct for the current project state.
 
@@ -216,6 +219,8 @@ All 8 in-scope false negatives are explainable:
 **is-promise**: ForbesLindesay's portfolio and tenure are correctly reconstructed at the 2020 cutoff date, reducing protective factors. Score 35 (was 70 when historical reputation was incorrectly stripped). The accurate historical scoring gives the honest result — this maintainer was reputable in 2020.
 
 **telnyx**: TeamPCP campaign — maintainer-account compromise with payload steganographically hidden in a WAV file (matched the SDK's voice-AI use case). Bus factor 1, 97% concentration, 78% inactive-contributor ratio — governance weakness IS present, but org backing (-15) drops the score from 70 to 55, five points below the 60-point threshold. Illustrates the boundary: vendor-backed solo projects sit at the edge of what concentration+activity scoring can flag without org-aware adjustments.
+
+**pyphetools / ppkt2synergy / phenopacket-store-toolkit** (June 2026 Hades cluster): the three misses share one mechanism, the same one as telnyx — the GitHub org-membership proxy grants −15 to research-lab orgs (monarch-initiative, P2GX) that provided no actual review gate over the 2–3 shared maintainers whose stolen PyPI tokens compromised all six cluster packages. phenopacket-store-toolkit additionally starts from the small-codebase base of 60 and takes the inactivity discount. The org proxy crediting organisational *affiliation* rather than organisational *control* is a named limitation; the three detected cluster siblings (gpsea 70, ensmallen 65, embiggen 65) differ mainly in not receiving the org credit or in having single-person concentration at 100%.
 
 ---
 

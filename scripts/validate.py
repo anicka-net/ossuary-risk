@@ -14,7 +14,9 @@ Supports all ecosystems: npm, pypi, cargo, rubygems, packagist, nuget, go, githu
 SCOPE LIMITATIONS:
 - This tool detects GOVERNANCE RISK, not all supply chain attacks
 - Maintainer sabotage by active, reputable maintainers is hard to detect
-- Account compromise is outside scope (requires different signals)
+- Account compromise on WELL-GOVERNED projects is outside scope (T4 —
+  requires different signals); account compromise where governance was
+  also weak is in-scope (T3) because the weakness was observable
 
 Usage:
     python scripts/validate.py
@@ -198,9 +200,11 @@ VALIDATION_CASES = [
         notes="EXPECTED FN: Active maintainer sabotage - governance metrics won't catch active projects.",
     ),
 
-    # --- ACCOUNT COMPROMISE ---
-    # NOTE: Account compromise attacks are OUTSIDE our detection scope.
-    # These are included to document limitations - we expect FALSE NEGATIVES here.
+    # --- ACCOUNT COMPROMISE (strong governance — T4, out of scope) ---
+    # NOTE: Account compromise on WELL-GOVERNED projects is outside our
+    # detection scope (T4). These are included to document limitations -
+    # we expect FALSE NEGATIVES here. Account compromise where governance
+    # was also weak is T3 and IN scope (e.g. node-ipc 2026, Hades cluster).
 
     # Account compromise - different attack vector (expected to miss)
     ValidationCase(
