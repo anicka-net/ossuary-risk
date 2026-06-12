@@ -128,14 +128,14 @@ Interactive docs at `http://localhost:8100/docs`.
 
 ## Validation
 
-Validated on 183 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4):
+Validated on 184 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4):
 
 | Metric | All incidents | In-scope only (Scope B) |
 |--------|--------------|------------------------|
-| **Accuracy** | 82.5% | 92.0% |
+| **Accuracy** | 82.1% | 92.0% |
 | **Precision** | 94.3% | 93.9% |
-| **Recall** | 52.4% | 73.8% |
-| **F1 Score** | 0.673 | 0.827 |
+| **Recall** | 51.6% | 73.8% |
+| **F1 Score** | 0.667 | 0.827 |
 
 Ossuary detects governance risk, not all supply chain attacks. The "in-scope" metrics count only incidents where governance weakness was observable before the attack — governance decay, protestware, weak-governance compromise, and governance risk. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset but not counted against recall.
 

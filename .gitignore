@@ -76,3 +76,8 @@ CONTEXT.md
 # OS
 .DS_Store
 Thumbs.db
+
+# local scratch & secret backups — never commit
+.env.bak*
+tmp/
+.codex

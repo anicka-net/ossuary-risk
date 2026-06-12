@@ -6,10 +6,10 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 183 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4 methodology achieves **93.9% Scope B precision** and **73.8% in-scope recall** (F1 0.827) on n = 183 cases. v6.4 adds three calibration fixes derived from Spring 2026 governance-decay cases (Kubernetes Ingress NGINX EOL, External Secrets Operator freeze, nvim-treesitter archival): (1) burnout escalation (+10 when frustration co-occurs with bus_factor ≤ 2), (2) takeover detector two-mode tenure check (≥3y tenure = governance concentration, <3y = xz-utils pattern), (3) merge-author bus factor via GraphQL (effective bus factor = min of code-contributor and merge-author diversity). The merge-concentration and takeover-tenure signals are non-regressive on the existing validation set (scores identical to v6.3 for those factors); burnout escalation re-introduces one control FP (rayon, cargo, score 55→65) as a deliberate trade-off for correctly escalating sole-maintainer burnout cases like ESO. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
+**Key Finding**: In validation testing against 184 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4 methodology achieves **93.9% Scope B precision** and **73.8% in-scope recall** (F1 0.827) on n = 184 cases. v6.4 adds three calibration fixes derived from Spring 2026 governance-decay cases (Kubernetes Ingress NGINX EOL, External Secrets Operator freeze, nvim-treesitter archival): (1) burnout escalation (+10 when frustration co-occurs with bus_factor ≤ 2), (2) takeover detector two-mode tenure check (≥3y tenure = governance concentration, <3y = xz-utils pattern), (3) merge-author bus factor via GraphQL (effective bus factor = min of code-contributor and merge-author diversity). The merge-concentration and takeover-tenure signals are non-regressive on the existing validation set (scores identical to v6.3 for those factors); burnout escalation re-introduces one control FP (rayon, cargo, score 55→65) as a deliberate trade-off for correctly escalating sole-maintainer burnout cases like ESO. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
 
 **Version**: 6.4 (May 2026)
-**Validation Dataset**: 183 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
+**Validation Dataset**: 184 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
 
@@ -110,7 +110,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 93.9% precision** with 2 false positives across 183 packages (v6.4)
+4. **Achieving 93.9% precision** with 2 false positives across 184 packages (v6.4)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -133,12 +133,12 @@ Ossuary contributes to this body of research by:
 | Attack Type | Why Undetectable | Examples | Validation Cases |
 |-------------|------------------|----------|-----------------|
 | **Account Compromise** | Active project, healthy governance metrics | ua-parser-js, chalk (2025), solana-web3.js, num2words, axios, litellm, xinference, pytorch-lightning, laravel-lang/lang | 13 cases (T4), 1 bonus detection (ua-parser-js at 90), 12 expected FN |
-| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, Nx, ultralytics, aquasecurity/trivy-action, @tanstack/router | 8 cases (T5), all expected FN |
+| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, Nx, ultralytics, aquasecurity/trivy-action, @tanstack/router, @redhat-cloud-services/frontend-components | 9 cases (T5): 8 expected FN, 1 post-incident bonus detection (trivy-action) |
 | **Protestware by reputable maintainer** | Reputation correctly reduces risk score | es5-ext, is-promise | Detected by scope but missed by threshold (T2 FN) |
 | **Typosquatting** | New package, no governance to analyze | crossenv, boltdb-go/bolt | Not tested (no repo to score) |
 | **Dependency Confusion** | Build system attack, not governance | PyTorch-nightly | Not tested |
 
-These are classified as **expected false negatives** — the methodology explicitly does not attempt to detect them. The validation set includes 21 out-of-scope cases (T4+T5) to empirically confirm the detection boundary (see §8.7).
+These are classified as **expected false negatives** — the methodology explicitly does not attempt to detect them. The validation set includes 22 out-of-scope cases (T4+T5) to empirically confirm the detection boundary (see §8.7).
 
 ### 3.3 The Detection Boundary
 
@@ -802,13 +802,13 @@ collected.
 
 ### 8.1 Dataset Construction
 
-The validation dataset (v6.4, n=183):
+The validation dataset (v6.4, n=184):
 
-1. **Known Incidents** (50 packages): Packages with documented supply chain incidents, spanning governance failures, protestware, account compromises, CI/CD exploits, and maintainer sabotage. Includes both in-scope and explicitly out-of-scope incidents.
+1. **Known Incidents** (51 packages): Packages with documented supply chain incidents, spanning governance failures, protestware, account compromises, CI/CD exploits, and maintainer sabotage. Includes both in-scope and explicitly out-of-scope incidents.
 2. **Governance Risk** (13 packages): Packages with elevated governance risk signals but no incident (yet) — abandoned, single-maintainer, or concentrated projects.
 3. **Control Group** (120 packages): Popular packages with healthy governance across all 8 ecosystems.
 
-Total: 183 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. The v6.4 dataset extension (2026-05-30, n=170 → n=177) added seven May 2026 incidents: two T1 Shai-Hulud dormant-package attacks (`jest-canvas-mock`, `timeago.js`), one T_risk maintainer dispute (`fsnotify`), one T3 re-compromise (`node-ipc` inactive-maintainer account), and three OOS cases (`@tanstack/router` T5, `pytorch-lightning` T4, `laravel-lang/lang` T4). All four new in-scope cases scored as TPs. The June 2026 holdout increment (2026-06-10, n=177 → n=183) added the six PyPI bioinformatics packages hit by the Shai-Hulud "Hades" worm on 2026-06-08 (`gpsea`, `ensmallen`, `embiggen`, `pyphetools`, `ppkt2synergy`, `phenopacket-store-toolkit`), all T3 (shared-maintainer token theft on concentrated academic projects); scored T-1 against the frozen v6.4 model, three detected and three missed.
+Total: 184 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. The v6.4 dataset extension (2026-05-30, n=170 → n=177) added seven May 2026 incidents: two T1 Shai-Hulud dormant-package attacks (`jest-canvas-mock`, `timeago.js`), one T_risk maintainer dispute (`fsnotify`), one T3 re-compromise (`node-ipc` inactive-maintainer account), and three OOS cases (`@tanstack/router` T5, `pytorch-lightning` T4, `laravel-lang/lang` T4). All four new in-scope cases scored as TPs. The June 2026 holdout increment (2026-06-10, n=177 → n=183) added the six PyPI bioinformatics packages hit by the Shai-Hulud "Hades" worm on 2026-06-08 (`gpsea`, `ensmallen`, `embiggen`, `pyphetools`, `ppkt2synergy`, `phenopacket-store-toolkit`), all T3 (shared-maintainer token theft on concentrated academic projects); scored T-1 against the frozen v6.4 model, three detected and three missed. The June 2026 Miasma addition (2026-06-12, n=183 → n=184) added `@redhat-cloud-services/frontend-components` as a T5 EXPECTED FN: a compromised Red Hat employee GitHub account pushed orphan commits whose on-push workflows exchanged OIDC tokens for npm trusted-publishing rights; the package scores 5 (VERY_LOW), validating the CI/CD boundary.
 
 **Dataset construction principles**:
 - Incidents drawn from documented supply chain attacks 2016–2026, cross-referenced against multiple sources (Socket.dev, Snyk, CISA advisories, incident write-ups)
@@ -830,7 +830,7 @@ Traditional recall penalizes the model for not detecting attacks it was never de
 | T3 | Account compromise + weak governance | Yes | 14 |
 | T_risk | Governance risk, no incident | Yes | 13 |
 | T4 | Account compromise + strong governance | No | 13 |
-| T5 | CI/CD pipeline exploit | No | 8 |
+| T5 | CI/CD pipeline exploit | No | 9 |
 
 **Decision procedure**: For borderline cases, two questions determine scope: (1) Would Ossuary's signals have shown elevated risk before the attack? (2) Was governance weakness the enabling condition or merely coincidental? If both yes → in-scope.
 
@@ -845,7 +845,7 @@ Traditional recall penalizes the model for not detecting attacks it was never de
 
 Out-of-scope incidents (T4, T5) are tracked separately as "bonus detections" but do not count as TP or FN.
 
-### 8.4 Results (n=183, Scope B n=162)
+### 8.4 Results (n=184, Scope B n=162)
 
 ```
 In-scope incidents: 42 (T1=9, T2=6, T3=14, T_risk=13)
@@ -866,9 +866,9 @@ F1 Score:   0.827
 
 - **2 false positives** (rxjs, rayon) across 120 safe packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year. rayon (cargo) scores 65 HIGH due to burnout escalation (frustration × bus_factor ≤ 2); it was a TN at 55 in v6.3 and re-emerged in v6.4 as a deliberate trade-off for the burnout escalation signal.
 - **11 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), devise (borderline drift), es5-ext and is-promise (maintainer reputation correctly reduces score), telnyx (T3 near-miss at score 55, five points below the 60-point threshold — see §8.6), and three of the June 2026 Hades bioinformatics cluster (pyphetools 50, ppkt2synergy 45, phenopacket-store-toolkit 15 — small concentrated academic projects pulled below threshold by the org-membership proxy and low base scores).
-- **73.8% in-scope recall** reflects genuine detection capability with honest historical scoring. Recall moved from 75.0% at n=170 (v6.3) to 77.8% at n=177 (May 2026 sweep, four new TPs) and then to 73.8% at n=183 when the June 2026 Hades holdout increment added six T3 incidents (3 detected, 3 missed) — dataset composition, not a model change.
+- **73.8% in-scope recall** reflects genuine detection capability with honest historical scoring. Recall moved from 75.0% at n=170 (v6.3) to 77.8% at n=177 (May 2026 sweep, four new TPs) and then to 73.8% at n=183 when the June 2026 Hades holdout increment added six T3 incidents (3 detected, 3 missed) — dataset composition, not a model change. The June 2026 Miasma T5 addition (n=184) leaves Scope B unchanged.
 
-**Comparison with unscoped metrics**: Across all 63 incidents (including out-of-scope), overall recall is 52.4%. This lower number is expected — 21 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) are fundamentally undetectable from governance signals.
+**Comparison with unscoped metrics**: Across all 64 incidents (including out-of-scope), overall recall is 51.6%. This lower number is expected — 22 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) are fundamentally undetectable from governance signals.
 
 **Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
@@ -881,7 +881,7 @@ F1 Score:   0.827
 | **T3: Weak-gov compromise** | 10/14 | **71%** | 4 misses: telnyx (org backing) + 3 Hades cluster (pyphetools, ppkt2synergy, phenopacket-store-toolkit) |
 | **T_risk: Governance risk** | 11/13 | **85%** | 2 misses: core-js (very active), devise (borderline) |
 | T4: Strong-gov compromise (OOS) | 1/13 | 8% | Expected — out of scope |
-| T5: CI/CD exploits (OOS) | 1/8 | 13% | Expected — out of scope; the 1 is trivy-action (post-incident bonus) |
+| T5: CI/CD exploits (OOS) | 1/9 | 11% | Expected — out of scope; the 1 is trivy-action (post-incident bonus) |
 
 T1 (governance decay, 89%) and T3 (weak-governance compromise, 71%) are the primary targets. T2 (protestware, 33%) is weakest because protestware maintainers tend to have strong reputations that correctly reduce their risk scores. This is a genuine trade-off: reputation DOES reduce attack probability, but doesn't prevent unilateral action.
 
@@ -917,7 +917,7 @@ scores therefore prefer reconstructable signals over current-state proxies.
 
 **T4: Account compromise on healthy projects (13 cases)** — ua-parser-js (bonus detection at 90), eslint-scope (35), LottieFiles (45), chalk (35), cline (0), solana-web3.js (0), eslint-config-prettier (45), num2words (20), axios (0), litellm (0), xinference (0), pytorch-lightning (0), laravel-lang/lang (5).
 
-**T5: CI/CD pipeline exploits (8 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), @tanstack/router (0), aquasecurity/trivy-action (80 — post-incident bonus detection: the attacker's force-pushed tag rewrite is itself visible in current git history).
+**T5: CI/CD pipeline exploits (9 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), @tanstack/router (0), @redhat-cloud-services/frontend-components (5), aquasecurity/trivy-action (80 — post-incident bonus detection: the attacker's force-pushed tag rewrite is itself visible in current git history).
 
 All correctly score below threshold except ua-parser-js (bonus detection at 90) and aquasecurity/trivy-action (80 — post-incident: the score reflects the attacker's own force-pushed tag rewrite, not pre-incident signal, so it is not counted as detection capability). A tool that flagged all credential-based attacks would need to flag every package, producing unacceptable false positive rates.
 
@@ -1070,7 +1070,7 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 183 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (93.9% precision, 73.8% in-scope recall) |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 184 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (93.9% precision, 73.8% in-scope recall) |
 | **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
@@ -1105,9 +1105,9 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Small Incident Sample** | 63 incident/risk packages in validation set (42 in-scope) | This is a near-census, not a sample. Cross-referencing CNCF (89), IQT Labs (182), and Ladisa et al. (94) catalogs identified ~63 total scorable governance-relevant incidents across our 8 ecosystems; we include the contemporary cohort (TeamPCP campaign added in v6.3, May 2026 sweep and June 2026 Hades cluster in v6.4 — see §8.1). The population IS small — governance-detectable attacks are rare events. |
-| **Class Imbalance** | 63 incidents vs 120 controls (1:1.9 ratio) | Reported precision and recall separately; F1 accounts for imbalance; metrics reported both scoped (Scope B) and unscoped |
-| **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the near-complete population, not a sample from a larger one. Two prospective temporal holdouts exist on the frozen v6.4 model: the May 2026 sweep (7 incidents, 4/4 in-scope detected) and the June 2026 Hades cluster (6 T3 incidents, 3/6 detected) — genuine post-freeze tests, not refits. The earlier retrospective split (≤2022 dev / 2023+ holdout) had only 3 in-scope incidents |
+| **Small Incident Sample** | 64 incident/risk packages in validation set (42 in-scope) | The catalog-backed 2016–2024 core is a near-census, not a sample: cross-referencing CNCF (89), IQT Labs (182), and Ladisa et al. (94) catalogs identified all scorable governance-relevant incidents across our 8 ecosystems. The 2025–2026 cohort (TeamPCP, May 2026 sweep, Hades, Miasma — see §8.1) is advisory-monitored with no completeness claim. The population IS small — governance-detectable attacks are rare events. |
+| **Class Imbalance** | 64 incidents vs 120 controls (1:1.9 ratio) | Reported precision and recall separately; F1 accounts for imbalance; metrics reported both scoped (Scope B) and unscoped |
+| **No Cross-Validation** | Single train/test split, not k-fold | Dataset is the near-complete documented population (catalog-backed for 2016–2024, advisory-monitored for 2025–2026), not a sample from a larger one. Two prospective temporal holdouts exist on the frozen v6.4 model: the May 2026 sweep (7 incidents, 4/4 in-scope detected) and the June 2026 Hades cluster (6 T3 incidents, 3/6 detected) — genuine post-freeze tests, not refits. The earlier retrospective split (≤2022 dev / 2023+ holdout) had only 3 in-scope incidents |
 | **Confidence Intervals** | Point estimates reported without confidence intervals | Bootstrap CIs reported: precision 86–100%, recall 62–91%, F1 74–94%. Wide recall CI reflects genuine uncertainty from small population |
 | **ML Comparison** | Hand-tuned formula not validated against learned alternatives | Five ML models tested (LR, SVM, RF, Gradient Boosting, XGBoost) on the v6.2.1 baseline (n=167, F1 0.857). Best ML achieves F1 0.787 vs hand-tuned 0.857. ML validates feature selection and threshold (PR-optimal = 60) but cannot match precision (80% vs 96%) due to small n and nonlinear interactions. The v6.3 dataset extension (TeamPCP campaign) shifted in-scope F1 to 0.842 through composition; the hand-tuned vs ML gap is unchanged in direction. |
 
@@ -1115,10 +1115,10 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 Despite these threats, several factors support the validity of findings:
 
-1. **93.9% Precision**: 2 false positives (rxjs, rayon) across 183 packages and 8 ecosystems
+1. **93.9% Precision**: 2 false positives (rxjs, rayon) across 184 packages and 8 ecosystems
 2. **73.8% In-Scope Recall**: Scoped framework with honest historical reputation reconstruction
 3. **Per-Tier Transparency**: T1 89%, T2 33%, T3 71%, T_risk 85% — specific strengths and weaknesses documented
-4. **Near-Census Coverage**: Dataset covers 183 packages (63 incidents + 120 controls) across 8 ecosystems, including the 2025-2026 TeamPCP campaign and the June 2026 Hades cluster for contemporary boundary validation
+4. **Near-Census Coverage of the catalog-backed core**: Dataset covers 184 packages (64 incidents + 120 controls) across 8 ecosystems — a near-census for 2016–2024, plus the advisory-monitored 2025–2026 cohort (TeamPCP campaign, June 2026 Hades cluster, Miasma addition) for contemporary boundary validation
 5. **CHAOSS Bus Factor**: Contributor diversity metric catches patterns missed by top-1 concentration (e.g. trivy: 18% top-1 but bus factor 3)
 6. **T-1 Detection on the worked examples**: event-stream, colors, coa scored CRITICAL and xz-utils scored HIGH at their pre-incident cutoffs (see §8.9); the small worked-example set is illustrative, not a separate recall claim
 7. **Explicit Boundary Validation**: 21 out-of-scope incidents included and documented
@@ -1545,5 +1545,5 @@ These papers directly inform the methodology and should be read in full:
 
 *Document version: 6.4*
 *Last updated: June 2026*
-*Validation dataset: 183 packages across 8 ecosystems (Scope B: 93.9% precision, 73.8% recall, F1 0.827)*
+*Validation dataset: 184 packages across 8 ecosystems (Scope B: 93.9% precision, 73.8% recall, F1 0.827)*
 *Run validation: `python scripts/validate.py -o validation_results.json`*

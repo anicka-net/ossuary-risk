@@ -2038,6 +2038,36 @@ VALIDATION_CASES = [
         repo_url="https://github.com/TanStack/router",
     ),
 
+    # @redhat-cloud-services/frontend-components (npm) — Miasma worm,
+    # 2026-06-01. Red Hat Hybrid Cloud Console component libraries. >=32
+    # releases across the @redhat-cloud-services scope trojanized via a
+    # compromised Red Hat employee GitHub account: orphan commits pushed
+    # to RedHatInsights repos triggered on-push Actions workflows that
+    # requested OIDC tokens (id-token: write) and exchanged them for npm
+    # trusted-publishing rights; the malicious releases shipped with
+    # valid Sigstore/SLSA provenance. Payload: reskinned (Mini)
+    # Shai-Hulud credential worm. Corporate-governed org repos — CI/CD
+    # trust-boundary exploit, same class as @tanstack/router. Sources:
+    # Snyk, Wiz, Microsoft Security Blog (2026-06-02), Socket "Mini
+    # Shai-Hulud, Miasma, and Hades".
+    ValidationCase(
+        name="@redhat-cloud-services/frontend-components",
+        ecosystem="npm",
+        expected_outcome="incident",
+        attack_type="account_compromise",
+        tier="T5",
+        incident_date="2026-06-01",
+        cutoff_date="2026-05-31",
+        notes="EXPECTED FN: Miasma worm. Compromised employee GitHub account "
+              "pushed orphan commits to RedHatInsights repos; on-push workflows "
+              "exchanged OIDC tokens for npm trusted-publishing rights; >=32 "
+              "releases shipped with valid SLSA provenance. Representative "
+              "package for the @redhat-cloud-services scope (~80k combined "
+              "weekly downloads). Well-governed corporate org — CI/CD "
+              "trust-boundary exploit, not governance.",
+        repo_url="https://github.com/RedHatInsights/frontend-components",
+    ),
+
     # pytorch-lightning (pypi) — ShaiWorm, 2026-04-30
     # Popular deep learning framework (11M downloads/month). Version 2.6.3
     # shipped hidden execution chain downloading ShaiWorm credential stealer.
