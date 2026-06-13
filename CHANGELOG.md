@@ -4,6 +4,119 @@ All notable changes to Ossuary are documented in this file. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions track [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-06-13
+
+Scoring-correctness release. Methodology advances to v6.4, and a
+full-repo review (three independent passes, June 2026) fixed several
+bugs that fed wrong data into scoring. Scores produced by this version
+can differ from 0.10.1 for the same package — hence a minor bump, not
+a patch. Validation after the sweep reproduced the prior Scope-B
+result exactly (accuracy 92.0%, precision 93.9%, recall 73.8%,
+F1 0.827 at n=162), confirming the fixes corrected mechanism without
+moving the calibrated outcome.
+
+### Methodology — v6.4
+
+- **Sole-maintainer burnout escalation**: a burnout signal on a
+  single-maintainer project is escalated, since burnout is more
+  dangerous where there is no second maintainer to absorb it.
+- **Takeover tenure two-mode check**: suspect-contributor tenure now
+  distinguishes the xz-utils fast-trust pattern from ordinary
+  governance concentration. Tenure spans the full commit history up to
+  the cutoff (previously the historical window only, systematically
+  short by the recent-window length, which could mislabel contributors
+  near the 3-year boundary).
+- **Merge-author bus factor** via GitHub GraphQL: bus factor now
+  accounts for who actually merges pull requests, not only who commits.
+
+### Fixed — score-corrupting collector bugs
+
+- **Stale git history**: `clone_or_update` fast-forwarded remote refs
+  but never moved `HEAD`, so previously cloned repos served history
+  frozen at first-clone time and `commits_last_year` decayed toward
+  zero as a function of clone age. The local branch ref is now
+  fast-forwarded after fetch (via `update-ref`, preserving blobless
+  clones).
+- **Oldest-100 merged PRs**: the merged-PR GraphQL query used
+  `last: 100` with DESC ordering, which returns the *oldest* merged
+  PRs — so the v6.4 merge-author signals were computed from
+  founding-era data on any repo with >100 merged PRs. Now `first: 100`.
+- **Org-member proxy**: `?role=admin` is only honoured for
+  org-member tokens; other callers silently got public members capped
+  at 30. Public members are now counted explicitly so the signal is
+  deterministic across tokens, with the proxy semantics documented.
+- **T-1 historical leaks**: merge-author aggregates were computed at
+  collection time with no cutoff awareness, leaking current-day data
+  into historical (`--cutoff`) scores. The collector now stores the
+  raw per-PR `(login, merged_at)` sample and re-derives aggregates from
+  PRs merged before the cutoff. `COLLECTOR_VERSION` bumped to 2.
+- **Score-row tagging**: a `--cutoff` run written inside the freshness
+  window was served as the package's *current* score, and accumulated
+  current rows masqueraded as a monthly-history series. Score rows now
+  carry an `is_historical` tag; `get_current_score` and
+  `get_historical_scores` filter on it, and `--cutoff` runs no longer
+  touch `last_analyzed`.
+- **Burnout-escalation cache loss**: `_rebuild_breakdown` dropped the
+  burnout-escalation factor on every cache hit (the only protective
+  factor not reconstructed from the breakdown JSON), so affected
+  packages showed a breakdown that no longer summed to the stored
+  score.
+- **Tenure timezone drift**: `maintainer_account_created` is now
+  normalized to naive UTC on both fresh-collect and cache-rehydrate
+  paths; previously fresh collects produced tz-aware values that made
+  the reputation scorer compute tenure to *today*, giving the same
+  package different scores depending on cache state.
+- **Cross-package error bleed**: repo-share cache hits no longer
+  inherit the donor package's registry `fetch_errors` (which
+  mislabeled the borrower `INSUFFICIENT_DATA`).
+- **History misalignment**: `get_historical_scores` paired stored
+  breakdowns with cutoff dates positionally, so one failed month
+  misaligned every subsequent row. Breakdowns now travel with their
+  score.
+- **Rate-limit handling**: a 200 response with
+  `X-RateLimit-Remaining: 0` is no longer discarded; only 403/429 are
+  treated as blocking. Deleted-account (`"user": null`) issues no
+  longer crash collection.
+- **Token rotation**: rotate GitHub tokens on HTTP 401 as well as 403.
+
+### Fixed — SBOM / support-period / surfaces
+
+- **Annex VII support horizon**: an SBOM whose components all failed
+  scoring returned the most favourable verdict from zero evidence; zero
+  scored components now yields an explicit indeterminate verdict. A
+  genuinely empty dependency set stays vacuously supportable.
+- **purl parsing**: scoped npm purls without a version
+  (`pkg:npm/@babel/core`) no longer mis-split into empty name; SPDX
+  2.2 `PACKAGE_MANAGER` refs and `DESCRIBES` root relationships are
+  now honoured.
+- **API**: `max_age=0` ("force re-score") now persists the fresh score
+  instead of computing it and discarding the write; ecosystem path
+  params are lowercased to match CLI behaviour.
+- **CLI `diff`**: reports containing `INSUFFICIENT_DATA` (null-score)
+  rows no longer crash the formatters; data-state transitions are now
+  displayed.
+- **Concurrency**: git clone/log moved off the event loop so a large
+  clone no longer freezes concurrent API requests (including
+  `/health`).
+- **Dashboard**: additional HTML-escaping at render sites; failed
+  scoring results are no longer pinned in cache for the full hour;
+  re-score feedback survives `st.rerun`.
+
+### Added
+
+- **`is_historical` column** on `scores`, with idempotent
+  auto-migration that backfills the tag from the
+  cutoff/calculated-date distance on existing databases.
+- **LFX Insights comparison benchmark** (`scripts/lfx_comparison.py`,
+  20 packages) with a saved baseline, for external cross-check of
+  governance scoring against Linux Foundation Health Score.
+
+### Changed
+
+- Methodology and validation surfaces reconciled to v6.4 / n=184
+  (64 incidents + 120 controls), with drift tests pinning every
+  published number to `validation_results.json`.
+
 ## [0.10.1] — 2026-04-24
 
 First public release on PyPI. Headline change is the v0.10 snapshot
