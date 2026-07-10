@@ -8,10 +8,9 @@ authors, and the substring ``.git`` strip mangling repo names.
 
 import asyncio
 import subprocess
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
-
-import pytest
 
 from ossuary.collectors.git import GitCollector
 from ossuary.collectors.github import GitHubCollector
@@ -75,6 +74,40 @@ class TestRepoPathNaming:
         collector = GitCollector(repos_path=str(tmp_path))
         path = collector._get_repo_path("https://github.com/foo/bar.git")
         assert path.name.startswith("bar_")
+
+
+class TestWeightedConcentration:
+    def test_uses_largest_weighted_identity_not_unweighted_top(self):
+        from ossuary.collectors.git import CommitData
+
+        cutoff = datetime(2026, 1, 1)
+
+        def commit(sha, name, email, date):
+            return CommitData(
+                sha=sha,
+                author_name=name,
+                author_email=email,
+                authored_date=date,
+                committer_name=name,
+                committer_email=email,
+                committed_date=date,
+                message="test",
+            )
+
+        commits = [
+            commit(str(i), "Alice", "alice@example.com",
+                   cutoff - timedelta(days=340))
+            for i in range(10)
+        ] + [
+            commit(str(i + 10), "Bob", "bob@example.com",
+                   cutoff - timedelta(days=30))
+            for i in range(8)
+        ]
+
+        metrics = GitCollector().calculate_metrics(commits, cutoff_date=cutoff)
+
+        assert metrics.top_contributor_email == "alice@example.com"
+        assert metrics.maintainer_concentration > 50
 
 
 class TestParseRepoUrlEdgeCases:

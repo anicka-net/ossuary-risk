@@ -288,6 +288,7 @@ async def cached_collect(
     repo_url: Optional[str] = None,
     cutoff_date: Optional[datetime] = None,
     use_cache: bool = True,
+    refresh_data: bool = False,
     prefetched_registry: Optional[RegistryData] = None,
 ) -> tuple[Optional[CollectedData], list[str]]:
     """
@@ -328,6 +329,17 @@ async def cached_collect(
             data = deserialise_collected_data(snap.blob, CollectedData)
         except (TypeError, KeyError, ValueError):
             return None, False
+        if (
+            not data.github_data.maintainer_source_email
+            and data.all_commits
+        ):
+            metrics = GitCollector().calculate_metrics(
+                data.all_commits,
+                cutoff_date=snap.collected_at,
+            )
+            data.github_data.maintainer_source_email = (
+                metrics.top_contributor_email
+            )
         if zero_registry_fields:
             # github-ecosystem semantics: no registry, so no download
             # signal. The snapshot may have been written by an
@@ -344,13 +356,20 @@ async def cached_collect(
             ]
         return data, True
 
-    if use_cache:
+    if use_cache and not refresh_data:
         with session_scope() as session:
             cache = RepoSnapshotCache(session)
             # Positive cache (snapshot hit, package-keyed).
             snapshot = cache.get_snapshot_for_cutoff(
                 package_name, ecosystem, cutoff_date
             )
+            if (
+                snapshot is not None
+                and repo_url is not None
+                and canonicalize_repo_url(snapshot.repo_url)
+                != canonicalize_repo_url(repo_url)
+            ):
+                snapshot = None
             if snapshot is not None:
                 data, ok = _hydrate(snapshot, zero_registry_fields=False)
                 if ok:
@@ -393,6 +412,7 @@ async def cached_collect(
                                 ecosystem=ecosystem,
                                 repo_url=derived_url,
                                 blob=serialise_collected_data(data),
+                                collected_at=shared.collected_at,
                             )
                         except Exception as exc:  # noqa: BLE001
                             import logging as _logging
@@ -406,9 +426,10 @@ async def cached_collect(
             # Negative cache: skip the upstream probe entirely if a recent
             # permanent failure is recorded (404, no repo URL, etc.). The
             # TTL-based expiry in get_negative_cache handles re-probes.
-            cached_failure = cache.get_negative_cache(package_name, ecosystem)
-            if cached_failure is not None:
-                return None, [f"(cached) {cached_failure}"]
+            if repo_url is None:
+                cached_failure = cache.get_negative_cache(package_name, ecosystem)
+                if cached_failure is not None:
+                    return None, [f"(cached) {cached_failure}"]
 
     # Cross-package / cross-ecosystem repo-share lookup (v0.10.1 step 1b).
     #
@@ -429,10 +450,11 @@ async def cached_collect(
     # batch.py's --probe-registries pre-pass), we skip the local fetch
     # entirely — that's the whole point of the pre-pass: do the
     # registry call once at planning time, reuse here.
-    if use_cache and ecosystem != "github" and prefetched_registry is None:
-        prefetched_registry = await _collect_registry_data(
-            package_name, ecosystem, repo_url
-        )
+    if use_cache and not refresh_data and ecosystem != "github":
+        if prefetched_registry is None:
+            prefetched_registry = await _collect_registry_data(
+                package_name, ecosystem, repo_url
+            )
         # Gate: only attempt the share if registry probe was clean.
         # A failed probe (rate limit, no-repo-URL, etc.) needs to flow
         # through the full collect path so the standard
@@ -488,6 +510,7 @@ async def cached_collect(
                                 ecosystem=ecosystem,
                                 repo_url=prefetched_registry.repo_url,
                                 blob=serialise_collected_data(data),
+                                collected_at=shared.collected_at,
                             )
                             cache.clear_negative(package_name, ecosystem)
                         except Exception as exc:  # noqa: BLE001
@@ -516,7 +539,7 @@ async def cached_collect(
     # reusing the cached commit history. Cost: ~5 cheap API calls
     # vs ~10–100 for a full re-collect. On a ``pushed_at`` mismatch
     # the repo has actually changed → fall through to full collect.
-    if use_cache and cutoff_date is None:
+    if use_cache and not refresh_data and cutoff_date is None:
         with session_scope() as session:
             cache = RepoSnapshotCache(session)
             stale = cache.get_latest_snapshot_any_age(package_name, ecosystem)
@@ -787,6 +810,7 @@ async def collect_package_data(
             top_contributor_username=top_contributor_username,
             top_contributor_email=current_metrics.top_contributor_email,
         )
+        github_data.maintainer_source_email = current_metrics.top_contributor_email
         # Pull through the per-call classification recorded inside
         # GitHubCollector.collect (essential vs non-essential).
         fetch_errors.extend(github_data.fetch_errors)
@@ -809,6 +833,10 @@ async def collect_package_data(
                 )
             try:
                 merge_data = await github_collector.get_merge_concentration(owner, repo)
+                if github_collector.last_error:
+                    github_data.provisional_reasons.append(
+                        f"github.merge_concentration: {github_collector.last_error}"
+                    )
                 github_data.merge_concentration = merge_data["merge_concentration"]
                 github_data.top_merger_login = merge_data["top_merger"]
                 github_data.merges_analyzed = merge_data["merges_analyzed"]
@@ -968,6 +996,11 @@ def calculate_score_for_date(
     # A scoring run is "historical" when the cutoff is meaningfully in the past
     # (more than 1 day ago), not merely a few seconds behind datetime.now().
     is_historical = (datetime.now(timezone.utc).replace(tzinfo=None) - cutoff_date).days > 1
+    maintainer_identity_matches = (
+        not is_historical
+        or not github_data.maintainer_source_email
+        or github_data.maintainer_source_email == git_metrics.top_contributor_email
+    )
 
     # For historical scoring, reconstruct what's verifiable at the cutoff date:
     # - Repos: filter to those created before cutoff (created_at available via API)
@@ -978,10 +1011,14 @@ def calculate_score_for_date(
     # - Org ownership: stable property, pass through as-is
     if is_historical:
         cutoff_iso = cutoff_date.isoformat()
-        historical_repos = [
-            r for r in github_data.maintainer_repos
-            if r.get("created_at", "9999") <= cutoff_iso
-        ]
+        historical_repos = (
+            [
+                r for r in github_data.maintainer_repos
+                if r.get("created_at", "9999") <= cutoff_iso
+            ]
+            if maintainer_identity_matches
+            else []
+        )
         historical_sponsor_count = 0  # Cannot reconstruct
         historical_repo_stargazers = 0
     else:
@@ -999,6 +1036,14 @@ def calculate_score_for_date(
         "issue_sentiment": "missing",
     }
     warnings: list[str] = []
+    if not maintainer_identity_matches:
+        factor_availability["reputation"] = (
+            "unavailable_historical_maintainer_identity_changed"
+        )
+        warnings.append(
+            "Historical maintainer reputation was neutralized because the "
+            "top contributor at the cutoff differs from the current profile."
+        )
 
     if (collected_data.weekly_downloads or 0) > 0:
         factor_availability["visibility"] = "registry_downloads"
@@ -1061,11 +1106,14 @@ def calculate_score_for_date(
     # Calculate reputation
     reputation_scorer = ReputationScorer()
     reputation = reputation_scorer.calculate(
-        username=github_data.maintainer_username,
-        account_created=collected_data.maintainer_account_created,
+        username=github_data.maintainer_username if maintainer_identity_matches else "",
+        account_created=(
+            collected_data.maintainer_account_created
+            if maintainer_identity_matches else None
+        ),
         repos=historical_repos,
         sponsor_count=historical_sponsor_count,
-        orgs=github_data.maintainer_orgs,  # Org membership is stable over time
+        orgs=github_data.maintainer_orgs if maintainer_identity_matches else [],
         packages_maintained=[package_name],
         ecosystem=ecosystem,
         as_of_date=cutoff_date if is_historical else None,
@@ -1119,14 +1167,25 @@ def calculate_score_for_date(
         # when fetch_errors was empty (i.e. the value really is an int or 0).
         weekly_downloads=collected_data.weekly_downloads or 0,
         repo_stargazers=historical_repo_stargazers,
-        maintainer_username=github_data.maintainer_username,
-        maintainer_public_repos=github_data.maintainer_public_repos,
-        maintainer_total_stars=github_data.maintainer_total_stars,
+        maintainer_username=(
+            github_data.maintainer_username if maintainer_identity_matches else ""
+        ),
+        maintainer_public_repos=(
+            github_data.maintainer_public_repos if maintainer_identity_matches else 0
+        ),
+        maintainer_total_stars=(
+            github_data.maintainer_total_stars if maintainer_identity_matches else 0
+        ),
         has_github_sponsors=False if is_historical else github_data.has_github_sponsors,
-        maintainer_account_created=collected_data.maintainer_account_created,
+        maintainer_account_created=(
+            collected_data.maintainer_account_created
+            if maintainer_identity_matches else None
+        ),
         maintainer_repos=historical_repos,
         maintainer_sponsor_count=historical_sponsor_count,
-        maintainer_orgs=github_data.maintainer_orgs,  # Stable over time
+        maintainer_orgs=(
+            github_data.maintainer_orgs if maintainer_identity_matches else []
+        ),
         packages_maintained=[package_name],
         reputation=reputation,
         cii_badge_level=github_data.cii_badge_level,
@@ -1244,6 +1303,7 @@ async def score_package(
     use_cache: bool = True,
     force: bool = False,
     freshness_days: Optional[int] = None,
+    refresh_data: bool = False,
     prefetched_registry: Optional[RegistryData] = None,
 ) -> ScoringResult:
     """
@@ -1267,7 +1327,7 @@ async def score_package(
     # is a cache miss and we fall through to collection. Pre-creating it
     # would leave an orphan row with last_analyzed=None if the
     # subsequent collection then fails.
-    if use_cache and not force:
+    if use_cache and not force and repo_url is None:
         with session_scope() as session:
             # freshness_days=0 is a legitimate value ("never serve cached"),
             # so test for None instead of falsiness.
@@ -1302,6 +1362,7 @@ async def score_package(
         package_name, ecosystem, repo_url,
         cutoff_date=cutoff_date,  # original Optional, NOT the derived `cutoff`
         use_cache=use_cache,
+        refresh_data=refresh_data,
         prefetched_registry=prefetched_registry,
     )
     if collected_data is None:
@@ -1450,6 +1511,11 @@ async def get_historical_scores(
             breakdown = calculate_score_for_date(
                 package_name, ecosystem, collected_data, cutoff
             )
+            if breakdown.risk_level == RiskLevel.INSUFFICIENT_DATA:
+                warnings.append(
+                    f"Insufficient data to calculate score for {cutoff.date()}"
+                )
+                continue
             historical_scores.append(HistoricalScore(
                 date=cutoff,
                 score=breakdown.final_score,

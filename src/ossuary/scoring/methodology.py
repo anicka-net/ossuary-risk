@@ -12,9 +12,12 @@ that affects produced scores or label boundaries.
 
 from __future__ import annotations
 
-METHODOLOGY_VERSION = "6.4"
+METHODOLOGY_VERSION = "6.4.1"
 """Active scoring methodology version (without ``v`` prefix; prose
-references add the ``v`` themselves). v6.4 adds three calibration fixes
+references add the ``v`` themselves). v6.4.1 corrects the tapered
+concentration calculation to select the largest weighted contributor
+and neutralizes historical maintainer reputation when the contributor
+identity at the cutoff differs from the current profile. v6.4 added three calibration fixes
 from Spring 2026 governance-decay cases: (1) burnout escalation (+10
 when frustration + bus_factor ≤ 2), (2) takeover detector two-mode
 tenure check (≥3y = governance concentration, <3y = xz pattern),

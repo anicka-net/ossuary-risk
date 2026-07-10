@@ -371,7 +371,7 @@ class GitCollector(BaseCollector):
             # Use weighted counts for concentration, unweighted for top contributor
             top_email = max(author_counts, key=author_counts.get)
             if total_weight > 0:
-                top_weighted = weighted_counts.get(top_email, 0)
+                top_weighted = max(weighted_counts.values(), default=0.0)
                 concentration = (top_weighted / total_weight * 100)
             else:
                 concentration = (author_counts[top_email] / total_recent * 100) if total_recent > 0 else 0

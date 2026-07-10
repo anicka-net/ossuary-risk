@@ -39,7 +39,7 @@ PAGE_PATH = "src/ossuary/dashboard/pages/1_Ecosystems.py"
 
 @pytest.fixture
 def seeded_db(tmp_path, monkeypatch):
-    """Seed a temp SQLite DB with one scored + one orphan packagist row."""
+    """Seed scored, orphan, and INSUFFICIENT_DATA packagist rows."""
     db_path = tmp_path / "ossuary.db"
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
 
@@ -67,9 +67,14 @@ def seeded_db(tmp_path, monkeypatch):
             repo_url="https://github.com/sebastianbergmann/phpunit",
             last_analyzed=None,
         )
-        s.add_all([scored, orphan])
+        insufficient = Package(
+            name="broken/package", ecosystem="packagist",
+            repo_url="https://github.com/example/broken",
+            last_analyzed=utcnow_naive(),
+        )
+        s.add_all([scored, orphan, insufficient])
         s.flush()
-        s.add(Score(
+        current = Score(
             package_id=scored.id,
             calculated_at=utcnow_naive(),
             cutoff_date=datetime(2026, 4, 24),
@@ -79,7 +84,30 @@ def seeded_db(tmp_path, monkeypatch):
             breakdown={}, maintainer_concentration=20.0,
             commits_last_year=200, unique_contributors=50,
             weekly_downloads=1_000_000,
-        ))
+        )
+        historical = Score(
+            package_id=scored.id,
+            calculated_at=utcnow_naive(),
+            cutoff_date=datetime(2020, 1, 1),
+            final_score=90, risk_level="CRITICAL",
+            base_risk=100, activity_modifier=0,
+            protective_factors_total=-10, sentiment_modifier=0,
+            breakdown={}, maintainer_concentration=100.0,
+            commits_last_year=0, unique_contributors=1,
+            weekly_downloads=0, is_historical=True,
+        )
+        invalid = Score(
+            package_id=insufficient.id,
+            calculated_at=utcnow_naive(),
+            cutoff_date=utcnow_naive(),
+            final_score=None, risk_level="INSUFFICIENT_DATA",
+            base_risk=None, activity_modifier=None,
+            protective_factors_total=None, sentiment_modifier=0,
+            breakdown={}, maintainer_concentration=None,
+            commits_last_year=None, unique_contributors=None,
+            weekly_downloads=None,
+        )
+        s.add_all([current, historical, invalid])
         s.commit()
 
     return db_path
@@ -135,21 +163,19 @@ class TestEcosystemsActions:
         retry_btn.click()
         at.run()
 
-        assert len(call_log) == 1, (
-            f"expected 1 score_package call (1 orphan), got {len(call_log)}: "
+        assert len(call_log) == 2, (
+            f"expected 2 score_package calls (orphan + insufficient), got "
+            f"{len(call_log)}: "
             f"{call_log}"
         )
-        invocation = call_log[0]
-        assert invocation["name"] == "phpunit/phpunit"
-        assert invocation["ecosystem"] == "packagist"
-        assert invocation["use_cache"] is False, (
-            "Retry must pass use_cache=False to bypass the negative cache. "
-            f"Got: {invocation}"
-        )
-        assert invocation["force"] is True, (
-            "Retry should also pass force=True for symmetry. "
-            f"Got: {invocation}"
-        )
+        assert {invocation["name"] for invocation in call_log} == {
+            "phpunit/phpunit", "broken/package",
+        }
+        for invocation in call_log:
+            assert invocation["ecosystem"] == "packagist"
+            assert invocation["use_cache"] is True
+            assert invocation["refresh_data"] is True
+            assert invocation["force"] is True
 
     def test_rescore_all_bypasses_score_cache_only(
         self, seeded_db, monkeypatch
@@ -173,9 +199,9 @@ class TestEcosystemsActions:
         rescore_btn.click()
         at.run()
 
-        # Both packages in the eco get re-scored.
-        assert len(call_log) == 2, (
-            f"expected 2 score_package calls (2 packages), got {len(call_log)}"
+        # All packages in the ecosystem get re-scored.
+        assert len(call_log) == 3, (
+            f"expected 3 score_package calls (3 packages), got {len(call_log)}"
         )
         for invocation in call_log:
             assert invocation["force"] is True, (
@@ -186,3 +212,21 @@ class TestEcosystemsActions:
                 "Re-score all should keep use_cache=True so the snapshot "
                 f"cache still serves cheap repeats. Got: {invocation}"
             )
+
+    def test_aggregate_uses_current_score_and_retry_finds_insufficient(
+        self, seeded_db,
+    ):
+        from ossuary.dashboard.utils import (
+            get_all_tracked_packages,
+            get_unscored_packages,
+        )
+
+        packages = {
+            package["name"]: package
+            for package in get_all_tracked_packages()
+        }
+        assert packages["laravel/framework"]["score"] == 10
+        assert packages["laravel/framework"]["risk_level"] == "VERY_LOW"
+        assert {package["name"] for package in get_unscored_packages("packagist")} == {
+            "phpunit/phpunit", "broken/package",
+        }

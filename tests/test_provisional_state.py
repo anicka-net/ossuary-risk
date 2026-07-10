@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -47,6 +47,7 @@ except ImportError:  # pragma: no cover - exercised in environments without resp
 
 from ossuary._compat import utcnow_naive
 from ossuary.collectors.github import GitHubCollector, GitHubData
+from ossuary.collectors.git import CommitData, GitCollector
 from ossuary.collectors.npm import NpmCollector
 from ossuary.collectors.registries import (
     CratesCollector,
@@ -56,7 +57,12 @@ from ossuary.collectors.registries import (
     RubyGemsCollector,
 )
 from ossuary.scoring.factors import RiskBreakdown, RiskLevel
-from ossuary.services.scorer import CollectedData, calculate_score_for_date
+from ossuary.services.scorer import (
+    CollectedData,
+    RegistryData,
+    calculate_score_for_date,
+    collect_package_data,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +149,67 @@ class TestEngineProvisionalState:
         breakdown = calculate_score_for_date("pkg", "pypi", data, datetime.now())
         assert breakdown.risk_level == RiskLevel.INSUFFICIENT_DATA
         assert breakdown.final_score is None
+
+    @pytest.mark.asyncio
+    async def test_merge_fetch_failure_is_provisional(self):
+        commit = CommitData(
+            sha="1",
+            author_name="Maintainer",
+            author_email="maintainer@example.com",
+            authored_date=datetime.now(),
+            committer_name="Maintainer",
+            committer_email="maintainer@example.com",
+            committed_date=datetime.now(),
+            message="test",
+        )
+
+        async def failed_merge(collector, owner, repo):
+            collector.last_error = "HTTP 502 from api.github.com (graphql)"
+            return {
+                "merge_concentration": 0.0,
+                "top_merger": "",
+                "merges_analyzed": 0,
+                "merge_bus_factor": 0,
+                "merged_prs": [],
+            }
+
+        registry = RegistryData(
+            repo_url="https://github.com/example/pkg",
+            weekly_downloads=1,
+            fetch_errors=[],
+            warnings=[],
+        )
+        with (
+            patch(
+                "ossuary.services.scorer._collect_registry_data",
+                new=AsyncMock(return_value=registry),
+            ),
+            patch.object(GitCollector, "clone_or_update", return_value="/tmp/repo"),
+            patch.object(GitCollector, "extract_commits", return_value=[commit]),
+            patch.object(
+                GitHubCollector,
+                "collect",
+                new=AsyncMock(return_value=GitHubData()),
+            ),
+            patch.object(
+                GitHubCollector,
+                "get_repo_info",
+                new=AsyncMock(return_value={"stargazers_count": 0}),
+            ),
+            patch.object(
+                GitHubCollector,
+                "get_merge_concentration",
+                new=failed_merge,
+            ),
+        ):
+            data, warnings = await collect_package_data("pkg", "npm")
+
+        assert warnings == []
+        assert data is not None
+        assert data.provisional_reasons == [
+            "github.merge_concentration: "
+            "HTTP 502 from api.github.com (graphql)"
+        ]
 
     def test_to_dict_round_trips_provisional_state(self):
         data = _empty_collected_data(provisional_reasons=["x: y"])
@@ -609,6 +676,33 @@ class TestRescoreInvalidCli:
         ])
         assert result.exit_code != 0
         assert "Invalid --only" in result.output
+
+    def test_retry_forces_fresh_raw_collection(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        from ossuary.cli import _rescore_invalid_run
+        from ossuary.scoring.factors import RiskBreakdown, RiskLevel
+        from ossuary.services.scorer import ScoringResult
+
+        result = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="alpha",
+                ecosystem="pypi",
+                final_score=20,
+                risk_level=RiskLevel.LOW,
+            ),
+        )
+        scorer = AsyncMock(return_value=result)
+
+        with patch("ossuary.services.scorer.score_package", scorer):
+            asyncio.run(_rescore_invalid_run([
+                ("alpha", "pypi", "https://github.com/acme/alpha"),
+            ]))
+
+        assert scorer.await_args.kwargs["force"] is True
+        assert scorer.await_args.kwargs["refresh_data"] is True
 
 
 class TestRebuildBreakdownRoundTrip:

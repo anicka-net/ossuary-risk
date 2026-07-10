@@ -2,8 +2,10 @@
 
 import asyncio
 import sys
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from ossuary.api.main import CheckResponse, ScoreResponse, _get_score, check_package, get_score
@@ -59,6 +61,12 @@ class TestDashboardCommand:
         app_path = args[4]
         assert "ossuary/dashboard/app.py" in app_path
 
+    @patch("subprocess.run")
+    def test_dashboard_propagates_child_failure(self, mock_run):
+        mock_run.return_value = SimpleNamespace(returncode=7)
+        result = self.runner.invoke(app, ["dashboard"])
+        assert result.exit_code == 7
+
 
 class TestApiCommand:
     """Tests for ossuary api command."""
@@ -105,6 +113,12 @@ class TestApiCommand:
         assert result.exit_code == 0
         args = mock_run.call_args[0][0]
         assert "127.0.0.1" in args
+
+    @patch("subprocess.run")
+    def test_api_propagates_child_failure(self, mock_run):
+        mock_run.return_value = SimpleNamespace(returncode=9)
+        result = self.runner.invoke(app, ["api"])
+        assert result.exit_code == 9
 
 
 class TestDashboardImports:
@@ -263,6 +277,12 @@ class TestApiCacheAge:
         args = mock_score_package.await_args.args
         assert args[1] == "pypi"
 
+    def test_get_score_rejects_negative_max_age(self):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException, match="max_age must be >= 0"):
+            asyncio.run(_get_score("flask", "pypi", None, -1))
+
 
 class TestApiResponses:
     """Tests for external API response shapes."""
@@ -296,6 +316,21 @@ class TestApiResponses:
         assert body["breakdown"]["chaoss_signals"]["bus_factor"] == 2
         assert body["breakdown"]["score"]["final"] == 10
         assert body["incomplete_reasons"] == []
+
+    @patch("ossuary.api.main.score_package")
+    def test_score_endpoint_echoes_normalized_ecosystem(self, mock_score_package):
+        mock_score_package.return_value = ScoringResult(
+            success=True,
+            breakdown=RiskBreakdown(
+                package_name="flask",
+                ecosystem="pypi",
+                final_score=10,
+                risk_level=RiskLevel.VERY_LOW,
+            ),
+        )
+
+        response = asyncio.run(get_score("PyPI", "flask", None, 7))
+        assert response.ecosystem == "pypi"
 
 
 class TestApiInsufficientData:

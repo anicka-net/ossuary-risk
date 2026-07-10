@@ -225,8 +225,9 @@ def derive_product_support_period(
             components_scored=0,
         )
 
-    estimates_by_name: dict[str, SupportPeriodEstimate] = {}
-    importance_by_name: dict[str, float] = {}
+    ComponentKey = tuple[str, str]
+    estimates_by_component: dict[ComponentKey, SupportPeriodEstimate] = {}
+    importance_by_component: dict[ComponentKey, float] = {}
     scored_count = 0
 
     for cs in component_scores:
@@ -235,15 +236,17 @@ def derive_product_support_period(
             continue
         scored_count += 1
         name = cs["name"]
-        estimates_by_name[name] = estimate_for_score(
+        ecosystem = cs.get("ecosystem", "")
+        key = (name, ecosystem)
+        estimates_by_component[key] = estimate_for_score(
             package_name=name,
-            ecosystem=cs.get("ecosystem", ""),
+            ecosystem=ecosystem,
             score=score,
             risk_level=cs.get("risk_level", ""),
             table=table,
         )
         if dependents_count:
-            importance_by_name[name] = compute_structural_importance(
+            importance_by_component[key] = compute_structural_importance(
                 score=score,
                 contributors=cs.get("contributors", 1),
                 concentration=cs.get("concentration", 50.0),
@@ -252,23 +255,28 @@ def derive_product_support_period(
                 n_dependents=dependents_count.get(name, 0),
             )
 
-    if importance_by_name and any(v > 0 for v in importance_by_name.values()):
+    if importance_by_component and any(
+        value > 0 for value in importance_by_component.values()
+    ):
         method = "structural_importance"
-        ranked_names = sorted(
-            importance_by_name,
-            key=lambda n: (importance_by_name[n], estimates_by_name[n].score),
+        ranked_components = sorted(
+            importance_by_component,
+            key=lambda key: (
+                importance_by_component[key],
+                estimates_by_component[key].score,
+            ),
             reverse=True,
         )
     else:
         method = "worst_score"
-        ranked_names = sorted(
-            estimates_by_name,
-            key=lambda n: estimates_by_name[n].score,
+        ranked_components = sorted(
+            estimates_by_component,
+            key=lambda key: estimates_by_component[key].score,
             reverse=True,
         )
 
-    critical_names = ranked_names[:critical_top_n]
-    critical = [estimates_by_name[n] for n in critical_names]
+    critical_keys = ranked_components[:critical_top_n]
+    critical = [estimates_by_component[key] for key in critical_keys]
 
     if not critical:
         # Components were listed but none carried a usable score — same
@@ -289,7 +297,7 @@ def derive_product_support_period(
         critical_selection_method=method,
         limiting_components=limiting,
         critical_components=critical,
-        components_total=len(component_scores),
+        components_total=len(component_scores) + components_unscored,
         components_scored=scored_count,
     )
 

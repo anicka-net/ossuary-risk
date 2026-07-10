@@ -1,5 +1,7 @@
 """Tests for the implied support period derivation."""
 
+import json
+
 import pytest
 
 from ossuary.services.support_period import (
@@ -86,6 +88,32 @@ class TestDeriveProductSupportPeriod:
         assert result.cra_minimum_supportable is True
         assert result.horizon_months >= CRA_MINIMUM_SUPPORT_MONTHS
 
+    def test_same_name_in_different_ecosystems_keeps_both_components(self):
+        components = [
+            {
+                "name": "redis",
+                "ecosystem": "npm",
+                "score": 90,
+                "risk_level": "CRITICAL",
+            },
+            {
+                "name": "redis",
+                "ecosystem": "pypi",
+                "score": 10,
+                "risk_level": "VERY_LOW",
+            },
+        ]
+
+        result = derive_product_support_period(components)
+
+        assert result.components_scored == 2
+        assert result.horizon_months == 6
+        assert result.cra_minimum_supportable is False
+        assert {
+            (component.package_name, component.ecosystem)
+            for component in result.critical_components
+        } == {("redis", "npm"), ("redis", "pypi")}
+
     def test_one_critical_component_drives_product_horizon_down(self):
         components = [
             self._component("safe-1", 10, "VERY_LOW"),
@@ -166,6 +194,15 @@ class TestDeriveProductSupportPeriod:
         assert result.components_total == 12
         assert result.components_scored == 0
 
+    def test_components_total_includes_external_unscored_count(self):
+        components = [self._component("scored", 20, "LOW")]
+        result = derive_product_support_period(
+            components,
+            components_unscored=3,
+        )
+        assert result.components_total == 4
+        assert result.components_scored == 1
+
     def test_all_negative_scores_is_indeterminate(self):
         components = [self._component("a", -1, ""), self._component("b", -1, "")]
         result = derive_product_support_period(components)
@@ -199,6 +236,60 @@ class TestDeriveProductSupportPeriod:
         assert len(result.critical_components) == 1
         assert result.critical_components[0].package_name == "xz-utils"
         assert result.cra_minimum_supportable is False
+
+
+class TestSupportPeriodCli:
+    @staticmethod
+    def _write_unscored_sbom(tmp_path):
+        path = tmp_path / "unscored.cdx.json"
+        path.write_text(json.dumps({
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "components": [
+                {"type": "library", "name": "mystery", "version": "1.0"},
+            ],
+        }))
+        return path
+
+    def test_support_period_sbom_counts_skipped_component(self, tmp_path, monkeypatch):
+        from typer.testing import CliRunner
+
+        from ossuary.cli import app
+
+        monkeypatch.setattr("ossuary.cli.init_db", lambda: None)
+        result = CliRunner().invoke(app, [
+            "support-period-sbom",
+            str(self._write_unscored_sbom(tmp_path)),
+            "--json",
+        ])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        period = payload["implied_support_period"]
+        assert period["components_total"] == 1
+        assert period["components_scored"] == 0
+        assert period["cra_minimum_supportable"] is False
+
+    def test_score_sbom_json_is_pure_and_counts_skipped_component(
+        self, tmp_path, monkeypatch,
+    ):
+        from typer.testing import CliRunner
+
+        from ossuary.cli import app
+
+        monkeypatch.setattr("ossuary.cli.init_db", lambda: None)
+        result = CliRunner().invoke(app, [
+            "score-sbom",
+            str(self._write_unscored_sbom(tmp_path)),
+            "--json",
+        ])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        period = payload["implied_support_period"]
+        assert period["components_total"] == 1
+        assert period["components_scored"] == 0
+        assert period["cra_minimum_supportable"] is False
 
 
 class TestCycloneDXDependentParsing:

@@ -65,11 +65,14 @@ def dashboard(
     import subprocess
     dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard", "app.py")
     console.print(f"Starting dashboard on port {port}...")
-    subprocess.run([
+    completed = subprocess.run([
         sys.executable, "-m", "streamlit", "run", dashboard_path,
         "--server.port", str(port),
         "--server.headless", "true",
     ])
+    returncode = getattr(completed, "returncode", 0)
+    if returncode:
+        raise typer.Exit(returncode)
 
 
 @app.command()
@@ -80,12 +83,15 @@ def api(
     """Launch the REST API server."""
     import subprocess
     console.print(f"Starting API on {host}:{port}...")
-    subprocess.run([
+    completed = subprocess.run([
         sys.executable, "-m", "uvicorn",
         "ossuary.api.main:app",
         "--host", host,
         "--port", str(port),
     ])
+    returncode = getattr(completed, "returncode", 0)
+    if returncode:
+        raise typer.Exit(returncode)
 
 
 SUPPORTED_ECOSYSTEMS = ["npm", "pypi", "cargo", "rubygems", "packagist", "nuget", "go", "github"]
@@ -613,7 +619,10 @@ def movers(
         for pkg in packages:
             scores = (
                 session.query(Score)
-                .filter(Score.package_id == pkg.id)
+                .filter(
+                    Score.package_id == pkg.id,
+                    Score.is_historical.is_(False),
+                )
                 .order_by(Score.calculated_at.desc())
                 .limit(2)
                 .all()
@@ -777,7 +786,13 @@ async def _rescore_invalid_run(targets: list[tuple[str, str, Optional[str]]]):
     failed = 0
     for name, eco, repo_url in targets:
         try:
-            result = await svc_score(name, eco, repo_url=repo_url, force=True)
+            result = await svc_score(
+                name,
+                eco,
+                repo_url=repo_url,
+                force=True,
+                refresh_data=True,
+            )
         except Exception as exc:
             console.print(f"  [red]✗[/red] {name} [dim]({eco})[/dim] — error: {exc}")
             failed += 1
@@ -1618,10 +1633,11 @@ def score_sbom(
         console.print(f"[red]Could not read SBOM: {e}[/red]")
         raise typer.Exit(1)
 
-    console.print(
-        f"[bold]{sbom.format.upper()} {sbom.spec_version}[/bold] — "
-        f"{len(sbom.components)} components extracted from {sbom_file}"
-    )
+    if not output_json:
+        console.print(
+            f"[bold]{sbom.format.upper()} {sbom.spec_version}[/bold] — "
+            f"{len(sbom.components)} components extracted from {sbom_file}"
+        )
 
     scored: dict[int, dict] = {}
     skipped: list[tuple[str, str, Optional[str]]] = []  # (name, reason, ecosystem-or-none)
@@ -1685,7 +1701,7 @@ def score_sbom(
         critical_top_n=critical_top_n,
         # Components that exist but produced no score: with zero scored
         # components the verdict must be indeterminate, not the CRA floor.
-        components_unscored=len(failed) + unscored_components,
+        components_unscored=len(skipped) + len(failed) + unscored_components,
     )
 
     if not output_json:
@@ -2006,7 +2022,7 @@ def support_period_sbom(
         component_summaries,
         dependents_count=dependents,
         critical_top_n=critical_top_n,
-        components_unscored=len(failed),
+        components_unscored=len(skipped) + len(failed),
     )
 
     if output_json:
@@ -2104,7 +2120,9 @@ def _fetch_dep_tree(package, ecosystem, max_depth, max_packages):
     import urllib.request
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    ua = "ossuary-risk/0.6 (https://github.com/anicka-net/ossuary-risk)"
+    from ossuary import __version__
+
+    ua = f"ossuary-risk/{__version__} (https://github.com/anicka-net/ossuary-risk)"
 
     adj = {}
     to_fetch = {package: 0}
@@ -3346,31 +3364,13 @@ async def _seed_custom(
     console.print(f"  Concurrent: {concurrent}")
     console.print(f"  Skip fresh (<{fresh_days}d): {skip_fresh}\n")
 
-    scored_count = 0
-    skipped_count = 0
-    error_count = 0
-
-    def on_progress(current, total_pkgs, pkg_name, status):
-        nonlocal scored_count, skipped_count, error_count
-
-        if status == "scored":
-            scored_count += 1
-            console.print(f"  [{current}/{total_pkgs}] [green]OK[/green] {pkg_name}")
-        elif status == "skipped":
-            skipped_count += 1
-            if skipped_count % 100 == 0:
-                console.print(f"  [{current}/{total_pkgs}] skipped {skipped_count} fresh packages so far...")
-        else:
-            error_count += 1
-            console.print(f"  [{current}/{total_pkgs}] [red]{status}[/red] {pkg_name}")
-
     result = await batch_score(
         packages,
         max_concurrent=concurrent,
         max_packages=limit,
         skip_fresh=skip_fresh,
         fresh_days=fresh_days,
-        progress_callback=on_progress,
+        progress_callback=_batch_progress_callback(),
         repo_aware=repo_aware,
         probe_registries=probe_registries,
     )
@@ -3395,6 +3395,26 @@ async def _seed_custom(
         console.print(f"\n[bold yellow]Error summary (first 20):[/bold yellow]")
         for detail in result.error_details[:20]:
             console.print(f"  {detail}")
+
+
+def _batch_progress_callback():
+    skipped_count = 0
+
+    def on_progress(current, total_pkgs, pkg_name, status):
+        nonlocal skipped_count
+        if status == "scored":
+            console.print(f"  [{current}/{total_pkgs}] [green]OK[/green] {pkg_name}")
+        elif status == "skipped":
+            skipped_count += 1
+            if skipped_count % 100 == 0:
+                console.print(
+                    f"  [{current}/{total_pkgs}] skipped "
+                    f"{skipped_count} fresh packages so far..."
+                )
+        else:
+            console.print(f"  [{current}/{total_pkgs}] [red]{status}[/red] {pkg_name}")
+
+    return on_progress
 
 
 @app.command("seed-suse", hidden=True)
@@ -3449,32 +3469,13 @@ async def _seed_suse(
     console.print(f"  Concurrent: {concurrent}")
     console.print(f"  Skip fresh (<{fresh_days}d): {skip_fresh}\n")
 
-    scored_count = 0
-    skipped_count = 0
-    error_count = 0
-
-    def on_progress(current, total_pkgs, pkg_name, status):
-        nonlocal scored_count, skipped_count, error_count
-
-        if status == "scored":
-            scored_count += 1
-            console.print(f"  [{current}/{total_pkgs}] [green]OK[/green] {pkg_name}")
-        elif status == "skipped":
-            skipped_count += 1
-            # Only print skip every 100 to avoid spam
-            if skipped_count % 100 == 0:
-                console.print(f"  [{current}/{total_pkgs}] skipped {skipped_count} fresh packages so far...")
-        else:
-            error_count += 1
-            console.print(f"  [{current}/{total_pkgs}] [red]{status}[/red] {pkg_name}")
-
     result = await batch_score(
         packages,
         max_concurrent=concurrent,
         max_packages=limit,
         skip_fresh=skip_fresh,
         fresh_days=fresh_days,
-        progress_callback=on_progress,
+        progress_callback=_batch_progress_callback(),
         repo_aware=repo_aware,
         probe_registries=probe_registries,
     )

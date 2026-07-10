@@ -288,14 +288,24 @@ class TestRepoSnapshotCache:
     def test_get_returns_most_recent_snapshot(self, session):
         cache = RepoSnapshotCache(session)
         blob = serialise_collected_data(_make_collected_data())
+        now = utcnow_naive()
 
-        cache.store_snapshot("widget", "npm", "https://example", blob, collected_at=datetime(2026, 1, 1))
-        cache.store_snapshot("widget", "npm", "https://example", blob, collected_at=datetime(2026, 4, 1))
-        cache.store_snapshot("widget", "npm", "https://example", blob, collected_at=datetime(2026, 2, 1))
+        cache.store_snapshot(
+            "widget", "npm", "https://example", blob,
+            collected_at=now - timedelta(days=3),
+        )
+        cache.store_snapshot(
+            "widget", "npm", "https://example", blob,
+            collected_at=now - timedelta(days=1),
+        )
+        cache.store_snapshot(
+            "widget", "npm", "https://example", blob,
+            collected_at=now - timedelta(days=2),
+        )
         session.commit()
 
         snapshot = cache.get_snapshot_for_cutoff("widget", "npm")
-        assert snapshot.collected_at == datetime(2026, 4, 1)
+        assert snapshot.collected_at == now - timedelta(days=1)
 
     def test_fetcher_version_mismatch_invalidates(self, session):
         """An older fetcher_version row must not be served."""

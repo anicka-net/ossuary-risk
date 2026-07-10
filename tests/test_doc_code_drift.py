@@ -57,8 +57,11 @@ def test_methodology_version_in_doc_matches_code():
     referencing this version. Drift here means the audit record points
     at the wrong methodology document.
     """
-    match = re.search(r"\*\*Version\*\*\s*:\s*(\d+\.\d+)", METHODOLOGY)
-    assert match, "no '**Version**: X.Y' line found in methodology.md"
+    match = re.search(
+        r"\*\*Version\*\*\s*:\s*(\d+\.\d+(?:\.\d+)?)",
+        METHODOLOGY,
+    )
+    assert match, "no '**Version**: X.Y[.Z]' line found in methodology.md"
     assert match.group(1) == METHODOLOGY_VERSION, (
         f"methodology.md declares version {match.group(1)} but "
         f"METHODOLOGY_VERSION constant is {METHODOLOGY_VERSION}. "

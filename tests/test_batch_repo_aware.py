@@ -91,6 +91,14 @@ class TestRepoAwareBatchScore:
     are sequential (first finishes before second starts); across
     groups, calls run in parallel up to the semaphore."""
 
+    def test_zero_concurrency_is_rejected(self):
+        with pytest.raises(ValueError, match="max_concurrent must be >= 1"):
+            asyncio.run(batch_score(
+                [_entry("pkg", "pypi")],
+                max_concurrent=0,
+                skip_fresh=False,
+            ))
+
     def test_within_group_calls_are_sequential(self):
         """Three packages mapping to the same repo should be scored
         sequentially in repo-aware mode, not all three at once."""

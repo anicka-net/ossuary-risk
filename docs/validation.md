@@ -1,8 +1,8 @@
 # Validation Report
 
-**Version**: 6.4 (May 2026; full re-collect and revalidation June 2026; Hades holdout increment June 2026)
+**Version**: 6.4.1 (June 2026)
 **Dataset**: 184 packages across 8 ecosystems
-**Scoring**: Tapered concentration window (v3.1) + reputation-list expansion to all 8 ecosystems (v6.1) + frustration weight lowered to +15 and sentiment removed from formula (v6.3) + burnout escalation, takeover tenure check, merge-author bus factor (v6.4)
+**Scoring**: Tapered concentration window (v3.1; weighted-top correction v6.4.1) + reputation-list expansion to all 8 ecosystems (v6.1) + frustration weight lowered to +15 and sentiment removed from formula (v6.3) + burnout escalation, takeover tenure check, merge-author bus factor (v6.4) + historical maintainer-identity guard (v6.4.1)
 
 ---
 
@@ -545,4 +545,4 @@ population.
 
 *Report generated from validation run on June 12, 2026*
 *Dataset: 184 packages (64 incidents, 120 controls) across 8 ecosystems*
-*Methodology version: 6.4*
+*Methodology version: 6.4.1*

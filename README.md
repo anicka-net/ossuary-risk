@@ -128,7 +128,7 @@ Interactive docs at `http://localhost:8100/docs`.
 
 ## Validation
 
-Validated on 184 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4):
+Validated on 184 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4.1):
 
 | Metric | All incidents | In-scope only (Scope B) |
 |--------|--------------|------------------------|

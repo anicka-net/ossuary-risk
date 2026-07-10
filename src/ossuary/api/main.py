@@ -99,7 +99,9 @@ async def check_package(
     ecosystem: str,
     package: str,
     repo_url: Optional[str] = Query(None, description="Repository URL override"),
-    max_age: int = Query(7, description="Max cache age in days; 0 = force re-score"),
+    max_age: int = Query(
+        7, ge=0, description="Max cache age in days; 0 = force re-score",
+    ),
 ):
     """
     Quick risk check — returns score and semaphore only.
@@ -112,6 +114,7 @@ async def check_package(
         GET /check/github/containers/podman
         GET /check/pypi/requests?max_age=1
     """
+    ecosystem = ecosystem.lower()
     result = await _get_score(package, ecosystem, repo_url, max_age)
 
     return CheckResponse(
@@ -131,7 +134,9 @@ async def get_score(
     ecosystem: str,
     package: str,
     repo_url: Optional[str] = Query(None, description="Repository URL override"),
-    max_age: int = Query(7, description="Max cache age in days; 0 = force re-score"),
+    max_age: int = Query(
+        7, ge=0, description="Max cache age in days; 0 = force re-score",
+    ),
 ):
     """
     Full risk score with breakdown, explanation, and recommendations.
@@ -144,6 +149,7 @@ async def get_score(
         GET /score/github/containers/podman
         GET /score/pypi/requests?max_age=0
     """
+    ecosystem = ecosystem.lower()
     result = await _get_score(package, ecosystem, repo_url, max_age)
     b = result.breakdown
 
@@ -197,6 +203,8 @@ async def _get_score(
     # The CLI lowercases ecosystem input; mirror that here so
     # /score/PyPI/flask doesn't 422.
     ecosystem = ecosystem.lower()
+    if max_age < 0:
+        raise HTTPException(status_code=422, detail="max_age must be >= 0")
     force = max_age == 0
 
     result = await score_package(

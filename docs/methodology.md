@@ -6,9 +6,9 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 184 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4 methodology achieves **93.9% Scope B precision** and **73.8% in-scope recall** (F1 0.827) on n = 184 cases. v6.4 adds three calibration fixes derived from Spring 2026 governance-decay cases (Kubernetes Ingress NGINX EOL, External Secrets Operator freeze, nvim-treesitter archival): (1) burnout escalation (+10 when frustration co-occurs with bus_factor ≤ 2), (2) takeover detector two-mode tenure check (≥3y tenure = governance concentration, <3y = xz-utils pattern), (3) merge-author bus factor via GraphQL (effective bus factor = min of code-contributor and merge-author diversity). The merge-concentration and takeover-tenure signals are non-regressive on the existing validation set (scores identical to v6.3 for those factors); burnout escalation re-introduces one control FP (rayon, cargo, score 55→65) as a deliberate trade-off for correctly escalating sole-maintainer burnout cases like ESO. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
+**Key Finding**: In validation testing against 184 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4.1 methodology achieves **93.9% Scope B precision** and **73.8% in-scope recall** (F1 0.827) on n = 184 cases. v6.4.1 corrects which contributor is selected for the tapered concentration numerator and prevents historical scores from applying the current maintainer's reputation to a different past top contributor. v6.4 added three calibration fixes derived from Spring 2026 governance-decay cases (Kubernetes Ingress NGINX EOL, External Secrets Operator freeze, nvim-treesitter archival): (1) burnout escalation (+10 when frustration co-occurs with bus_factor ≤ 2), (2) takeover detector two-mode tenure check (≥3y tenure = governance concentration, <3y = xz-utils pattern), (3) merge-author bus factor via GraphQL (effective bus factor = min of code-contributor and merge-author diversity). Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
 
-**Version**: 6.4 (May 2026)
+**Version**: 6.4.1 (June 2026)
 **Validation Dataset**: 184 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
@@ -110,7 +110,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 93.9% precision** with 2 false positives across 184 packages (v6.4)
+4. **Achieving 93.9% precision** with 2 false positives across 184 packages (v6.4.1)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -429,7 +429,7 @@ Base risk uses two complementary signals — top-1 **concentration** and CHAOSS 
 
 This catches cases concentration misses. Example: trivy has 18% top-1 concentration (looks distributed) but bus factor 3 — only 3 people account for 50% of commits. Concentration gives base 20; bus factor raises it to 40.
 
-**Calculation**: Concentration = (commits by top contributor / total commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. Bus factor computed from unweighted recent commits, excluding bots (`[bot]` in email/name).
+**Calculation**: Concentration = (largest weighted contributor total / total weighted commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. The displayed top contributor and activity counts use the unweighted 12-month window; these can identify a different contributor than the tapered concentration numerator. Bus factor is computed from unweighted recent commits, excluding bots (`[bot]` in email/name).
 
 **Effective bus factor (v6.4):** When merge-author data is available (via GitHub GraphQL), the effective bus factor is `min(code_bus_factor, merge_bus_factor)`. A project can have many code contributors but a single person doing all PR merges — the operational bus factor is the bottleneck. Merge bus factor is computed from the most recent 100 merged PRs; the signal requires **≥10 merged PRs** in the sample (below that, a bus-factor estimate from a handful of merges is noise and the signal is treated as unavailable). For historical (T-1) scoring the aggregates are re-derived from the PRs in the sample merged *before* the cutoff, so current-day merge behaviour does not leak into past scores; when fewer than 10 sampled PRs predate the cutoff, the signal is unavailable for that run. Calibrated against the External Secrets Operator case: code bus_factor=14 but merge bus_factor=1; the project froze when the sole merger burned out.
 
@@ -910,6 +910,10 @@ signals. Present-day repository stars are **not** reused as a proxy for past
 visibility, and issue/comment sentiment is disabled for T-1 scoring because
 the GitHub issue API snapshot is current-state and incomplete. Historical
 scores therefore prefer reconstructable signals over current-state proxies.
+When the top contributor at the cutoff differs from the contributor whose
+current GitHub profile was collected, v6.4.1 neutralizes maintainer reputation
+instead of attributing one person's portfolio, tenure, or affiliations to
+another.
 
 ### 8.7 Out-of-Scope Incident Analysis
 
@@ -1543,7 +1547,7 @@ These papers directly inform the methodology and should be read in full:
 
 ---
 
-*Document version: 6.4*
+*Document version: 6.4.1*
 *Last updated: June 2026*
 *Validation dataset: 184 packages across 8 ecosystems (Scope B: 93.9% precision, 73.8% recall, F1 0.827)*
 *Run validation: `python scripts/validate.py -o validation_results.json`*

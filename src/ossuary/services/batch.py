@@ -616,6 +616,9 @@ async def batch_score(
         is True, ``unique_repos`` / ``shared_repo_packages`` /
         ``unplanable`` carry the planning telemetry.
     """
+    if max_concurrent < 1:
+        raise ValueError("max_concurrent must be >= 1")
+
     if max_packages > 0:
         packages = packages[:max_packages]
 

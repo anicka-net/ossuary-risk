@@ -56,10 +56,16 @@ all_packages = get_all_tracked_packages()
 scored = [p for p in all_packages if p["score"] is not None]
 
 if not scored:
-    st.markdown(
-        "No packages tracked yet. Analyze a package to get started, "
-        "or run `ossuary seed` to populate with a starter set."
-    )
+    if all_packages:
+        st.warning(
+            f"{len(all_packages)} package(s) are tracked, but none currently "
+            "has a usable score. Open Ecosystems to retry collection."
+        )
+    else:
+        st.markdown(
+            "No packages tracked yet. Analyze a package to get started, "
+            "or run `ossuary seed` to populate with a starter set."
+        )
     st.markdown("")
     col1, col2, col3 = st.columns(3)
     with col1:

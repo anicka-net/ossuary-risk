@@ -78,6 +78,7 @@ class GitHubData:
 
     # Maintainer info
     maintainer_username: str = ""
+    maintainer_source_email: str = ""
     maintainer_public_repos: int = 0
     maintainer_total_stars: int = 0
     maintainer_account_created: str = ""  # ISO date string

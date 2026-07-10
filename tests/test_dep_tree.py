@@ -51,6 +51,32 @@ class TestFetchDepTree:
 
     @patch("ossuary.cli.console")
     @patch("urllib.request.urlopen")
+    def test_github_uses_bearer_token(
+        self, mock_urlopen, mock_console, monkeypatch,
+    ):
+        seen_headers = []
+
+        def fake_urlopen(req, timeout=None):
+            seen_headers.append(dict(req.header_items()))
+            return _mock_response({"sbom": {"packages": []}})
+
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_urlopen.side_effect = fake_urlopen
+
+        _fetch_dep_tree(
+            "acme/project", "github", max_depth=0, max_packages=1,
+        )
+
+        assert seen_headers
+        auth = next(
+            value
+            for key, value in seen_headers[0].items()
+            if key.lower() == "authorization"
+        )
+        assert auth == "Bearer test-token"
+
+    @patch("ossuary.cli.console")
+    @patch("urllib.request.urlopen")
     def test_pypi_parses_requires_dist(self, mock_urlopen, mock_console):
         """PyPI requires_dist strings are parsed into dependency names."""
         def fake_urlopen(req, timeout=None):

@@ -1,6 +1,6 @@
 """Tests for the scoring engine."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -183,6 +183,59 @@ class TestRiskScorer:
 
 class TestHistoricalScoring:
     """Regression tests for historical scoring behavior."""
+
+    def test_historical_reputation_is_neutralized_when_top_identity_changed(self):
+        commits = [
+            CommitData(
+                sha="old",
+                author_name="Alice",
+                author_email="alice@example.com",
+                authored_date=datetime(2020, 1, 1),
+                committer_name="Alice",
+                committer_email="alice@example.com",
+                committed_date=datetime(2020, 1, 1),
+                message="initial commit",
+            ),
+            CommitData(
+                sha="new",
+                author_name="Bob",
+                author_email="bob@example.com",
+                authored_date=datetime.now() - timedelta(days=1),
+                committer_name="Bob",
+                committer_email="bob@example.com",
+                committed_date=datetime.now() - timedelta(days=1),
+                message="current maintenance",
+            ),
+        ]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits,
+            github_data=GitHubData(
+                maintainer_username="bob",
+                maintainer_source_email="bob@example.com",
+                maintainer_public_repos=50,
+                maintainer_total_stars=10_000,
+                maintainer_repos=[
+                    {
+                        "created_at": "2019-01-01T00:00:00Z",
+                        "stargazers_count": 10_000,
+                    }
+                ],
+            ),
+            weekly_downloads=1_000,
+            maintainer_account_created=datetime(2010, 1, 1),
+        )
+
+        historical = calculate_score_for_date(
+            "pkg", "github", data, datetime(2021, 1, 1)
+        )
+
+        assert historical.protective_factors.reputation_score == 0
+        assert historical.factor_availability["reputation"] == (
+            "unavailable_historical_maintainer_identity_changed"
+        )
+        assert any("top contributor at the cutoff differs" in warning
+                   for warning in historical.warnings)
 
     def test_calculate_score_for_date_ignores_future_issue_sentiment(self):
         """Historical scores must not include issue content created after cutoff."""

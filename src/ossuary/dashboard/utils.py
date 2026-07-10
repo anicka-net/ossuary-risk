@@ -181,7 +181,10 @@ def get_all_tracked_packages() -> list[dict]:
         for pkg in packages:
             recent_scores = (
                 session.query(Score)
-                .filter(Score.package_id == pkg.id)
+                .filter(
+                    Score.package_id == pkg.id,
+                    Score.is_historical.is_(False),
+                )
                 .order_by(Score.calculated_at.desc())
                 .limit(2)
                 .all()
@@ -300,29 +303,47 @@ def get_ecosystem_summary() -> dict:
 
 
 def get_unscored_packages(ecosystem: Optional[str] = None) -> list[dict]:
-    """Return packages registered in the DB but never successfully scored.
+    """Return packages with no usable current score.
 
-    These are rows where ``last_analyzed IS NULL`` — typically the
-    residue of a scoring attempt that failed mid-flight (transient
-    registry/GitHub error). The dashboard's ecosystem page surfaces them
-    with a retry button so the user can clear the orphan without
-    dropping to the CLI.
+    Includes orphan package rows and packages whose latest current score is
+    ``INSUFFICIENT_DATA``. Historical rows are ignored.
     """
     with next(get_session()) as session:
-        q = session.query(Package).filter(Package.last_analyzed.is_(None))
+        q = session.query(Package)
         if ecosystem:
             q = q.filter(Package.ecosystem == ecosystem)
-        return [
-            {
-                "name": p.name,
-                "ecosystem": p.ecosystem,
-                "repo_url": p.repo_url or None,
-            }
-            for p in q.all()
-        ]
+        results = []
+        for package in q.all():
+            latest = (
+                session.query(Score)
+                .filter(
+                    Score.package_id == package.id,
+                    Score.is_historical.is_(False),
+                )
+                .order_by(Score.calculated_at.desc())
+                .first()
+            )
+            if (
+                package.last_analyzed is not None
+                and latest is not None
+                and latest.risk_level != "INSUFFICIENT_DATA"
+            ):
+                continue
+            results.append({
+                "name": package.name,
+                "ecosystem": package.ecosystem,
+                "repo_url": package.repo_url or None,
+            })
+        return results
 
 
-def _run_score_targets(targets: list[dict], *, force: bool, use_cache: bool) -> dict:
+def _run_score_targets(
+    targets: list[dict],
+    *,
+    force: bool,
+    use_cache: bool,
+    refresh_data: bool = False,
+) -> dict:
     """Score a list of targets sequentially with the given cache flags.
 
     Returns ``{"success": int, "errors": list[(name, error)]}``. Runs in
@@ -339,6 +360,7 @@ def _run_score_targets(targets: list[dict], *, force: bool, use_cache: bool) -> 
                 repo_url=t.get("repo_url"),
                 force=force,
                 use_cache=use_cache,
+                refresh_data=refresh_data,
             )
             if r.success:
                 success += 1
@@ -365,14 +387,19 @@ def rescore_packages(targets: list[dict]) -> dict:
 def retry_packages(targets: list[dict]) -> dict:
     """Retry every target from scratch, bypassing all caches.
 
-    ``use_cache=False`` skips the score cache, the snapshot cache, and
-    the negative cache, so a package stuck in
+    ``refresh_data=True`` skips snapshot and negative-cache reads while
+    retaining cache writes, so a package stuck in
     ``failure_kind=repo_not_found`` will actually re-attempt upstream
     collection. Caveat: a true upstream-data problem (e.g. a typo in
     the registry's repository URL) will still fail — retry helps with
     transient failures, not bad source data.
     """
-    return _run_score_targets(targets, force=True, use_cache=False)
+    return _run_score_targets(
+        targets,
+        force=True,
+        use_cache=True,
+        refresh_data=True,
+    )
 
 
 def get_score_history(package_name: str, ecosystem: str) -> list[dict]:

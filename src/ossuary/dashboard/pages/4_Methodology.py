@@ -1,7 +1,7 @@
 """Methodology — scoring formula, validation, and detection scope."""
 
 import json
-import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -99,7 +99,7 @@ with col2:
     - Dependency confusion attacks
     - Typosquatting
     - Malicious code injection
-    - Multi-year social engineering with slow buildup
+    - Social engineering without observable governance or contribution shifts
     """)
 
 st.divider()
@@ -113,27 +113,13 @@ st.markdown("#### Validation")
 # legacy filename doesn't outrank the current run alphabetically — which
 # previously caused stale `validation_results_v4.json` to win over the
 # current `validation_results.json`.
-results_dir = os.getcwd()
-canonical = os.path.join(results_dir, "validation_results.json")
-latest_name = None
-latest_path = None
-
-if os.path.exists(canonical):
-    latest_path = canonical
-    latest_name = "validation_results.json"
-else:
-    candidates = [
-        f for f in os.listdir(results_dir)
-        if f.startswith("validation_results") and f.endswith(".json")
-    ]
-    if candidates:
-        latest_name = max(candidates, key=lambda f: os.path.getmtime(os.path.join(results_dir, f)))
-        latest_path = os.path.join(results_dir, latest_name)
+latest_name = "validation_results.json"
+latest_path = Path(__file__).resolve().parents[4] / latest_name
 
 validation_data = None
-if latest_path:
+if latest_path.exists():
     try:
-        with open(latest_path) as f:
+        with latest_path.open() as f:
             validation_data = json.load(f)
     except Exception:
         pass
