@@ -25,6 +25,7 @@ Usage:
     python scripts/validate.py --only controls
     python scripts/validate.py --ecosystem npm
     python scripts/validate.py --ecosystem rubygems,cargo
+    python scripts/validate.py --validation-date 2026-08-15 --output validation_results.json
 """
 
 import argparse
@@ -32,7 +33,7 @@ import asyncio
 import json
 import os
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -44,6 +45,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+from ossuary._compat import parse_utc_date_end, utcnow_naive
+from ossuary.db.session import init_db
 from ossuary.scoring import (
     FRUSTRATION_WEIGHT,
     IN_SCOPE_TIERS,
@@ -53,7 +56,18 @@ from ossuary.scoring import (
     RISK_THRESHOLDS,
     SENTIMENT_IN_SCORE,
 )
-from ossuary.services.scorer import cached_collect, calculate_score_for_date
+from ossuary.services.repo_cache import (
+    COLLECTOR_VERSION,
+    deserialise_collected_data,
+)
+from ossuary.services.scorer import (
+    CollectedData,
+    cached_collect,
+    calculate_score_for_date,
+)
+
+
+REPO_ROOT = Path(__file__).parent.parent.resolve()
 
 
 @dataclass
@@ -79,6 +93,10 @@ class ValidationCase:
     cutoff_date: Optional[str] = None  # For T-1 analysis (day before incident)
     notes: str = ""
     repo_url: Optional[str] = None  # Override if needed
+    # Pinned original-repository evidence for a historical case whose upstream
+    # disappeared. The fixture is explicit in the artifact and validated before
+    # use; it is never a silent cache fallback.
+    evidence_fixture: Optional[str] = None
 
 
 @dataclass
@@ -99,6 +117,8 @@ class ValidationResult:
     concentration: float = 0.0
     commits_last_year: int = 0
     protective_factors_total: int = 0
+    is_provisional: bool = False
+    provisional_reasons: list[str] = field(default_factory=list)
 
     error: Optional[str] = None
 
@@ -2167,10 +2187,13 @@ VALIDATION_CASES = [
         cutoff_date="2026-06-07",
         notes="EXPECTED FN: PyPI package 'pyphetools' (phenopacket tooling). "
               "High concentration (83%, 2 contributors) but scores 50 — the "
-              "org-membership proxy credit (-15) for monarch-initiative pulls "
-              "it below the threshold. PyPI package removed post-incident; "
-              "scored against source repo. Shared-maintainer PyPI token theft.",
+              "repository-organization/admin proxy credit (-15) pulls it below "
+              "the threshold. PyPI package removed post-incident; "
+              "the source repo was later deleted, so the June 10 original-repo "
+              "snapshot is pinned for reproducible T-1 scoring. Shared-maintainer "
+              "PyPI token theft.",
         repo_url="https://github.com/monarch-initiative/pyphetools",
+        evidence_fixture="validation_fixtures/pyphetools-2026-06-10.json",
     ),
     ValidationCase(
         name="P2GX/ppkt2synergy",
@@ -2182,7 +2205,7 @@ VALIDATION_CASES = [
         cutoff_date="2026-06-07",
         notes="EXPECTED FN: PyPI package 'ppkt2synergy'. Lowest concentration "
               "in the cluster (47%, 3 contributors) — broadest contributor "
-              "base scores 45, below threshold. PyPI package removed "
+              "base scores 25, below threshold. PyPI package removed "
               "post-incident; scored against source repo. Shared-maintainer "
               "PyPI token theft.",
         repo_url="https://github.com/P2GX/ppkt2synergy",
@@ -2215,7 +2238,60 @@ VALIDATION_CASES = [
 RISK_THRESHOLD = PREDICTION_THRESHOLD
 
 
-async def validate_package(case: ValidationCase) -> ValidationResult:
+def load_evidence_fixture(case: ValidationCase) -> CollectedData:
+    """Load and validate an explicit pinned-evidence fixture.
+
+    This is intentionally validation-only. It preserves a historical case when
+    the original upstream has disappeared without teaching the normal scanner
+    to trust arbitrary stale snapshots.
+    """
+    if not case.evidence_fixture:
+        raise ValueError(f"No evidence fixture configured for {case.name}")
+
+    fixture_path = (REPO_ROOT / case.evidence_fixture).resolve()
+    if not fixture_path.is_relative_to(REPO_ROOT):
+        raise ValueError(f"Evidence fixture escapes repository root: {fixture_path}")
+
+    payload = json.loads(fixture_path.read_text())
+    provenance = payload.get("provenance", {})
+    expected = {
+        "package": case.name,
+        "original_repository": case.repo_url,
+        "cutoff_date": case.cutoff_date,
+    }
+    observed = {key: provenance.get(key) for key in expected}
+    if observed != expected:
+        raise ValueError(
+            f"Evidence fixture provenance mismatch for {case.name}: "
+            f"expected {expected}, got {observed}"
+        )
+    if payload.get("fixture_schema") != 1:
+        raise ValueError(
+            f"Unsupported evidence fixture schema for {case.name}: "
+            f"{payload.get('fixture_schema')}"
+        )
+
+    collected = deserialise_collected_data(
+        payload.get("collected_data", {}), CollectedData
+    )
+    if collected.repo_url != case.repo_url:
+        raise ValueError(
+            f"Evidence fixture repository mismatch for {case.name}: "
+            f"{collected.repo_url}"
+        )
+    if collected.fetch_errors or collected.provisional_reasons:
+        raise ValueError(
+            f"Evidence fixture for {case.name} contains incomplete data"
+        )
+    return collected
+
+
+async def validate_package(
+    case: ValidationCase,
+    *,
+    current_cutoff: Optional[datetime] = None,
+    refresh_data: bool = False,
+) -> ValidationResult:
     """Validate a single package using the services layer (supports all ecosystems)."""
     result = ValidationResult(case=case)
 
@@ -2227,20 +2303,25 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
         # is always concrete because ``calculate_score_for_date`` needs a
         # datetime.
         cutoff_for_collect = (
-            datetime.strptime(case.cutoff_date, "%Y-%m-%d")
+            parse_utc_date_end(case.cutoff_date)
             if case.cutoff_date else None
         )
-        cutoff = cutoff_for_collect or datetime.now()
+        cutoff = cutoff_for_collect or current_cutoff or utcnow_naive()
 
         # Collect data via services layer (handles all 8 ecosystems).
         # Snapshot cache reuses prior runs' upstream data when available
         # — re-running validation after a methodology bump or for ablation
         # work is then bounded by DB read time, not GitHub rate limits.
         # See ``docs/data_reuse_design.md``.
-        collected_data, warnings = await cached_collect(
-            case.name, case.ecosystem, case.repo_url,
-            cutoff_date=cutoff_for_collect,
-        )
+        if case.evidence_fixture:
+            collected_data = load_evidence_fixture(case)
+            warnings = []
+        else:
+            collected_data, warnings = await cached_collect(
+                case.name, case.ecosystem, case.repo_url,
+                cutoff_date=cutoff_for_collect,
+                refresh_data=refresh_data,
+            )
 
         if collected_data is None:
             result.error = warnings[0] if warnings else "Could not collect data"
@@ -2248,7 +2329,11 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
 
         # Calculate score for the cutoff date
         breakdown = calculate_score_for_date(
-            case.name, case.ecosystem, collected_data, cutoff,
+            case.name,
+            case.ecosystem,
+            collected_data,
+            cutoff,
+            is_historical=case.cutoff_date is not None,
         )
 
         # Populate result
@@ -2257,6 +2342,9 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
         result.concentration = breakdown.maintainer_concentration
         result.commits_last_year = breakdown.commits_last_year
         result.protective_factors_total = breakdown.protective_factors.total
+        result.reputation_score = breakdown.protective_factors.reputation_score
+        result.is_provisional = breakdown.is_provisional
+        result.provisional_reasons = list(breakdown.provisional_reasons)
 
         # Get maintainer info from collected data
         result.maintainer = collected_data.github_data.maintainer_username
@@ -2268,7 +2356,11 @@ async def validate_package(case: ValidationCase) -> ValidationResult:
 
         # Classify prediction
         if breakdown.final_score is None:
-            result.error = "INSUFFICIENT_DATA (final_score is None)"
+            detail = "; ".join(breakdown.incomplete_reasons)
+            result.error = (
+                f"INSUFFICIENT_DATA: {detail}"
+                if detail else "INSUFFICIENT_DATA (final_score is None)"
+            )
             return result
         result.predicted_outcome = "risky" if breakdown.final_score >= RISK_THRESHOLD else "safe"
 
@@ -2318,7 +2410,10 @@ def compute_scope_metrics(
     from the scoped (Scope B) recall denominator.
     """
 
-    valid = [r for r in results if r.error is None]
+    valid = [
+        r for r in results
+        if r.error is None and not r.is_provisional
+    ]
 
     unscoped = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
     scope_b = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
@@ -2373,6 +2468,9 @@ def compute_scope_metrics(
 def build_artifact(
     summary: "ValidationSummary",
     by_ecosystem: dict,
+    *,
+    validation_cutoff_date: str,
+    run_started_at: datetime,
 ) -> dict:
     """Assemble the validation_results.json artifact.
 
@@ -2381,7 +2479,10 @@ def build_artifact(
     place and ``tests/test_doc_code_drift.py`` can pin the contract.
     """
 
-    valid = [r for r in summary.results if r.error is None]
+    valid = [
+        r for r in summary.results
+        if r.error is None and not r.is_provisional
+    ]
     scopes = compute_scope_metrics(valid)
 
     # FN / FP details — keep them at the top level for quick inspection
@@ -2411,7 +2512,10 @@ def build_artifact(
     ]
 
     return {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": utcnow_naive().isoformat() + "Z",
+        "run_started_at": run_started_at.isoformat() + "Z",
+        "validation_cutoff_date": validation_cutoff_date,
+        "collector_version": COLLECTOR_VERSION,
         "methodology": {
             "version": METHODOLOGY_VERSION,
             "frustration_weight": FRUSTRATION_WEIGHT,
@@ -2422,6 +2526,7 @@ def build_artifact(
             ],
         },
         "dataset": {
+            "requested_cases": len(summary.results),
             "total_cases": summary.total,
             "controls": sum(
                 1 for r in valid if r.case.expected_outcome == "safe"
@@ -2436,6 +2541,14 @@ def build_artifact(
                 and r.case.tier in IN_SCOPE_TIERS
             ),
             "errors": sum(1 for r in summary.results if r.error is not None),
+            "provisional_results": sum(
+                1 for r in summary.results
+                if r.error is None and r.is_provisional
+            ),
+            "pinned_evidence_cases": sum(
+                1 for r in summary.results
+                if r.error is None and r.case.evidence_fixture is not None
+            ),
         },
         "scopes": scopes,
         "false_negatives_scope_b": scoped_fn,
@@ -2451,8 +2564,11 @@ def calculate_summary(results: list[ValidationResult]) -> ValidationSummary:
     summary = ValidationSummary()
     summary.results = results
 
-    # Filter out errors
-    valid_results = [r for r in results if r.error is None]
+    # Only complete rows enter publishable metrics. Errors and provisional
+    # numbers remain in the artifact for diagnosis but not the denominator.
+    valid_results = [
+        r for r in results if r.error is None and not r.is_provisional
+    ]
     summary.total = len(valid_results)
 
     if summary.total == 0:
@@ -2510,6 +2626,9 @@ def print_results(summary: ValidationSummary):
     for r in summary.results:
         if r.error:
             print(f"{r.case.name:<20} {'ERROR':<10} {'-':<8} {r.error[:30]}")
+        elif r.is_provisional:
+            reason = "; ".join(r.provisional_reasons)
+            print(f"{r.case.name:<20} {'PROVISIONAL':<10} {r.score:<8} {reason[:30]}")
         else:
             correct_mark = "✓" if r.correct else "✗"
             print(
@@ -2542,7 +2661,10 @@ def print_results(summary: ValidationSummary):
 
     # Scoped (Scope B) metrics — the headline academic frame
     scopes = compute_scope_metrics(
-        [r for r in summary.results if r.error is None]
+        [
+            r for r in summary.results
+            if r.error is None and not r.is_provisional
+        ]
     )
     sb = scopes["scope_b"]
     print(
@@ -2568,7 +2690,7 @@ def print_results(summary: ValidationSummary):
     # By ecosystem
     by_ecosystem = {}
     for r in summary.results:
-        if r.error is not None:
+        if r.error is not None or r.is_provisional:
             continue
         eco = r.case.ecosystem
         if eco not in by_ecosystem:
@@ -2588,7 +2710,10 @@ def print_results(summary: ValidationSummary):
     print("=" * 80)
 
     # False negatives are the most important - incidents we missed
-    fn_cases = [r for r in summary.results if r.classification == "FN"]
+    fn_cases = [
+        r for r in summary.results
+        if r.classification == "FN" and not r.is_provisional
+    ]
     if fn_cases:
         print("\nFalse Negatives (missed incidents):")
         for r in fn_cases:
@@ -2597,7 +2722,10 @@ def print_results(summary: ValidationSummary):
             print(f"    Notes: {r.case.notes}")
 
     # False positives
-    fp_cases = [r for r in summary.results if r.classification == "FP"]
+    fp_cases = [
+        r for r in summary.results
+        if r.classification == "FP" and not r.is_provisional
+    ]
     if fp_cases:
         print("\nFalse Positives (safe packages flagged as risky):")
         for r in fp_cases:
@@ -2612,12 +2740,59 @@ async def main():
     parser.add_argument("--only", choices=["incidents", "controls"], help="Only run subset")
     parser.add_argument("--package", "-p", help="Only run specific package")
     parser.add_argument("--ecosystem", "-e", help="Filter by ecosystem (comma-separated, e.g. npm,cargo)")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Bypass snapshot and negative-cache reads and recollect upstream data",
+    )
+    parser.add_argument(
+        "--validation-date",
+        help="Document the current-state validation cutoff date (YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help="Write a diagnostic artifact even when rows error or are provisional",
+    )
     args = parser.parse_args()
+
+    canonical_output = (
+        Path(args.output).resolve() == (REPO_ROOT / "validation_results.json")
+        if args.output else False
+    )
+    if canonical_output and (args.only or args.package or args.ecosystem):
+        parser.error(
+            "validation_results.json is publication evidence and requires the "
+            "complete configured cohort; write filtered runs elsewhere"
+        )
+
+    # Git evidence and persisted timestamps are UTC-naive. Keep the validation
+    # control cutoff in that same domain; local-naive time shifts the 12-month
+    # window on non-UTC hosts.
+    run_started_at = utcnow_naive()
+    validation_cutoff_date = (
+        args.validation_date or run_started_at.date().isoformat()
+    )
+    try:
+        parsed_validation_date = datetime.strptime(
+            validation_cutoff_date, "%Y-%m-%d"
+        ).date()
+    except ValueError as exc:
+        parser.error(f"--validation-date must be YYYY-MM-DD: {exc}")
+    if parsed_validation_date != run_started_at.date():
+        parser.error(
+            "--validation-date must equal the collection date; current-state "
+            "controls cannot be reconstructed for another day"
+        )
 
     # Check for GitHub token
     if not os.getenv("GITHUB_TOKEN"):
         print("Warning: GITHUB_TOKEN not set. Rate limits will be restrictive.")
         print("Set with: export GITHUB_TOKEN=$(gh auth token)")
+
+    # A validation run must be reproducible from an empty DATABASE_URL, not
+    # accidentally depend on tables created by an earlier CLI invocation.
+    init_db()
 
     # Filter cases
     cases = VALIDATION_CASES
@@ -2644,9 +2819,15 @@ async def main():
     results = []
     for i, case in enumerate(cases, 1):
         print(f"[{i}/{len(cases)}] {case.name} ({case.ecosystem})...", end=" ", flush=True)
-        result = await validate_package(case)
+        result = await validate_package(
+            case,
+            current_cutoff=run_started_at,
+            refresh_data=args.refresh,
+        )
         if result.error:
             print(f"ERROR: {result.error[:50]}")
+        elif result.is_provisional:
+            print(f"PROVISIONAL: {result.score} ({result.risk_level})")
         else:
             mark = "✓" if result.correct else "✗"
             print(f"{result.score} ({result.risk_level}) {mark}")
@@ -2658,12 +2839,24 @@ async def main():
     # Print results
     print_results(summary)
 
+    incomplete = sum(
+        1
+        for r in results
+        if r.error is not None or r.is_provisional
+    )
+    if incomplete and not args.allow_incomplete and not args.output:
+        print(
+            f"\nValidation incomplete: {incomplete} row(s) errored or are "
+            "provisional. Re-run with --refresh."
+        )
+        raise SystemExit(1)
+
     # Save to file if requested
     if args.output:
         # Calculate by_ecosystem for output
         by_eco_out = {}
         for r in summary.results:
-            if r.error is not None:
+            if r.error is not None or r.is_provisional:
                 continue
             eco = r.case.ecosystem
             if eco not in by_eco_out:
@@ -2672,7 +2865,27 @@ async def main():
             if r.correct:
                 by_eco_out[eco]["correct"] += 1
 
-        output_data = build_artifact(summary, by_eco_out)
+        output_data = build_artifact(
+            summary,
+            by_eco_out,
+            validation_cutoff_date=validation_cutoff_date,
+            run_started_at=run_started_at,
+        )
+        incomplete = (
+            output_data["dataset"]["errors"]
+            + output_data["dataset"]["provisional_results"]
+        )
+        if incomplete and (canonical_output or not args.allow_incomplete):
+            diagnostic_hint = (
+                " Write incomplete diagnostics to a non-canonical path."
+                if canonical_output else
+                " Use --allow-incomplete only for a diagnostic artifact."
+            )
+            print(
+                f"\nRefusing to write {args.output}: {incomplete} incomplete "
+                f"row(s). Re-run with --refresh.{diagnostic_hint}"
+            )
+            raise SystemExit(1)
         with open(args.output, "w") as f:
             json.dump(output_data, f, indent=2, default=str)
         print(f"\nResults saved to {args.output}")

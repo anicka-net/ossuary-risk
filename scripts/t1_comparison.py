@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from ossuary.collectors.git import GitCollector
 from ossuary.collectors.github import GitHubCollector
 from ossuary.collectors.npm import NpmCollector
+from ossuary._compat import parse_utc_date_end
 from ossuary.scoring.engine import PackageMetrics, RiskScorer
 from ossuary.scoring.reputation import ReputationScorer
 from ossuary.sentiment.analyzer import SentimentAnalyzer
@@ -214,7 +215,7 @@ async def main():
     for case in INCIDENT_CASES:
         print(f"Analyzing {case.name}...")
 
-        cutoff = datetime.strptime(case.cutoff_date, "%Y-%m-%d")
+        cutoff = parse_utc_date_end(case.cutoff_date)
 
         # Score at T-1 (before incident)
         print(f"  T-1 ({case.cutoff_date})...", end=" ", flush=True)

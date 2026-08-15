@@ -37,6 +37,7 @@ from ossuary.scoring import (
     SENTIMENT_IN_SCORE,
 )
 from ossuary.scoring.reputation import TOP_PACKAGES
+from ossuary.services.repo_cache import COLLECTOR_VERSION
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -291,6 +292,34 @@ def test_validation_artifact_methodology_version_matches_code():
     assert methodology.get("prediction_threshold") == PREDICTION_THRESHOLD
 
 
+def test_validation_artifact_is_complete_final_checkpoint():
+    """The canonical artifact must be the strict August thesis checkpoint.
+
+    Presence-only checks allowed stale or diagnostic artifacts to appear
+    publishable. Pin the collection version, cutoff, denominator, and both
+    incomplete-row counters.
+    """
+    data = _load_validation_artifact()
+    dataset = data.get("dataset", {})
+
+    assert data.get("validation_cutoff_date") == "2026-08-15"
+    assert data.get("collector_version") == COLLECTOR_VERSION
+    assert dataset.get("requested_cases") == 184
+    assert dataset.get("total_cases") == 184
+    assert dataset.get("errors") == 0
+    assert dataset.get("provisional_results") == 0
+    assert dataset.get("pinned_evidence_cases") == 1
+
+    for doc_name, doc in (
+        ("README.md", README),
+        ("docs/methodology.md", METHODOLOGY),
+        ("docs/validation.md", VALIDATION_DOC),
+    ):
+        assert "2026-08-15" in doc, (
+            f"{doc_name} must state the artifact's final validation cutoff"
+        )
+
+
 def test_validation_dataset_size_matches_public_docs():
     """README, methodology.md, and validation.md must agree with the
     artifact on the headline sample size. The GPT review caught three
@@ -520,13 +549,44 @@ def test_analyzer_docstring_matches_active_methodology():
     )
 
 
-# --- Out-of-scope count: negative + positive presence in active docs ----
+# --- Out-of-scope count in current-data sections -------------------------
+
+def _out_of_scope_counts(text: str) -> list[int]:
+    """Extract the count from the active phrasings used by public docs."""
+    count_first = re.compile(
+        r"(?<![\d.])\b(\d+)\s+out-of-scope\s+"
+        r"(?:incidents?|cases|packages)\b",
+        re.IGNORECASE,
+    )
+    label_first = re.compile(
+        r"\bout-of-scope\s+(?:incidents?|cases|packages)\s*"
+        r"(?:\(\s*|:\s*)(\d+)\b",
+        re.IGNORECASE,
+    )
+    return [int(match.group(1)) for pattern in (count_first, label_first)
+            for match in pattern.finditer(text)]
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "The validation set includes 21 out-of-scope cases (T4+T5).",
+        "Out-of-scope incidents (21 packages: 13 T4 + 8 T5).",
+        "Out-of-scope incidents: 21 (T4=13, T5=8)",
+    ),
+)
+def test_out_of_scope_count_parser_covers_current_doc_forms(text):
+    """A stale mutation of any current count form must remain visible."""
+    assert _out_of_scope_counts(text) == [21]
+
 
 def test_out_of_scope_count_consistent_across_docs():
     """The artifact's out-of-scope count (T4 + T5) must appear with the
-    matching wording in methodology.md and validation.md, and the legacy
-    "14 out-of-scope" wording must not be present anywhere in the active
-    docs."""
+    matching wording in every section that states the current count.
+
+    Section scoping is deliberate: version-history prose may truthfully
+    cite a different count for an older artifact.
+    """
     data = _load_validation_artifact()
     per_tier = data.get("scopes", {}).get("per_tier_incidents")
     if not per_tier:
@@ -538,33 +598,61 @@ def test_out_of_scope_count_consistent_across_docs():
         if not info.get("in_scope")
     )
 
-    legacy = "14 out-of-scope"
-    expected = f"{oos_total} out-of-scope"
+    current_surfaces = (
+        (
+            "docs/methodology.md §3.2",
+            _section_text(METHODOLOGY, "### 3.2 What Ossuary Cannot Detect"),
+        ),
+        (
+            "docs/methodology.md §8.4",
+            _section_text(METHODOLOGY, "### 8.4 Results (n=184, Scope B n=162)"),
+        ),
+        (
+            "docs/methodology.md §8.7",
+            _section_text(METHODOLOGY, "### 8.7 Out-of-Scope Incident Analysis"),
+        ),
+        (
+            "docs/methodology.md §10.2",
+            _section_text(METHODOLOGY, "### 10.2 External Validity"),
+        ),
+        (
+            "docs/methodology.md §10.5",
+            _section_text(METHODOLOGY, "### 10.5 Mitigations Summary"),
+        ),
+        (
+            "docs/validation.md Confusion Matrix",
+            _section_text(VALIDATION_DOC, "## Confusion Matrix (Scope B)"),
+        ),
+        (
+            "docs/validation.md Out-of-Scope Incident Analysis",
+            _section_text(VALIDATION_DOC, "## Out-of-Scope Incident Analysis"),
+        ),
+    )
 
-    for doc_name, doc in (
-        ("docs/methodology.md", METHODOLOGY),
-        ("docs/validation.md", VALIDATION_DOC),
-        ("README.md", README),
-    ):
-        assert legacy not in doc, (
-            f"{doc_name} still contains {legacy!r}; the artifact "
-            f"reports {oos_total} out-of-scope incidents (T4+T5). "
-            f"Update the active-doc count."
+    for surface_name, surface in current_surfaces:
+        stated_counts = _out_of_scope_counts(surface)
+        assert stated_counts, (
+            f"{surface_name} must state the artifact's out-of-scope count."
+        )
+        assert all(count == oos_total for count in stated_counts), (
+            f"{surface_name} states out-of-scope counts {stated_counts}, but "
+            f"the artifact reports {oos_total} (T4+T5)."
         )
 
-    # Positive presence: at least one doc must cite the actual count
-    # (methodology.md §3 + §10 are the obvious places). Don't enforce
-    # in every doc — the headline n=170 already does that work — but
-    # do require the count appear *somewhere* so authors can't silently
-    # drop it.
-    docs_with_count = sum(
-        expected in doc
-        for doc in (METHODOLOGY, VALIDATION_DOC, README)
+    t4 = per_tier["T4"]["detected"] + per_tier["T4"]["missed"]
+    t5 = per_tier["T5"]["detected"] + per_tier["T5"]["missed"]
+    results_section = _section_text(
+        METHODOLOGY,
+        "### 8.4 Results (n=184, Scope B n=162)",
     )
-    assert docs_with_count >= 1, (
-        f"no public doc cites '{expected}'. Add it to methodology.md "
-        f"§3 (Detection Scope) or §10 (Threats to Validity) so the "
-        f"detection-boundary claim is verifiable."
+    summary = re.search(
+        r"Out-of-scope incidents:\s*(\d+)\s*\(T4=(\d+),\s*T5=(\d+)\)",
+        results_section,
+    )
+    assert summary, "methodology §8.4 must include the T4/T5 count summary"
+    assert tuple(map(int, summary.groups())) == (oos_total, t4, t5), (
+        "methodology §8.4 out-of-scope total or tier counts do not match "
+        "validation_results.json"
     )
 
 

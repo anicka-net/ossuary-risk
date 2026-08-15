@@ -67,6 +67,9 @@ class Package(Base):
     # priority 4. ``failure_reason`` stays around as the operator-readable
     # message; ``failure_kind`` is the SQL-friendly identifier.
     failure_kind: Mapped[Optional[str]] = mapped_column(String(50))
+    # Collector contract that classified the failure. A version bump makes
+    # prior negative entries ineligible so a repaired collector probes again.
+    failure_collector_version: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Relationships
     commits: Mapped[list["Commit"]] = relationship(back_populates="package", cascade="all, delete-orphan")
@@ -153,6 +156,11 @@ class Score(Base):
     # Score calculation date and cutoff
     calculated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     cutoff_date: Mapped[datetime] = mapped_column(DateTime)
+    # Formula version used to produce this row. Legacy rows remain NULL and
+    # deliberately miss cache lookups after the additive migration.
+    methodology_version: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True
+    )
 
     # Final score. ``NULL`` when ``risk_level == 'INSUFFICIENT_DATA'`` —
     # the methodology contract is not to compute a numeric score from
@@ -179,8 +187,9 @@ class Score(Base):
 
     # True when the score was computed with one or more non-essential
     # signals missing (e.g. GitHub Sponsors lookup rate-limited). The
-    # score itself is valid but conservative; ``rescore-invalid`` retries
-    # these rows alongside ``risk_level == 'INSUFFICIENT_DATA'`` rows.
+    # score remains numeric, but the bias direction is unknown;
+    # ``rescore-invalid`` retries these rows alongside
+    # ``risk_level == 'INSUFFICIENT_DATA'`` rows.
     # Reasons live in ``breakdown['provisional_reasons']``.
     is_provisional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
@@ -211,9 +220,9 @@ class RepoSnapshot(Base):
     Stores the full ``CollectedData`` blob (commits, GitHub data, registry
     metadata, downloads) as JSON so that repeat scoring of the same package
     can skip redundant upstream calls. Append-only — each refresh writes a
-    new row rather than mutating the previous one, so a query for any
-    historical cutoff resolves to the earliest snapshot whose
-    ``coverage_until`` is on or after that cutoff.
+    new row rather than mutating the previous one. Historical lookup uses a
+    snapshot collected at or after the requested cutoff, then filters the
+    contained evidence during scoring.
 
     **Cache key in v0.10:** keyed on ``package_id`` (i.e. ``(name,
     ecosystem)``). The repo URL the snapshot resolved to is recorded in
@@ -238,10 +247,10 @@ class RepoSnapshot(Base):
     # Server clock when this snapshot was fetched.
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
-    # Latest ``authored_date`` across the cached commits (i.e. the upper
-    # bound of historical data the snapshot covers). A scoring request
-    # for ``cutoff_date <= coverage_until`` can use this snapshot;
-    # anything later requires a refresh.
+    # Latest ``authored_date`` across the cached commits. Recorded for
+    # diagnostics and future incremental-fetch work; historical cache lookup
+    # uses ``collected_at`` because an inactive repository can legitimately
+    # have no commit near the requested cutoff.
     coverage_until: Mapped[datetime] = mapped_column(DateTime)
 
     # Canonical repo URL the snapshot resolved to (or None when the

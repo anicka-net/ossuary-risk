@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ossuary._compat import utcnow_naive
 from ossuary.db.models import Package, Score
-
+from ossuary.scoring import METHODOLOGY_VERSION
 
 # Default freshness threshold: 7 days
 CACHE_FRESHNESS_DAYS = int(os.getenv("OSSUARY_CACHE_DAYS", "7"))
@@ -113,7 +113,11 @@ class ScoreCache:
         """Get cached score for an exact cutoff date."""
         return (
             self.session.query(Score)
-            .filter(Score.package_id == package.id, Score.cutoff_date == cutoff_date)
+            .filter(
+                Score.package_id == package.id,
+                Score.cutoff_date == cutoff_date,
+                Score.methodology_version == METHODOLOGY_VERSION,
+            )
             .order_by(Score.calculated_at.desc())
             .first()
         )
@@ -134,6 +138,7 @@ class ScoreCache:
                 Score.package_id == package.id,
                 Score.cutoff_date >= fresh_cutoff,
                 Score.is_historical.is_(False),
+                Score.methodology_version == METHODOLOGY_VERSION,
             )
             .order_by(Score.cutoff_date.desc(), Score.calculated_at.desc())
             .first()
@@ -157,6 +162,7 @@ class ScoreCache:
                 Score.package_id == package.id,
                 Score.is_historical.is_(True),
                 Score.final_score.isnot(None),
+                Score.methodology_version == METHODOLOGY_VERSION,
             )
             .order_by(Score.cutoff_date.desc())
             .limit(months)
@@ -190,18 +196,23 @@ class ScoreCache:
 
         ``is_provisional=True`` flags rows where the score *was*
         computed but a non-essential signal failed (e.g. GitHub
-        Sponsors lookup) — the score is conservative and should be
-        retried via ``rescore-invalid``.
+        Sponsors or issue lookup). Its bias direction is unknown and it
+        should be retried via ``rescore-invalid``.
 
         ``is_historical=True`` flags rows from an explicit --cutoff run
         or the monthly history backfill. They are computed with
         current-only signals neutralized, so they must never be served
         as a package's current score (see :meth:`get_current_score`).
+
+        Every row is stamped with the active methodology. Cache reads require
+        an exact version match, so a formula bump reuses raw snapshots but
+        never returns a score produced by the previous formula.
         """
         score = Score(
             package_id=package.id,
             calculated_at=utcnow_naive(),
             cutoff_date=cutoff_date,
+            methodology_version=METHODOLOGY_VERSION,
             final_score=final_score,
             risk_level=risk_level,
             base_risk=base_risk,

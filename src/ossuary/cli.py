@@ -17,6 +17,7 @@ from rich.table import Table
 
 from ossuary import __version__
 from ossuary._compat import utcnow_naive
+from ossuary._compat import parse_utc_date_end
 from ossuary.db.session import init_db
 from ossuary.scoring.factors import RiskLevel
 
@@ -198,7 +199,7 @@ async def _score_package(
     cutoff = None
     if cutoff_date:
         try:
-            cutoff = datetime.strptime(cutoff_date, "%Y-%m-%d")
+            cutoff = parse_utc_date_end(cutoff_date)
         except ValueError:
             console.print("[red]Invalid date format. Use YYYY-MM-DD[/red]")
             raise typer.Exit(1)
@@ -272,12 +273,12 @@ def _display_results(breakdown):
     )
     console.print(Panel(score_text, title=f"[bold]{breakdown.package_name}[/bold]", border_style=color))
 
-    # Provisional banner: explain the conservative-skew and recovery path.
+    # Provisional banner: explain incomplete inputs and the recovery path.
     if breakdown.is_provisional:
         console.print(
             "[yellow]⚠ PROVISIONAL:[/yellow] one or more non-essential signals "
-            "were unavailable. The score is computed conservatively (likely "
-            "[bold]higher[/bold] than the true value) and should be retried."
+            "were unavailable. The score may be too high or too low and "
+            "should be retried before it is treated as final evidence."
         )
         for reason in breakdown.provisional_reasons:
             console.print(f"  [dim]•[/dim] {reason}")
@@ -690,8 +691,8 @@ def rescore_invalid(
 
     A score is *provisional* when a non-essential signal failed
     (typically GitHub auxiliary endpoints) and the score was computed
-    from defaults — conservative (likely too high). Rescoring once the
-    upstream recovers gives the true number.
+    from defaults. Missing protection usually raises risk, while missing
+    issue text can lower it; rescoring is required for the final number.
 
     By default this command retries both states; use ``--only`` to
     restrict.

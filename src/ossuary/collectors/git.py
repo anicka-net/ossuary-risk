@@ -366,15 +366,27 @@ class GitCollector(BaseCollector):
 
         total_recent = len(recent_commits)
         unique_contributors = len(author_counts)
+        human_counts = {
+            email: count
+            for email, count in author_counts.items()
+            if "[bot]" not in email.lower()
+            and "[bot]" not in author_names.get(email, "").lower()
+        }
 
         if author_counts:
-            # Use weighted counts for concentration, unweighted for top contributor
-            top_email = max(author_counts, key=author_counts.get)
+            # Concentration describes all commit activity, including automation,
+            # but maintainer identity must name a human account. Otherwise a
+            # dominant dependency bot receives reputation/funding credit.
+            top_email = (
+                max(human_counts, key=human_counts.get)
+                if human_counts else ""
+            )
             if total_weight > 0:
                 top_weighted = max(weighted_counts.values(), default=0.0)
                 concentration = (top_weighted / total_weight * 100)
             else:
-                concentration = (author_counts[top_email] / total_recent * 100) if total_recent > 0 else 0
+                top_count = max(author_counts.values(), default=0)
+                concentration = (top_count / total_recent * 100) if total_recent > 0 else 0
         else:
             top_email = ""
             concentration = 100  # No commits = maximum concentration (abandoned)
@@ -384,11 +396,7 @@ class GitCollector(BaseCollector):
         # Excludes bots (dependabot, renovate, etc.) from the count.
         bus_factor = 0
         bus_factor_names = []
-        if author_counts:
-            human_counts = {
-                e: c for e, c in author_counts.items()
-                if "[bot]" not in e and "[bot]" not in author_names.get(e, "")
-            }
+        if human_counts:
             human_total = sum(human_counts.values())
             if human_total > 0:
                 sorted_contributors = sorted(human_counts.items(), key=lambda x: -x[1])

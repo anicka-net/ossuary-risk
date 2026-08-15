@@ -149,8 +149,8 @@ class RepoSnapshot(Base):
     id: int (pk)
     repo_id: fk -> canonical_repos
     collected_at: datetime  # server clock when the fetch ran
-    coverage_until: datetime  # latest authored_date in the snapshot
-                              # — this is what cutoff_date compares against
+    coverage_until: datetime  # latest authored_date in the snapshot;
+                              # diagnostic / future incremental-fetch bound
 
     # Raw blobs. JSON for now; can split into structured tables if
     # query patterns demand it (e.g. for per-author concentration
@@ -214,11 +214,12 @@ For each repo with an existing snapshot:
    want point-in-time queryability for any historical cutoff).
 7. Update `last_synced_at`.
 
-The append-only snapshot history is what enables historical-cutoff
-reuse: a query for `cutoff_date = 2026-03-30` reads the snapshot
-with `coverage_until ≥ 2026-03-30` and the smallest `collected_at`
-≥ that — i.e., the earliest snapshot that contains all data up to
-the cutoff.
+The append-only snapshot history enables historical-cutoff reuse. A query for
+`cutoff_date = 2026-03-30` reads a snapshot collected at or after that cutoff;
+the current implementation chooses the most recent eligible snapshot and
+filters later commits and other reconstructable evidence during scoring.
+`coverage_until` is not a lookup constraint: an inactive repository may have
+all evidence needed for a March cutoff even when its last commit was in 2025.
 
 ### 6.3 Negative caching
 

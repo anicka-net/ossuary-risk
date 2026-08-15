@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from ossuary._compat import utcnow_naive
 from ossuary.db.models import Base
+from ossuary.scoring import METHODOLOGY_VERSION
 from ossuary.services.cache import ScoreCache
 
 
@@ -107,6 +108,30 @@ class TestCurrentVsHistoricalRows:
         session.flush()
         rows = cache.get_historical_scores(pkg, months=24)
         assert [r.cutoff_date for r in rows] == [month]
+
+    def test_methodology_bump_invalidates_all_score_cache_modes(self, session):
+        cache = ScoreCache(session)
+        pkg = cache.get_or_create_package("leftpad", "npm")
+        current = _store(cache, pkg, cutoff=utcnow_naive(), score=65)
+        historical = _store(
+            cache,
+            pkg,
+            cutoff=datetime(2025, 3, 1),
+            score=70,
+            is_historical=True,
+        )
+        session.flush()
+        assert current.methodology_version == METHODOLOGY_VERSION
+        assert historical.methodology_version == METHODOLOGY_VERSION
+
+        old_version = "0.0-test"
+        current.methodology_version = old_version
+        historical.methodology_version = old_version
+        session.flush()
+
+        assert cache.get_current_score(pkg) is None
+        assert cache.get_score_for_cutoff(pkg, historical.cutoff_date) is None
+        assert cache.get_historical_scores(pkg) == []
 
 
 class TestRebuildBreakdownBurnout:

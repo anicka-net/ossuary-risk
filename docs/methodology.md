@@ -6,9 +6,9 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 184 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4.1 methodology achieves **93.9% Scope B precision** and **73.8% in-scope recall** (F1 0.827) on n = 184 cases. v6.4.1 corrects which contributor is selected for the tapered concentration numerator and prevents historical scores from applying the current maintainer's reputation to a different past top contributor. v6.4 added three calibration fixes derived from Spring 2026 governance-decay cases (Kubernetes Ingress NGINX EOL, External Secrets Operator freeze, nvim-treesitter archival): (1) burnout escalation (+10 when frustration co-occurs with bus_factor ≤ 2), (2) takeover detector two-mode tenure check (≥3y tenure = governance concentration, <3y = xz-utils pattern), (3) merge-author bus factor via GraphQL (effective bus factor = min of code-contributor and merge-author diversity). Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset to validate detection boundaries but are not penalized as false negatives.
+**Key Finding**: In validation testing against 184 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4.2 methodology achieves **93.9% Scope B precision** and **73.8% in-scope recall** (F1 0.827) on n = 184 cases. The final current-state checkpoint is 2026-08-15; dated incidents retain their fixed pre-incident cutoffs. v6.4.2 requires both author and committer timestamps to precede historical cutoffs, neutralizes rolling current downloads and bounded current merge samples in historical scores, and excludes bot/non-`User` accounts and unproven profile bindings from maintainer reputation. v6.4.1 corrected the tapered concentration numerator and guarded changed historical identities. v6.4 added burnout escalation, takeover-tenure interpretation, and current-state merge-author bus factor. Out-of-scope incidents remain in the dataset to measure the detection boundary but are not penalized in Scope B recall.
 
-**Version**: 6.4.1 (June 2026)
+**Version**: 6.4.2 (August 2026)
 **Validation Dataset**: 184 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
@@ -110,7 +110,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 93.9% precision** with 2 false positives across 184 packages (v6.4.1)
+4. **Achieving 93.9% precision** with 2 false positives across 184 packages (v6.4.2)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -132,9 +132,9 @@ Ossuary contributes to this body of research by:
 
 | Attack Type | Why Undetectable | Examples | Validation Cases |
 |-------------|------------------|----------|-----------------|
-| **Account Compromise** | Active project, healthy governance metrics | ua-parser-js, chalk (2025), solana-web3.js, num2words, axios, litellm, xinference, pytorch-lightning, laravel-lang/lang | 13 cases (T4), 1 bonus detection (ua-parser-js at 90), 12 expected FN |
-| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, Nx, ultralytics, aquasecurity/trivy-action, @tanstack/router, @redhat-cloud-services/frontend-components | 9 cases (T5): 8 expected FN, 1 post-incident bonus detection (trivy-action) |
-| **Protestware by reputable maintainer** | Reputation correctly reduces risk score | es5-ext, is-promise | Detected by scope but missed by threshold (T2 FN) |
+| **Account Compromise** | Active project, healthy governance metrics | ua-parser-js, chalk (2025), solana-web3.js, num2words, axios, litellm, xinference, pytorch-lightning, laravel-lang/lang | 13 cases (T4), 4 bonus detections (ua-parser-js, eslint-scope, eslint-config-prettier, chalk), 9 expected FN |
+| **CI/CD Pipeline Exploits** | Workflow misconfigurations, not governance | tj-actions, reviewdog, rspack, Nx, ultralytics, aquasecurity/trivy-action, @tanstack/router, @redhat-cloud-services/frontend-components | 9 cases (T5): 9 expected FN, 0 bonus detections |
+| **Active-maintainer protestware** | Activity can mask unilateral intent | faker community fork, node-ipc | 2 misses among 6 T2 cases; es5-ext and is-promise cross the threshold only after unverifiable current-era protection is removed |
 | **Typosquatting** | New package, no governance to analyze | crossenv, boltdb-go/bolt | Not tested (no repo to score) |
 | **Dependency Confusion** | Build system attack, not governance | PyTorch-nightly | Not tested |
 
@@ -171,16 +171,25 @@ The waves were causally linked: credentials stolen in the s1ngularity attack (Au
 | Package | Ossuary | Scorecard | Classification | Why |
 |---------|---------|-----------|----------------|-----|
 | **`is`** | **100 CRITICAL** | 3.4 | **True Positive** | Single inactive maintainer (100% concentration, 0 commits/year), no protective factors |
-| **eslint-config-prettier** | 45 MODERATE | 4.5 | Expected FN | Prettier org, active development, 32 commits/year, multiple contributors — well below the 60 threshold |
-| **chalk** | 35 LOW | 3.8 | Expected FN | Sindre Sorhus (Tier 1 reputation), established project, strong protective factors |
+| **eslint-config-prettier** | 65 HIGH | 4.5 | Bonus detection (T4) | 40.6% concentration plus takeover shift; current download protection is unavailable at the 2025 cutoff |
+| **chalk** | **80 CRITICAL** | 3.8 | Bonus detection (T4) | 78% concentration and 9 cutoff-year commits; present-day reputation is unavailable at the 2025 cutoff |
 
-All three were compromised by the same attack class (credential phishing), yet Ossuary correctly scored them on opposite sides of the risk threshold. This is not a bug — it reflects the fundamental distinction between **governance vulnerability** and **attack occurrence**:
+All three were compromised by the same attack class (credential phishing),
+and all three cross Ossuary's threshold for different governance reasons.
+Only `is` is an in-scope true positive. The other two are bonus detections:
+their scores do not identify or predict the phishing mechanism.
 
 **`is`** — The `is` package had a single maintainer (enricomarino) who had not committed in years, with 100% contributor concentration and no organizational backing. Ossuary scored it 100 CRITICAL. When the attacker phished this inactive maintainer's npm credentials and then social-engineered the current team into re-granting publish access, the governance weakness was the enabling condition: a dormant account with live publish rights on a package with no review process for ownership changes.
 
-**chalk** — chalk is maintained by Sindre Sorhus, one of npm's most prolific contributors (Tier 1 reputation in Ossuary's system), with an active contributor base and organizational backing. Ossuary scored it 35 LOW. The attacker phished a co-maintainer (Qix-) via a fake `npmjs.help` domain and published malicious versions that intercepted cryptocurrency wallet transactions. The attack succeeded not because of governance weakness but because npm's authentication infrastructure allowed phishable TOTP-based MFA and long-lived publish tokens.
+**chalk** — At the fixed 2025 cutoff, chalk has 78% tapered contributor
+concentration and 9 commits in the prior year. With present-day maintainer
+reputation neutralized, those signals produce 80 CRITICAL. The attacker
+phished a co-maintainer (Qix-) via a fake `npmjs.help` domain and published
+malicious versions that intercepted cryptocurrency wallet transactions. The
+score is therefore a governance-based bonus detection, not detection of the
+credential-theft mechanism.
 
-**eslint-config-prettier** — Part of the Prettier organization with active development (32 commits/year). Ossuary scored it 45 MODERATE — below the 60 threshold. Maintainer JounQin was phished via the typosquatted `npnjs.com` domain, and malicious versions delivered a Windows RAT via disguised postinstall scripts. Again, the attack vector was credential theft against a well-governed project.
+**eslint-config-prettier** — Part of the Prettier organization with active development (32 commits/year). Ossuary scores it 65 HIGH because the historical calculation neutralizes unavailable current download protection while retaining a +20 takeover/concentration signal. This is a bonus T4 detection, not evidence that governance scoring detects phishing: maintainer JounQin was phished via the typosquatted `npnjs.com` domain, and malicious versions delivered a Windows RAT via disguised postinstall scripts.
 
 #### The Complementarity Argument
 
@@ -195,11 +204,15 @@ The 2025 npm wave demonstrates that governance scoring and credential/infrastruc
 | **Detection: Anomalous publish monitoring** | Rapid exploitation | Aikido detected chalk compromise in 5 minutes; 2.5M downloads still occurred in the 2-hour remediation window |
 | **Detection: Credential scanning** | Token reuse chains | The 2,349 tokens leaked by s1ngularity were publicly visible on GitHub; automated scanning would have flagged them |
 
-The critical insight for the thesis: **Ossuary cannot prevent the chalk attack** (score 35, correctly assessed as low governance risk), **but it can identify packages like `is` where governance weakness creates the preconditions for exactly this type of attack** (score 100). A security team using both Ossuary and credential monitoring would have:
+The critical insight for the thesis: **Ossuary cannot identify or prevent the
+chalk phishing mechanism, even though chalk crosses its governance threshold**.
+It can identify packages like `is` where governance weakness creates the
+preconditions for this attack class. A security team using both Ossuary and
+credential monitoring would have:
 
 1. **Pre-attack**: Flagged `is` as CRITICAL risk (governance scoring), prioritized it for publish-access audit
 2. **During attack**: Detected anomalous publish from dormant account (credential monitoring)
-3. **Post-attack**: Known that chalk's governance was healthy (score 35) and focused remediation on the credential vector, not governance restructuring
+3. **Post-attack**: Separated chalk's governance alert (80) from the observed credential vector instead of treating the score as evidence of phishing detection
 
 Neither tool alone provides this complete picture. The npm phishing wave is empirical evidence that the two dimensions — governance risk and credential/infrastructure security — require distinct measurement approaches used in concert.
 
@@ -264,13 +277,12 @@ package in one pass; the upstream failure is usually transient.
 
 #### Provisional scores: when partial data is still useful
 
-Every protective-factor input that fails silently makes the resulting
-score *higher* than the true score, because the missing factor
-contributes 0 instead of its negative bonus. So the user-facing
-direction is the same in both classes of failure: the score is
-conservative (overstated risk), not understated. The two classes
-differ in **signal magnitude** and what the missing signal makes us
-*blind to*, not in the sign of the bias.
+Most missing protective-factor inputs raise the resulting score because the
+negative bonus becomes zero. Issue and comment text is different: it can
+contain maintainer frustration, so a partial issue-comment fetch can remove a
++15 frustration signal and the associated +10 burnout escalation. A
+provisional score therefore has **unknown bias direction**. It is useful for
+interactive diagnosis but cannot enter publishable validation metrics.
 
 The contract above (`INSUFFICIENT_DATA`) applies to failures that are
 load-bearing for the popularity assessment that distinguishes
@@ -289,19 +301,16 @@ load-bearing for the popularity assessment that distinguishes
   leaves the engine without an owner type to branch on; downstream
   org-vs-user logic cannot run. Refused.
 
-The provisional class covers failures of *corroborating* protective
-signals where the missing factor is smaller and the system can still
-distinguish the things it needs to distinguish. The canonical case is
-GitHub's auxiliary endpoints (Sponsors, maintainer profile, orgs,
-issues, CII badge): each contributes −10 to −15 individually, none of
-them are load-bearing for the popularity signal, and refusing to
-score whenever any of them fails would render the system unusable
-during normal GitHub rate-limit windows.
+The provisional class covers failures of auxiliary signals where the rest of
+the score remains computable. GitHub Sponsors, maintainer profile, orgs, and
+CII normally affect −10 to −15 protection; issue/comment text can instead add
+risk. None is load-bearing for the registry popularity signal, so interactive
+scoring remains possible, but the result is marked incomplete for publication.
 
 For this class the engine still computes a number but flags the
 breakdown as ``is_provisional = True`` with the failing endpoints in
 ``provisional_reasons``. Surfaces (CLI, API, dashboard) display a
-"⚠ PROVISIONAL" badge so the user knows the number is conservative
+"⚠ PROVISIONAL" badge so the user knows the number is incomplete
 and worth retrying. ``rescore-invalid`` retries both INSUFFICIENT_DATA
 and provisional rows by default; pass ``--only insufficient`` or
 ``--only provisional`` to restrict.
@@ -311,13 +320,12 @@ and provisional rows by default; pass ``--only insufficient`` or
 | Registry downloads (PyPI, npm, cargo, RubyGems, Packagist, NuGet) | `INSUFFICIENT_DATA` | Visibility is the largest single protective factor (−10 to −20); without it the engine cannot tell popular from obscure |
 | GitHub `repo_info` (transient 429/5xx) | `INSUFFICIENT_DATA` | No owner type → can't run downstream branches |
 | GitHub `repo_info` 404 | hard error ("repo not found") | Permanent, not transient |
-| GitHub maintainer profile / repos / sponsors / orgs / issues / CII / contributors | `is_provisional` | Each is small (−10 to −15) and corroborating; missing one keeps popularity assessment intact |
+| GitHub maintainer profile / repos / sponsors / orgs / issues / CII / contributors | `is_provisional` | Auxiliary rather than load-bearing; issue/comment loss can lower risk, so bias direction is unknown |
 | Go proxy `@latest` | logged only | Go has no download API; version display only, not scored |
 
-Both classes produce a *higher* (more cautious) score than the
-complete-data run would. The split decides whether the engine should
-publish that number at all (`INSUFFICIENT_DATA`) or publish it with a
-conservative-bias flag (`is_provisional`).
+The split decides whether the engine should produce no number
+(`INSUFFICIENT_DATA`) or an explicitly provisional diagnostic number. Neither
+state is admissible in the canonical validation artifact.
 
 ### 4.-0 Operational SLA — snapshot freshness
 
@@ -431,7 +439,7 @@ This catches cases concentration misses. Example: trivy has 18% top-1 concentrat
 
 **Calculation**: Concentration = (largest weighted contributor total / total weighted commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. The displayed top contributor and activity counts use the unweighted 12-month window; these can identify a different contributor than the tapered concentration numerator. Bus factor is computed from unweighted recent commits, excluding bots (`[bot]` in email/name).
 
-**Effective bus factor (v6.4):** When merge-author data is available (via GitHub GraphQL), the effective bus factor is `min(code_bus_factor, merge_bus_factor)`. A project can have many code contributors but a single person doing all PR merges — the operational bus factor is the bottleneck. Merge bus factor is computed from the most recent 100 merged PRs; the signal requires **≥10 merged PRs** in the sample (below that, a bus-factor estimate from a handful of merges is noise and the signal is treated as unavailable). For historical (T-1) scoring the aggregates are re-derived from the PRs in the sample merged *before* the cutoff, so current-day merge behaviour does not leak into past scores; when fewer than 10 sampled PRs predate the cutoff, the signal is unavailable for that run. Calibrated against the External Secrets Operator case: code bus_factor=14 but merge bus_factor=1; the project froze when the sole merger burned out.
+**Effective bus factor (v6.4):** For current-state scoring, when merge-author data is available via GitHub GraphQL, the effective bus factor is `min(code_bus_factor, merge_bus_factor)`. A project can have many code contributors but a single person doing all PR merges — the operational bus factor is the bottleneck. Merge bus factor is computed from the most recent 100 merged PRs and requires **≥10 merged PRs**. For historical T−1 scoring, v6.4.2 treats this bounded *current* sample as unavailable: filtering today's latest 100 by an old cutoff cannot reconstruct the merge population that existed then and frequently yields a biased or empty slice. Historical scores therefore use code bus factor only. The current-state signal was calibrated against the External Secrets Operator case: code bus_factor=14 but merge bus_factor=1; the project froze when the sole merger burned out.
 
 For **non-mature** projects, only recent commits are used. For **mature** projects with <4 commits/year, lifetime concentration is used as fallback.
 
@@ -810,6 +818,15 @@ The validation dataset (v6.4, n=184):
 
 Total: 184 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. The v6.4 dataset extension (2026-05-30, n=170 → n=177) added seven May 2026 incidents: two T1 Shai-Hulud dormant-package attacks (`jest-canvas-mock`, `timeago.js`), one T_risk maintainer dispute (`fsnotify`), one T3 re-compromise (`node-ipc` inactive-maintainer account), and three OOS cases (`@tanstack/router` T5, `pytorch-lightning` T4, `laravel-lang/lang` T4). All four new in-scope cases scored as TPs. The June 2026 holdout increment (2026-06-10, n=177 → n=183) added the six PyPI bioinformatics packages hit by the Shai-Hulud "Hades" worm on 2026-06-08 (`gpsea`, `ensmallen`, `embiggen`, `pyphetools`, `ppkt2synergy`, `phenopacket-store-toolkit`), all T3 (shared-maintainer token theft on concentrated academic projects); scored T-1 against the frozen v6.4 model, three detected and three missed. The June 2026 Miasma addition (2026-06-12, n=183 → n=184) added `@redhat-cloud-services/frontend-components` as a T5 EXPECTED FN: a compromised Red Hat employee GitHub account pushed orphan commits whose on-push workflows exchanged OIDC tokens for npm trusted-publishing rights; the package scores 5 (VERY_LOW), validating the CI/CD boundary.
 
+The final thesis checkpoint re-scores this fixed n=184 dataset under v6.4.2.
+Current-state controls and T_risk cases use **2026-08-15**; every dated
+incident keeps its recorded pre-incident cutoff. The canonical artifact is
+admissible only with zero errors and zero provisional rows. One case uses
+explicit pinned evidence: `monarch-initiative/pyphetools` was deleted after
+the June incident, so its 2026-06-07 T−1 score uses the original-repository
+snapshot observed on 2026-06-10. The fixture records its source and the
+517/533 commit-hash overlap with a public but incomplete archive.
+
 **Dataset construction principles**:
 - Incidents drawn from documented supply chain attacks 2016–2026, cross-referenced against multiple sources (Socket.dev, Snyk, CISA advisories, incident write-ups)
 - Controls selected as top packages per ecosystem by download count
@@ -849,7 +866,7 @@ Out-of-scope incidents (T4, T5) are tracked separately as "bonus detections" but
 
 ```
 In-scope incidents: 42 (T1=9, T2=6, T3=14, T_risk=13)
-Out-of-scope incidents: 21 (T4=13, T5=8)
+Out-of-scope incidents: 22 (T4=13, T5=9)
 Controls: 120
 
 Confusion Matrix (Scope B):
@@ -864,11 +881,11 @@ F1 Score:   0.827
 
 **Key results**:
 
-- **2 false positives** (rxjs, rayon) across 120 safe packages. rxjs scores 75 HIGH due to 100% maintainer concentration and 0 commits in the last year. rayon (cargo) scores 65 HIGH due to burnout escalation (frustration × bus_factor ≤ 2); it was a TN at 55 in v6.3 and re-emerged in v6.4 as a deliberate trade-off for the burnout escalation signal.
-- **11 in-scope false negatives**, all explainable: faker (community fork), node-ipc (active development masks risk), polyfill.io (ownership transfer untracked), core-js (high activity offsets bus-factor risk), devise (borderline drift), es5-ext and is-promise (maintainer reputation correctly reduces score), telnyx (T3 near-miss at score 55, five points below the 60-point threshold — see §8.6), and three of the June 2026 Hades bioinformatics cluster (pyphetools 50, ppkt2synergy 45, phenopacket-store-toolkit 15 — small concentrated academic projects pulled below threshold by the org-membership proxy and low base scores).
-- **73.8% in-scope recall** reflects genuine detection capability with honest historical scoring. Recall moved from 75.0% at n=170 (v6.3) to 77.8% at n=177 (May 2026 sweep, four new TPs) and then to 73.8% at n=183 when the June 2026 Hades holdout increment added six T3 incidents (3 detected, 3 missed) — dataset composition, not a model change. The June 2026 Miasma T5 addition (n=184) leaves Scope B unchanged.
+- **2 false positives** (`jsonwebtoken` 65 and `Newtonsoft.Json` 65) across 120 safe packages. The first combines 80% concentration, bus factor 1, and a takeover shift; the second crosses the 90% concentration boundary on fresh August data. The previous FPs (`rxjs`, `rayon`) moved below threshold through 511 current-year rxjs commits and the disappearance of rayon's frustration/burnout firing.
+- **11 in-scope false negatives**: faker, node-ipc, moment, polyfill.io, devise, core-js, telnyx, fsnotify, pyphetools, ppkt2synergy, and phenopacket-store-toolkit. Their package/factor mechanisms are enumerated in §8.6.
+- **73.8% in-scope recall** at the 2026-08-15 checkpoint is the same aggregate as July but not the same membership. Historical isolation moves `es5-ext` 40→60 and `is-promise` 35→65 into T2 detection; refreshed current state moves `moment` 85→45 and `fsnotify` 70→45 out of T_risk detection. The measured gains and losses cancel at TP=31/FN=11.
 
-**Comparison with unscoped metrics**: Across all 64 incidents (including out-of-scope), overall recall is 51.6%. This lower number is expected — 22 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) are fundamentally undetectable from governance signals.
+**Comparison with unscoped metrics**: Across all 64 incidents (including out-of-scope), overall recall is 54.7%. This lower number is expected — 22 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) mostly lack a pre-incident governance signal.
 
 **Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
@@ -877,13 +894,13 @@ F1 Score:   0.827
 | Tier | Detected | Rate | Notes |
 |------|----------|------|-------|
 | **T1: Governance decay** | 8/9 | **89%** | 1 miss: polyfill.io (ownership transfer) |
-| **T2: Protestware / sabotage** | 2/6 | **33%** | 4 misses: reputation-protected maintainers |
+| **T2: Protestware / sabotage** | 4/6 | **67%** | 2 misses: faker community fork, active node-ipc |
 | **T3: Weak-gov compromise** | 10/14 | **71%** | 4 misses: telnyx (org backing) + 3 Hades cluster (pyphetools, ppkt2synergy, phenopacket-store-toolkit) |
-| **T_risk: Governance risk** | 11/13 | **85%** | 2 misses: core-js (very active), devise (borderline) |
-| T4: Strong-gov compromise (OOS) | 1/13 | 8% | Expected — out of scope |
-| T5: CI/CD exploits (OOS) | 1/9 | 11% | Expected — out of scope; the 1 is trivy-action (post-incident bonus) |
+| **T_risk: Governance risk** | 9/13 | **69%** | 4 misses: moment, devise, core-js, fsnotify |
+| T4: Strong-gov compromise (OOS) | 4/13 | 31% | Bonus detections: ua-parser-js, eslint-scope, eslint-config-prettier, chalk |
+| T5: CI/CD exploits (OOS) | 0/9 | 0% | Expected — out of scope |
 
-T1 (governance decay, 89%) and T3 (weak-governance compromise, 71%) are the primary targets. T2 (protestware, 33%) is weakest because protestware maintainers tend to have strong reputations that correctly reduce their risk scores. This is a genuine trade-off: reputation DOES reduce attack probability, but doesn't prevent unilateral action.
+T1 (governance decay, 89%) and T3 (weak-governance compromise, 71%) remain the primary targets. T2 rises to 67% because v6.4.2 stops borrowing present-day protection for historical incidents. T_risk falls to 69% because it is deliberately current-state: the August activity, concentration, funding, and frustration observations for moment and fsnotify differ from July.
 
 ### 8.6 In-Scope False Negative Analysis
 
@@ -893,37 +910,52 @@ T1 (governance decay, 89%) and T3 (weak-governance compromise, 71%) are the prim
 |---------|-------|------|-----------|
 | faker | 0 | T2 | Evaluating community fork (faker-js/faker); original repo deleted |
 | node-ipc | 50 | T2 | Active development masks bus-factor-1 risk |
+| moment | 45 | T_risk | August history has 30 current-year commits and 43% concentration; protection offsets takeover risk |
 | polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
 | devise | 40 | T_risk | Borderline; concentration drift from minor changes |
 | core-js | 50 | T_risk | High activity gives discount despite 92% concentration; v6.4 burnout escalation raised 40→50 |
-| es5-ext | 40 | T2 | 100% concentration but maintainer (medikoo) has strong reputation |
-| is-promise | 35 | T2 | Reputation correctly reconstructed at 2020 cutoff |
 | telnyx | 55 | T3 | T3 near-miss at score 55, five points below the 60-point threshold; org backing (-15) softens an otherwise risky bus-factor-1 / 97 % concentration profile |
-| pyphetools | 50 | T3 | June 2026 Hades cluster; 83% concentration but monarch-initiative org-membership proxy (-15) pulls it below threshold |
-| ppkt2synergy | 45 | T3 | June 2026 Hades cluster; lowest concentration in cluster (47%, 3 contributors) |
+| fsnotify/fsnotify | 45 | T_risk | No August frustration/burnout firing; reputation, Sponsors, and visibility offset takeover risk |
+| pyphetools | 50 | T3 | June 2026 Hades cluster; 83% concentration but the repository-organization/admin proxy (−15) pulls it below threshold |
+| ppkt2synergy | 25 | T3 | June 2026 Hades cluster; 47% concentration and no backfilled current merge-author floor |
 | phenopacket-store-toolkit | 15 | T3 | June 2026 Hades cluster; small codebase (base 60) + inactivity + org credit |
 
-Historical reputation reconstruction (v3.2) verifies portfolio and tenure at the cutoff date using repo `created_at` timestamps. This gives honest T-1 scores: is-promise (45) reflects ForbesLindesay's real 2020 reputation rather than stripping it to zero. The cost is 1 fewer TP compared to the stripped version, but the score is more accurate.
+Historical scoring uses only evidence that can be tied to the cutoff or is
+explicitly labelled as a stable proxy. Commits require both author and
+committer timestamps at or before the cutoff. A named `YYYY-MM-DD` cutoff is
+inclusive through the end of that UTC day. Rolling current downloads,
+present-day star visibility, the bounded current merge-author sample, current
+Sponsors, and the current issue/comment sample are neutralized. Maintainer
+account tenure is used only when the collector proved that the GitHub `User`
+profile belongs to the relevant Git contributor; present-day portfolio, stars,
+org membership, top-package-list membership, and CII status are neutral. A
+changed or unbound identity is neutral. Organization ownership remains a stated proxy,
+not a reconstructed historical fact. These rules explain the v6.4.2 T2 gains:
+`es5-ext` loses a −20 current download bonus, while `is-promise` loses both
+that bonus and an unproven −10 reputation reduction.
 
-Historical scoring is intentionally conservative for unstable GitHub-only
-signals. Present-day repository stars are **not** reused as a proxy for past
-visibility, and issue/comment sentiment is disabled for T-1 scoring because
-the GitHub issue API snapshot is current-state and incomplete. Historical
-scores therefore prefer reconstructable signals over current-state proxies.
-When the top contributor at the cutoff differs from the contributor whose
-current GitHub profile was collected, v6.4.1 neutralizes maintainer reputation
-instead of attributing one person's portfolio, tenure, or affiliations to
-another.
+The deleted `monarch-initiative/pyphetools` source is the single pinned-data
+exception. Its 2026-06-07 score uses the original repository snapshot observed
+on 2026-06-10; the committed fixture declares that provenance. A public archive
+matches 517/533 captured commit hashes with zero archive-only hashes but lacks
+16 later commits, so it corroborates rather than replaces the observation.
 
 ### 8.7 Out-of-Scope Incident Analysis
 
-21 out-of-scope incidents are included to validate detection boundaries:
+22 out-of-scope incidents are included to validate detection boundaries:
 
-**T4: Account compromise on healthy projects (13 cases)** — ua-parser-js (bonus detection at 90), eslint-scope (35), LottieFiles (45), chalk (35), cline (0), solana-web3.js (0), eslint-config-prettier (45), num2words (20), axios (0), litellm (0), xinference (0), pytorch-lightning (0), laravel-lang/lang (5).
+**T4: Account compromise on healthy projects (13 cases)** — ua-parser-js (bonus detection at 100), eslint-scope (bonus detection at 65), LottieFiles (45), chalk (bonus detection at 80), cline (0), solana-web3.js (0), eslint-config-prettier (bonus detection at 65), num2words (0), axios (0), litellm (5), xinference (0), pytorch-lightning (0), laravel-lang/lang (5).
 
-**T5: CI/CD pipeline exploits (9 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), @tanstack/router (0), @redhat-cloud-services/frontend-components (5), aquasecurity/trivy-action (80 — post-incident bonus detection: the attacker's force-pushed tag rewrite is itself visible in current git history).
+**T5: CI/CD pipeline exploits (9 cases)** — reviewdog (0), codecov (0), rspack (0), ultralytics (0), tj-actions (50), nrwl/nx (0), @tanstack/router (0), @redhat-cloud-services/frontend-components (5), aquasecurity/trivy-action (45).
 
-All correctly score below threshold except ua-parser-js (bonus detection at 90) and aquasecurity/trivy-action (80 — post-incident: the score reflects the attacker's own force-pushed tag rewrite, not pre-incident signal, so it is not counted as detection capability). A tool that flagged all credential-based attacks would need to flag every package, producing unacceptable false positive rates.
+The four T4 bonus detections do not establish credential-theft detection:
+their scores arise from governance signals, while the attack vectors were
+phishing. Chalk moves 55→80 when the August audit removes a −25 present-day
+reputation reduction from its 2025 cutoff. All T5 cases score below threshold.
+`trivy-action` falls 80→45 because historical mode removes the
+unreconstructable current merge-author floor (−20 points) and the fresh source
+observes organization protection (−15). A tool that flagged every credential
+or CI/CD attack would need different provenance/runtime signals.
 
 ### 8.8 The Scoped Validation Contribution
 
@@ -942,7 +974,7 @@ To validate **predictive** capability, we scored packages at a cutoff date *befo
 
 | Package | Incident Date | Cutoff Date | T-1 Score | Level | Key Signals Detected |
 |---------|---------------|-------------|-----------|-------|---------------------|
-| event-stream | 2018-09-16 | 2018-09-01 | 100 | CRITICAL | 75% concentration, "free work" frustration |
+| event-stream | 2018-09-16 | 2018-09-01 | 80 | CRITICAL | 75% concentration, "free work" frustration; current-era protection neutralized |
 | colors | 2022-01-08 | 2022-01-01 | 100 | CRITICAL | 100% concentration, "protest", "exploitation" |
 | coa | 2021-11-04 | 2021-11-01 | 100 | CRITICAL | 100% concentration, abandoned |
 
@@ -1027,9 +1059,18 @@ This validates that governance-based scoring can detect social engineering attac
 
 ### 9.3 Temporal Limitations
 
-1. **Reputation data is current-state**: Stars, sponsors, repos reflect present, not historical
-2. **Organization membership is current**: Historical org membership not tracked
-3. **Download counts are current**: Cannot assess historical visibility
+1. **Historical maintainer reputation is tenure-only**: account age is
+   immutable and can be computed at the cutoff when the profile is bound to
+   the relevant Git contributor; present-day portfolio, stars, package-list,
+   organization-membership, Sponsors, and CII inputs are neutralized
+2. **Organization ownership is a proxy**: repository organization/admin state
+   is retained as a disclosed stable-property proxy, not claimed as observed
+   historical state
+3. **Historical visibility is unavailable**: rolling downloads and current
+   repository stars are neutralized rather than backfilled
+4. **Historical merge and issue samples are unavailable**: current bounded PR
+   and issue/comment samples are neutralized rather than treated as complete
+   cutoff-period evidence
 
 ### 9.4 Score Stability
 
@@ -1088,7 +1129,7 @@ External validity concerns whether findings generalize beyond the study context.
 |--------|-------------|------------|
 | **Ecosystem Bias** | Initial validation limited to npm and PyPI | v2+ validation covers 8 ecosystems (npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, GitHub) with consistent results |
 | **Survivorship Bias** | Can only analyze repositories that still exist; deleted repos (like Marak/Faker.js) are invisible | Acknowledged as limitation; 2 incidents excluded because repos deleted (phpass, electron-native-notify) |
-| **Selection Bias in Incidents** | Known incidents may be biased toward governance-detectable cases | Deliberately included 21 out-of-scope incidents (T4: account compromise, T5: CI/CD) to validate detection boundaries |
+| **Selection Bias in Incidents** | Known incidents may be biased toward governance-detectable cases | Deliberately included 22 out-of-scope incidents (T4: account compromise, T5: CI/CD) to validate detection boundaries |
 | **Temporal Generalization** | Validated on 2016-2026 incidents; attack patterns may evolve | T-1 validation confirms historical effectiveness; 2025 incidents (chalk, tj-actions, Nx) confirm boundary holds for recent attacks |
 | **Cultural/Language Bias** | English-language sentiment analysis; non-English projects may score differently | Acknowledged limitation; VADER optimized for English social media text |
 
@@ -1119,13 +1160,13 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 Despite these threats, several factors support the validity of findings:
 
-1. **93.9% Precision**: 2 false positives (rxjs, rayon) across 184 packages and 8 ecosystems
-2. **73.8% In-Scope Recall**: Scoped framework with honest historical reputation reconstruction
-3. **Per-Tier Transparency**: T1 89%, T2 33%, T3 71%, T_risk 85% — specific strengths and weaknesses documented
+1. **93.9% Precision**: 2 false positives (`jsonwebtoken`, `Newtonsoft.Json`) across 184 packages and 8 ecosystems
+2. **73.8% In-Scope Recall**: Scoped framework with cutoff-isolated historical scoring and explicit unavailable-signal neutralization
+3. **Per-Tier Transparency**: T1 89%, T2 67%, T3 71%, T_risk 69% — specific strengths and weaknesses documented
 4. **Near-Census Coverage of the catalog-backed core**: Dataset covers 184 packages (64 incidents + 120 controls) across 8 ecosystems — a near-census for 2016–2024, plus the advisory-monitored 2025–2026 cohort (TeamPCP campaign, June 2026 Hades cluster, Miasma addition) for contemporary boundary validation
 5. **CHAOSS Bus Factor**: Contributor diversity metric catches patterns missed by top-1 concentration (e.g. trivy: 18% top-1 but bus factor 3)
 6. **T-1 Detection on the worked examples**: event-stream, colors, coa scored CRITICAL and xz-utils scored HIGH at their pre-incident cutoffs (see §8.9); the small worked-example set is illustrative, not a separate recall claim
-7. **Explicit Boundary Validation**: 21 out-of-scope incidents included and documented
+7. **Explicit Boundary Validation**: 22 out-of-scope incidents included and documented
 6. **Cross-Ecosystem Generalization**: Consistent results across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 7. **Temporal Range**: Incidents spanning 2016–2026, including the 2025 npm phishing wave and CI/CD exploit wave
 8. **Score Stability**: Tapered concentration window eliminates phantom threshold crossings from boundary noise
@@ -1547,7 +1588,7 @@ These papers directly inform the methodology and should be read in full:
 
 ---
 
-*Document version: 6.4.1*
-*Last updated: June 2026*
+*Document version: 6.4.2*
+*Last updated: August 2026*
 *Validation dataset: 184 packages across 8 ecosystems (Scope B: 93.9% precision, 73.8% recall, F1 0.827)*
-*Run validation: `python scripts/validate.py -o validation_results.json`*
+*Run validation: `python scripts/validate.py --validation-date 2026-08-15 -o validation_results.json`*

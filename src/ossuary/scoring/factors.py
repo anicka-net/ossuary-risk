@@ -194,12 +194,11 @@ class RiskBreakdown:
 
     # Reasons the score is PROVISIONAL: a non-essential signal failed
     # (e.g. GitHub Sponsors lookup rate-limited) and the score was still
-    # computed, but with at least one protective factor missing. Because
-    # missing protective factors default to 0, a provisional score is
-    # *higher than the true score* — conservative, not dangerous, but
-    # the user should re-run once the upstream recovers.
-    # The split vs ``incomplete_reasons`` is signal-magnitude based, not
-    # direction-of-bias based: both classes of failure raise the score.
+    # computed, but with at least one auxiliary signal missing. Missing
+    # protective evidence usually raises risk; missing issue/comment text
+    # can remove a frustration signal and lower it. The user should re-run
+    # once the upstream recovers.
+    # The split vs ``incomplete_reasons`` is signal-magnitude based.
     # Visibility (downloads) is the largest protective factor and gates
     # the popular-vs-obscure distinction → refused as INSUFFICIENT_DATA.
     # Auxiliary GitHub signals (sponsors, orgs, etc.) are smaller and
@@ -220,8 +219,8 @@ class RiskBreakdown:
     @property
     def is_provisional(self) -> bool:
         """True iff the score was computed with one or more non-essential
-        signals missing. The score is conservative (likely too high) and
-        should be retried via ``ossuary rescore-invalid``."""
+        signals missing. Its bias direction is unknown; retry via
+        ``ossuary rescore-invalid`` before treating it as final."""
         return bool(self.provisional_reasons)
 
     def to_dict(self) -> dict:

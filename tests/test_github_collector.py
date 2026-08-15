@@ -4,7 +4,7 @@ import asyncio
 import base64
 from unittest.mock import AsyncMock
 
-from ossuary.collectors.github import GitHubCollector
+from ossuary.collectors.github import GitHubCollector, GitHubData
 
 
 class TestParseRepoUrl:
@@ -191,6 +191,9 @@ class TestPerFamilySeams:
                         "must not call API when username provided"
                     )
                 )
+                collector.get_user = AsyncMock(return_value={
+                    "login": "alice", "type": "User",
+                })
                 data = GitHubData(owner="acme", repo="widget")
                 resolved = await collector.resolve_maintainer(
                     "acme", "widget", data,
@@ -200,6 +203,7 @@ class TestPerFamilySeams:
                 )
                 assert resolved == "alice"
                 assert data.maintainer_username == "alice"
+                assert data.maintainer_source_email == ""
             finally:
                 await collector.close()
         asyncio.run(run())
@@ -212,6 +216,7 @@ class TestPerFamilySeams:
             collector = GitHubCollector(token="test-token")
             try:
                 collector.get_user = AsyncMock(return_value={
+                    "type": "User",
                     "created_at": "2018-01-01T00:00:00Z",
                     "public_repos": 42,
                 })
@@ -230,6 +235,69 @@ class TestPerFamilySeams:
                 assert data.maintainer_total_stars == 350
                 assert data.has_github_sponsors is False
                 assert data.maintainer_orgs == ["acme"]
+            finally:
+                await collector.close()
+        asyncio.run(run())
+
+    def test_email_search_rejects_organizations(self):
+        """GitHub email search can return Organizations before Users."""
+        async def run():
+            collector = GitHubCollector(token="test-token")
+            try:
+                collector._get = AsyncMock(return_value={
+                    "total_count": 2,
+                    "items": [
+                        {"login": "postcss", "type": "Organization"},
+                        {"login": "alice", "type": "User"},
+                    ],
+                })
+                assert await collector.search_user_by_email("a@example.com") == "alice"
+            finally:
+                await collector.close()
+        asyncio.run(run())
+
+    def test_resolve_maintainer_rejects_bot_and_org_fallback(self):
+        async def run():
+            collector = GitHubCollector(token="test-token")
+            try:
+                collector.get_repo_contributors = AsyncMock(return_value=[
+                    {"login": "renovate[bot]", "type": "Bot"},
+                ])
+                collector.search_user_by_email = AsyncMock(return_value=None)
+                data = GitHubData(
+                    owner="postcss", repo="nanoid",
+                    owner_type="Organization",
+                )
+                resolved = await collector.resolve_maintainer(
+                    "postcss", "nanoid", data,
+                    top_contributor_username="renovate[bot]",
+                    top_contributor_email="renovate[bot]@users.noreply.github.com",
+                    repo_info={"owner": {
+                        "login": "postcss", "type": "Organization",
+                    }},
+                )
+                assert resolved == ""
+                assert data.maintainer_username == ""
+            finally:
+                await collector.close()
+        asyncio.run(run())
+
+    def test_profile_rejects_non_user_without_fetching_human_signals(self):
+        async def run():
+            collector = GitHubCollector(token="test-token")
+            try:
+                collector.get_user = AsyncMock(return_value={
+                    "login": "postcss", "type": "Organization",
+                })
+                collector.get_user_repos = AsyncMock()
+                collector.get_sponsors_status = AsyncMock()
+                collector.get_user_orgs = AsyncMock()
+                data = GitHubData(maintainer_username="postcss")
+                await collector.collect_maintainer_profile("postcss", data)
+                assert data.maintainer_username == ""
+                collector.get_user_repos.assert_not_awaited()
+                collector.get_sponsors_status.assert_not_awaited()
+                collector.get_user_orgs.assert_not_awaited()
             finally:
                 await collector.close()
         asyncio.run(run())

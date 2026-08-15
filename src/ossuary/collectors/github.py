@@ -54,13 +54,11 @@ class GitHubData:
       repo. Permanent failures (404) are *not* listed here — they
       surface as "Repository not found" via the upstream collector.
     - ``provisional_reasons``: a non-essential call failed (sponsors,
-      maintainer profile, orgs, issues, CII). The corresponding
-      protective factor defaults to 0, raising the score
-      conservatively. The engine still produces a number but flags it
-      ``is_provisional=True`` so the user can rescore later. (Both
-      lists describe failures whose missing protective factor raises
-      the score; the split is about signal magnitude, not direction —
-      see ``services.scorer.CollectedData``.)
+      maintainer profile, orgs, issues, CII). The engine still produces
+      a number but flags it ``is_provisional=True`` so the user can
+      rescore later. Missing protective evidence usually raises risk;
+      missing issue/comment text can instead remove a risk signal, so
+      provisional scores have no guaranteed bias direction.
     """
 
     # Repository info
@@ -104,10 +102,9 @@ class GitHubData:
     merges_analyzed: int = 0
     merge_bus_factor: int = 0
     # Raw per-PR sample behind the aggregates above: list of
-    # ``{"login": str, "merged_at": ISO-8601 str}``. Kept so historical
-    # (T-1) scoring can re-derive the merge signals from PRs merged
-    # before the cutoff instead of leaking current-day merge behaviour
-    # into past scores.
+    # ``{"login": str, "merged_at": ISO-8601 str}``. Kept for current-run
+    # reproducibility and diagnostics. Historical scoring does not reuse this
+    # bounded current sample because it cannot reconstruct the old population.
     merged_prs: list[dict] = field(default_factory=list)
 
     # Data-completeness tracking (see class docstring)
@@ -118,18 +115,17 @@ class GitHubData:
 # Minimum merged-PR sample for the merge-author signals. A handful of
 # merges makes the bus-factor estimate noise (one PR → merge_bus_factor
 # = 1, which would spuriously lower the effective bus factor). Applies
-# both to quiet repos and to historical cutoffs where only a few of the
-# latest-100 sample predate the cutoff.
+# to quiet repositories.
 MIN_MERGE_SAMPLE = 10
 
 
 def compute_merge_stats(merged_prs: list[dict], cutoff: Optional[datetime] = None) -> dict:
     """Derive merge-concentration aggregates from a ``(login, merged_at)`` sample.
 
-    ``cutoff`` (naive UTC) restricts the sample to PRs merged on or
-    before that date so T-1 scoring doesn't leak current-day merge
-    behaviour. Returns the zeroed dict (= signal unavailable) when the
-    sample after filtering is below ``MIN_MERGE_SAMPLE``.
+    ``cutoff`` (naive UTC) is retained for diagnostic subset analysis. The
+    scoring path does not use a bounded current sample for historical scores.
+    Returns the zeroed dict (= signal unavailable) when the selected sample is
+    below ``MIN_MERGE_SAMPLE``.
     """
     empty = {"merge_concentration": 0.0, "top_merger": "",
              "merges_analyzed": 0, "merge_bus_factor": 0}
@@ -216,6 +212,9 @@ class GitHubCollector(BaseCollector):
         # return signature unchanged; ``collect()`` reads this between
         # calls to classify each failure as essential or provisional.
         self.last_error: Optional[str] = None
+        # Avoid fetching a candidate profile twice: resolution validates
+        # account type, then the profile family consumes the same response.
+        self._validated_user_profiles: dict[str, dict] = {}
 
     @staticmethod
     def _collect_tokens(explicit_token: Optional[str] = None) -> list[str]:
@@ -487,9 +486,9 @@ class GitHubCollector(BaseCollector):
         # GitHub search API for users by email
         result = await self._get("/search/users", params={"q": f"{email} in:email"})
         if result and result.get("total_count", 0) > 0:
-            items = result.get("items", [])
-            if items:
-                return items[0].get("login")
+            for item in result.get("items", []):
+                if item.get("type") == "User" and item.get("login"):
+                    return item["login"]
 
         return None
 
@@ -499,8 +498,7 @@ class GitHubCollector(BaseCollector):
         Uses GraphQL to fetch the most recent 100 merged PRs (the REST
         list endpoint omits ``merged_by``). One API call. The raw
         ``(login, merged_at)`` sample is returned alongside the
-        aggregates so historical scoring can re-derive the signals
-        from PRs merged before a cutoff.
+        aggregates for reproducibility and diagnostics.
         """
         empty = {"merge_concentration": 0.0, "top_merger": "",
                  "merges_analyzed": 0, "merge_bus_factor": 0,
@@ -694,6 +692,7 @@ class GitHubCollector(BaseCollector):
 
         issues = []
         comment_fetches = 0
+        comment_errors: list[str] = []
         for issue in issues_data:
             issue_obj = IssueData(
                 number=issue.get("number"),
@@ -721,10 +720,16 @@ class GitHubCollector(BaseCollector):
                         }
                         for c in comments
                     ]
+                elif self.last_error:
+                    comment_errors.append(self.last_error)
                 comment_fetches += 1
 
             issues.append(issue_obj)
 
+        # Each request clears last_error. Preserve any partial comment failure
+        # across later successful requests so the family is marked provisional.
+        if comment_errors:
+            self.last_error = "; ".join(dict.fromkeys(comment_errors))
         return issues
 
     def _record_failure(
@@ -734,9 +739,9 @@ class GitHubCollector(BaseCollector):
 
         Essential = the call is load-bearing for scoring; missing it
         leaves us without a usable signal so we mark INSUFFICIENT_DATA.
-        Non-essential = the missing signal would default to "no
-        protective factor", raising the score conservatively. We mark
-        provisional and let the score still compute.
+        Non-essential = the rest of the score can still compute, but the
+        missing signal may move the result in either direction. We mark it
+        provisional so it cannot enter publishable validation metrics.
 
         Idempotent: if ``last_error`` is ``None`` (success or 404)
         nothing is recorded.
@@ -805,27 +810,43 @@ class GitHubCollector(BaseCollector):
         """Decide which GitHub username represents the project's
         maintainer, in priority order:
 
-        1. ``top_contributor_username`` (from git commit history)
+        1. Valid human ``top_contributor_username`` (from git history)
         2. For orgs: top contributor returned by GitHub API
         3. Email-based GitHub user search
-        4. Repo owner (only if not an organization)
-        5. Last-resort fallback to the org's login from repo_info
+        4. Repo owner, only when GitHub identifies it as a User
 
         Returns the resolved username and stores it on ``data``.
         """
         maintainer_username: Optional[str] = None
+        maintainer_source_email = ""
 
-        if top_contributor_username:
-            maintainer_username = top_contributor_username
-            logger.info(f"Using provided top contributor: {maintainer_username}")
+        if top_contributor_username and "[bot]" not in top_contributor_username.lower():
+            profile = await self.get_user(top_contributor_username)
+            if profile and profile.get("type") == "User":
+                maintainer_username = top_contributor_username
+                maintainer_source_email = top_contributor_email or ""
+                self._validated_user_profiles[maintainer_username] = profile
+                logger.info(f"Using provided top contributor: {maintainer_username}")
+            elif profile is None and self.last_error:
+                self._record_failure(
+                    data, "maintainer_candidate", essential=False
+                )
 
         if not maintainer_username and data.owner_type == "Organization":
             logger.info(f"Repo is org-owned, finding top contributor...")
-            contributors = await self.get_repo_contributors(owner, repo, limit=1)
+            contributors = await self.get_repo_contributors(
+                owner, repo, max_pages=1
+            )
             if not contributors:
                 self._record_failure(data, "contributors", essential=False)
-            if contributors:
-                maintainer_username = contributors[0].get("login")
+            for contributor in contributors:
+                if (
+                    contributor.get("type") == "User"
+                    and "[bot]" not in contributor.get("login", "").lower()
+                ):
+                    maintainer_username = contributor.get("login")
+                    break
+            if maintainer_username:
                 logger.info(f"Top contributor from GitHub API: {maintainer_username}")
 
         if not maintainer_username and top_contributor_email:
@@ -833,25 +854,27 @@ class GitHubCollector(BaseCollector):
                 f"Searching GitHub for user with email: {top_contributor_email}"
             )
             maintainer_username = await self.search_user_by_email(top_contributor_email)
-            # email search is best-effort; failures silently fine.
+            if not maintainer_username and self.last_error:
+                self._record_failure(
+                    data, "maintainer_email_search", essential=False
+                )
             if maintainer_username:
+                maintainer_source_email = top_contributor_email or ""
                 logger.info(f"Found user by email: {maintainer_username}")
 
+        if not maintainer_username and data.owner_type == "User":
+            maintainer_username = (
+                repo_info.get("owner", {}).get("login", owner)
+                if repo_info else owner
+            )
+            logger.info(f"Using repo owner as maintainer: {maintainer_username}")
+
         if not maintainer_username:
-            if data.owner_type != "Organization":
-                maintainer_username = owner
-                logger.info(f"Using repo owner as maintainer: {maintainer_username}")
-            else:
-                maintainer_username = (
-                    repo_info.get("owner", {}).get("login", owner)
-                    if repo_info else owner
-                )
-                logger.warning(
-                    f"Could not determine maintainer for org repo, "
-                    f"using: {maintainer_username}"
-                )
+            maintainer_username = ""
+            logger.warning("Could not determine a human maintainer for %s/%s", owner, repo)
 
         data.maintainer_username = maintainer_username
+        data.maintainer_source_email = maintainer_source_email
         logger.info(f"Final maintainer: {data.maintainer_username}")
         return maintainer_username
 
@@ -860,15 +883,23 @@ class GitHubCollector(BaseCollector):
     ) -> None:
         """Fetch the maintainer's GitHub profile, public repo list,
         sponsorship state, and org memberships. All non-essential —
-        each failure leaves a protective factor at 0 and raises the
-        score conservatively (see class docstring)."""
-        # Account age + public repo count.
-        user_profile = await self.get_user(username)
+        each failure leaves the score provisional (see class docstring)."""
+        if not username:
+            return
+
+        # Account age + public repo count. Resolution normally populated the
+        # small cache; direct callers still get the same type validation.
+        user_profile = self._validated_user_profiles.pop(username, None)
+        if user_profile is None:
+            user_profile = await self.get_user(username)
         if user_profile is None:
             self._record_failure(data, "user_profile", essential=False)
-        if user_profile:
-            data.maintainer_account_created = user_profile.get("created_at", "")
-            data.maintainer_public_repos = user_profile.get("public_repos", 0)
+            return
+        if user_profile.get("type") != "User":
+            data.maintainer_username = ""
+            return
+        data.maintainer_account_created = user_profile.get("created_at", "")
+        data.maintainer_public_repos = user_profile.get("public_repos", 0)
 
         # Repo list for reputation scoring. A failed page deep in the
         # pagination leaves last_error set with a partial list — record
@@ -883,15 +914,14 @@ class GitHubCollector(BaseCollector):
         )
 
         # Sponsorship.
-        if username and "[bot]" not in username:
-            logger.info(f"Checking sponsors for {username}...")
-            data.has_github_sponsors = await self.get_sponsors_status(username)
+        logger.info(f"Checking sponsors for {username}...")
+        data.has_github_sponsors = await self.get_sponsors_status(username)
+        if self.last_error:
+            self._record_failure(data, "sponsors_status", essential=False)
+        if data.has_github_sponsors:
+            data.maintainer_sponsor_count = await self.get_sponsor_count(username)
             if self.last_error:
-                self._record_failure(data, "sponsors_status", essential=False)
-            if data.has_github_sponsors:
-                data.maintainer_sponsor_count = await self.get_sponsor_count(username)
-                if self.last_error:
-                    self._record_failure(data, "sponsor_count", essential=False)
+                self._record_failure(data, "sponsor_count", essential=False)
 
         # Org memberships (different from "repo is org-owned").
         logger.info(f"Fetching orgs for {username}...")
@@ -935,7 +965,7 @@ class GitHubCollector(BaseCollector):
         sentiment layers but leaves the rest of the score intact."""
         logger.info(f"Fetching issues for {owner}/{repo}...")
         data.issues = await self.get_issues(owner, repo)
-        if not data.issues and self.last_error:
+        if self.last_error:
             self._record_failure(data, "issues", essential=False)
 
     async def collect(
@@ -955,9 +985,9 @@ class GitHubCollector(BaseCollector):
           INSUFFICIENT_DATA upstream.
         - everything else (user profile, repos, sponsors, orgs, org
           admins, CII, issues, contributors): NON-ESSENTIAL — failure
-          defaults the corresponding protective factor to 0, which
-          raises the score conservatively. Marked
-          ``provisional_reasons``.
+          still permits a numeric score but makes it non-publishable.
+          Missing protection usually raises risk; missing issue text can
+          lower it. Marked ``provisional_reasons``.
 
         Args:
             repo_url: GitHub repository URL

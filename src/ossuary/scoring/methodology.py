@@ -12,12 +12,16 @@ that affects produced scores or label boundaries.
 
 from __future__ import annotations
 
-METHODOLOGY_VERSION = "6.4.1"
+METHODOLOGY_VERSION = "6.4.2"
 """Active scoring methodology version (without ``v`` prefix; prose
-references add the ``v`` themselves). v6.4.1 corrects the tapered
-concentration calculation to select the largest weighted contributor
-and neutralizes historical maintainer reputation when the contributor
-identity at the cutoff differs from the current profile. v6.4 added three calibration fixes
+references add the ``v`` themselves). v6.4.2 closes three historical-
+reconstruction leaks: commits must be both authored and committed by the
+cutoff, rolling current download counts are neutralized, and the bounded
+current merge-PR sample is not reused as historical governance evidence.
+It also excludes bot/non-User accounts from maintainer reputation.
+v6.4.1 corrected the tapered concentration numerator and neutralized
+historical maintainer reputation when the contributor identity changed.
+v6.4 added three calibration fixes
 from Spring 2026 governance-decay cases: (1) burnout escalation (+10
 when frustration + bus_factor ≤ 2), (2) takeover detector two-mode
 tenure check (≥3y = governance concentration, <3y = xz pattern),

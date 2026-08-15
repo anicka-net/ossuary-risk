@@ -1,6 +1,5 @@
 """Score a new package — simple input form."""
 
-from datetime import datetime
 from html import escape as html_escape
 from urllib.parse import quote as url_quote
 
@@ -9,6 +8,7 @@ load_dotenv()
 
 import streamlit as st
 
+from ossuary._compat import parse_utc_date_end
 from ossuary.db.session import init_db
 from ossuary.services.scorer import score_package
 from ossuary.dashboard.utils import apply_style, run_async, risk_color, risk_level_str, COLORS, VERSION
@@ -59,7 +59,7 @@ if st.button("Analyze", type="primary", use_container_width=True):
     cutoff_date = None
     if cutoff_input:
         try:
-            cutoff_date = datetime.strptime(cutoff_input, "%Y-%m-%d")
+            cutoff_date = parse_utc_date_end(cutoff_input)
         except ValueError:
             st.error("Invalid date format. Use YYYY-MM-DD.")
             st.stop()
@@ -133,8 +133,8 @@ if "score_result" in st.session_state and st.session_state.get("score_pkg"):
     if is_provisional:
         st.warning(
             "⚠ **PROVISIONAL** — one or more non-essential signals were "
-            "unavailable. The score below is **conservative** (likely "
-            "higher than the true value). Re-run via `ossuary "
+            "unavailable. The score may be too high or too low and is not "
+            "final evidence. Re-run via `ossuary "
             "rescore-invalid` once the upstream stabilises.",
             icon="⚠️",
         )

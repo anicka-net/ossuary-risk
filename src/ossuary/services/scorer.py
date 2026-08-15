@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 from dateutil.relativedelta import relativedelta
 
+from ossuary._compat import utcnow_naive
 from ossuary.collectors.git import CommitData, GitCollector, GitMetrics
 from ossuary.collectors.github import GitHubCollector, GitHubData, IssueData
 from ossuary.collectors.npm import NpmCollector
@@ -37,25 +38,23 @@ class CollectedData:
     failures and do not populate this list — those are valid
     measurements of zero.
 
-    ``provisional_reasons`` records *non-essential* failures that left
-    the score computable but conservative (artificially higher). The
-    canonical case is GitHub auxiliary endpoints (sponsors, orgs,
-    issues, CII badge) returning a transient 4xx/5xx: the missing
-    protective factor defaults to 0, raising the final score. The
-    engine still produces a number and a risk_level, but flags the
-    breakdown as ``is_provisional=True`` so the user can rescore once
-    the upstream recovers.
+    ``provisional_reasons`` records *non-essential* failures that leave
+    a numeric score computable but unsuitable as final evidence. Most
+    missing GitHub auxiliary signals (sponsors, orgs, CII) remove a
+    protective factor and raise risk. Missing issue/comment text can
+    remove a frustration signal and lower risk, so no bias direction is
+    guaranteed. The engine flags the breakdown as
+    ``is_provisional=True`` so the user can rescore once upstream
+    recovers.
 
-    Both classes of failure produce a *higher* score than a complete
-    run would (a missing protective factor contributes 0 instead of its
-    negative bonus). The split is not about direction of bias — both
-    are conservative — but about **signal magnitude** and what the
-    missing input makes us blind to. Visibility (downloads) is the
+    The split is about **signal magnitude**, not direction. Visibility
+    (downloads) is the
     largest single protective factor (−10 to −20) and without it the
     engine cannot distinguish popular packages from obscure ones, so
     we refuse. Auxiliary GitHub signals are smaller (−10 to −15) and
     corroborating; missing one keeps the popularity assessment intact,
-    so we publish the (conservative) score with the provisional flag.
+    so an interactive scan may show a provisional number; publishable
+    validation excludes it until recollection succeeds.
     """
 
     repo_url: str
@@ -329,17 +328,10 @@ async def cached_collect(
             data = deserialise_collected_data(snap.blob, CollectedData)
         except (TypeError, KeyError, ValueError):
             return None, False
-        if (
-            not data.github_data.maintainer_source_email
-            and data.all_commits
-        ):
-            metrics = GitCollector().calculate_metrics(
-                data.all_commits,
-                cutoff_date=snap.collected_at,
-            )
-            data.github_data.maintainer_source_email = (
-                metrics.top_contributor_email
-            )
+        # A blank source email means the GitHub profile was not proven to
+        # belong to the Git top contributor. Never fabricate that binding on
+        # cache hydration: doing so would let cached historical scores apply
+        # reputation that the fresh collector correctly neutralized.
         if zero_registry_fields:
             # github-ecosystem semantics: no registry, so no download
             # signal. The snapshot may have been written by an
@@ -372,7 +364,7 @@ async def cached_collect(
                 snapshot = None
             if snapshot is not None:
                 data, ok = _hydrate(snapshot, zero_registry_fields=False)
-                if ok:
+                if ok and not data.fetch_errors:
                     return data, []
                 # Defensive fallthrough: blob failed to hydrate
                 # (collector schema drift not caught by fetcher_version).
@@ -402,7 +394,7 @@ async def cached_collect(
                 )
                 if shared is not None:
                     data, ok = _hydrate(shared, zero_registry_fields=True)
-                    if ok:
+                    if ok and not data.fetch_errors:
                         # Persist a snapshot row keyed to *this* package
                         # so subsequent same-package lookups hit the
                         # cheap package-keyed path.
@@ -476,7 +468,7 @@ async def cached_collect(
                         )
                     except (TypeError, KeyError, ValueError):
                         data = None
-                    if data is not None:
+                    if data is not None and not data.fetch_errors:
                         # Overlay this caller's per-package registry data
                         # onto the shared repo-derived blob.
                         # ``weekly_downloads`` is the only per-package
@@ -655,7 +647,7 @@ async def cached_collect(
         package_name, ecosystem, repo_url,
         prefetched_registry=prefetched_registry,
     )
-    if data is not None:
+    if data is not None and not data.fetch_errors:
         try:
             with session_scope() as session:
                 cache = RepoSnapshotCache(session)
@@ -731,6 +723,8 @@ async def collect_package_data(
     fetch_errors: list[str] = list(registry.fetch_errors)
 
     if not repo_url:
+        if fetch_errors:
+            return None, fetch_errors
         return None, [f"Package '{package_name}' not found on {ecosystem} (no repository URL)"]
 
     # 2. Collect ALL git commits (not filtered by date). Clone and log
@@ -810,7 +804,6 @@ async def collect_package_data(
             top_contributor_username=top_contributor_username,
             top_contributor_email=current_metrics.top_contributor_email,
         )
-        github_data.maintainer_source_email = current_metrics.top_contributor_email
         # Pull through the per-call classification recorded inside
         # GitHubCollector.collect (essential vs non-essential).
         fetch_errors.extend(github_data.fetch_errors)
@@ -849,6 +842,10 @@ async def collect_package_data(
                     merge_data["merges_analyzed"],
                 )
             except Exception as exc:
+                github_data.provisional_reasons.append(
+                    "github.merge_concentration: unhandled exception "
+                    f"({type(exc).__name__}: {exc})"
+                )
                 logger.warning("merge_concentration failed: %s", exc)
     except Exception as e:
         warnings.append(f"GitHub data incomplete: {e}")
@@ -856,8 +853,9 @@ async def collect_package_data(
         # exception path is now uncommon — most failures are caught and
         # classified inside GitHubCollector.collect — but we keep it as
         # a defensive fallback. Any failure that lands here is treated
-        # as provisional rather than INSUFFICIENT_DATA, matching the
-        # missing-protective-factor → conservative-score rule.
+        # as provisional rather than INSUFFICIENT_DATA. The bias direction is
+        # unknown because the failed family may contain protection or issue
+        # sentiment.
         from ossuary.collectors.github import GitHubData
         github_data = GitHubData(
             maintainer_username="",
@@ -955,6 +953,8 @@ def calculate_score_for_date(
     ecosystem: str,
     collected_data: CollectedData,
     cutoff_date: datetime,
+    *,
+    is_historical: Optional[bool] = None,
 ) -> RiskBreakdown:
     """
     Calculate risk score for a specific cutoff date using pre-collected data.
@@ -988,47 +988,63 @@ def calculate_score_for_date(
 
     git_collector = GitCollector()
 
-    # Filter commits up to cutoff date and calculate metrics
-    filtered_commits = [c for c in collected_data.all_commits if c.authored_date <= cutoff_date]
+    # A commit was not observable at the cutoff until its committer timestamp,
+    # even when its author timestamp was backdated by a rebase/cherry-pick.
+    filtered_commits = [
+        c for c in collected_data.all_commits
+        if c.authored_date <= cutoff_date and c.committed_date <= cutoff_date
+    ]
     git_metrics = git_collector.calculate_metrics(filtered_commits, cutoff_date)
 
     github_data = collected_data.github_data
-    # A scoring run is "historical" when the cutoff is meaningfully in the past
-    # (more than 1 day ago), not merely a few seconds behind datetime.now().
-    is_historical = (datetime.now(timezone.utc).replace(tzinfo=None) - cutoff_date).days > 1
+    # Callers that know whether the user requested a historical view pass that
+    # intent explicitly. The date fallback keeps direct/programmatic calls
+    # safe: yesterday is historical even when fewer than 48 hours have elapsed.
+    if is_historical is None:
+        is_historical = cutoff_date.date() < utcnow_naive().date()
     maintainer_identity_matches = (
         not is_historical
-        or not github_data.maintainer_source_email
-        or github_data.maintainer_source_email == git_metrics.top_contributor_email
+        or (
+            bool(github_data.maintainer_source_email)
+            and github_data.maintainer_source_email
+            == git_metrics.top_contributor_email
+        )
     )
 
-    # For historical scoring, reconstruct what's verifiable at the cutoff date:
-    # - Repos: filter to those created before cutoff (created_at available via API)
-    # - Stars: sum from repos that existed at cutoff (conservative upper bound)
-    # - Tenure: compute age at cutoff, not now (via as_of_date param)
-    # - Sponsors: cannot reconstruct, set to 0
-    # - Orgs: stable over time for recognized foundations, pass through as-is
-    # - Org ownership: stable property, pass through as-is
+    # Historical maintainer inputs come from a current GitHub profile. Account
+    # creation is immutable, so tenure can be computed at the cutoff when the
+    # source email binds that profile to the cutoff contributor. Repo stars,
+    # org membership, package portfolio, Sponsors, and CII status are current
+    # observations and therefore neutralized. Organization ownership remains a
+    # separately disclosed stable-property proxy below.
     if is_historical:
-        cutoff_iso = cutoff_date.isoformat()
-        historical_repos = (
-            [
-                r for r in github_data.maintainer_repos
-                if r.get("created_at", "9999") <= cutoff_iso
-            ]
-            if maintainer_identity_matches
-            else []
-        )
-        historical_sponsor_count = 0  # Cannot reconstruct
+        historical_repos = []
+        historical_sponsor_count = 0
         historical_repo_stargazers = 0
     else:
         historical_repos = github_data.maintainer_repos
         historical_sponsor_count = github_data.maintainer_sponsor_count
         historical_repo_stargazers = collected_data.repo_stargazers
 
+    historical_tenure_available = (
+        is_historical
+        and maintainer_identity_matches
+        and collected_data.maintainer_account_created is not None
+    )
+    reputation_availability = "current_observed"
+    if is_historical:
+        reputation_availability = (
+            "historical_tenure_only"
+            if historical_tenure_available
+            else "unavailable_historical_no_bound_tenure"
+        )
     factor_availability = {
-        "reputation": "historical_reconstruction" if is_historical else "current_observed",
+        "reputation": reputation_availability,
         "funding": (
+            "unavailable_historical_neutralized"
+            if is_historical else "current_observed"
+        ),
+        "cii_badge": (
             "unavailable_historical_neutralized"
             if is_historical else "current_observed"
         ),
@@ -1044,11 +1060,39 @@ def calculate_score_for_date(
             "Historical maintainer reputation was neutralized because the "
             "top contributor at the cutoff differs from the current profile."
         )
+    elif is_historical and (
+        github_data.maintainer_repos
+        or github_data.maintainer_orgs
+        or github_data.maintainer_sponsor_count
+    ):
+        warnings.append(
+            "Historical maintainer reputation uses immutable account tenure "
+            "only; present-day portfolio, stars, organizations, package lists, "
+            "and Sponsors are neutralized."
+        )
+    elif is_historical and not collected_data.maintainer_account_created:
+        warnings.append(
+            "Historical maintainer reputation is neutral because no bound "
+            "account-creation timestamp is available."
+        )
+    if is_historical and github_data.cii_badge_level not in ("", "none"):
+        warnings.append(
+            "Historical scoring disables the present-day CII badge because "
+            "its cutoff-period state is unavailable."
+        )
 
-    if (collected_data.weekly_downloads or 0) > 0:
+    effective_weekly_downloads = (
+        0 if is_historical else (collected_data.weekly_downloads or 0)
+    )
+    if effective_weekly_downloads > 0:
         factor_availability["visibility"] = "registry_downloads"
     elif is_historical:
         factor_availability["visibility"] = "unavailable_historical_neutralized"
+        if (collected_data.weekly_downloads or 0) > 0:
+            warnings.append(
+                "Historical scoring disables rolling current registry-download "
+                "counts because the cutoff-period value is unavailable."
+            )
         if collected_data.repo_stargazers > 0:
             warnings.append(
                 "Historical scoring disables GitHub-star visibility proxy to avoid leaking present-day popularity into past scores."
@@ -1056,36 +1100,31 @@ def calculate_score_for_date(
     elif collected_data.repo_stargazers > 0:
         factor_availability["visibility"] = "current_repo_stars_proxy"
 
-    # Merge-author signals (v6.4). Re-derive from the raw per-PR sample
-    # so historical cutoffs only see PRs merged before the cutoff —
-    # the aggregates on github_data describe *current* merge behaviour
-    # and would leak into T-1 scores. Legacy blobs without the raw
-    # sample fall back to the stored aggregates for current scoring and
-    # to "signal unavailable" (0) for historical scoring.
+    # Merge-author signals (v6.4). The raw per-PR sample and stored aggregates
+    # both describe current behaviour. Historical mode neutralizes them because
+    # filtering today's latest 100 cannot reconstruct the population that
+    # existed at an old cutoff. Legacy blobs without the raw sample fall back
+    # to stored aggregates only for current scoring.
     from ossuary.collectors.github import compute_merge_stats
 
-    if github_data.merged_prs:
-        merge_stats = compute_merge_stats(
-            github_data.merged_prs,
-            cutoff=cutoff_date if is_historical else None,
-        )
-        merge_bus_factor = merge_stats["merge_bus_factor"]
-        merge_concentration = merge_stats["merge_concentration"]
-        factor_availability["merge_signals"] = (
-            "historical_reconstruction" if is_historical else "current_observed"
-        )
-        if merge_bus_factor == 0:
-            factor_availability["merge_signals"] = "unavailable_insufficient_sample"
-    elif is_historical:
+    if is_historical:
         merge_bus_factor = 0
         merge_concentration = 0.0
         factor_availability["merge_signals"] = "unavailable_historical_neutralized"
-        if github_data.merge_bus_factor > 0:
+        if github_data.merged_prs or github_data.merge_bus_factor > 0:
             warnings.append(
-                "Historical scoring disables merge-author signals: the cached "
-                "merged-PR sample has no timestamps, so current-day merge "
-                "behaviour cannot be excluded."
+                "Historical scoring disables merge-author signals because the "
+                "bounded current PR sample cannot reconstruct governance at the cutoff."
             )
+    elif github_data.merged_prs:
+        merge_stats = compute_merge_stats(
+            github_data.merged_prs,
+        )
+        merge_bus_factor = merge_stats["merge_bus_factor"]
+        merge_concentration = merge_stats["merge_concentration"]
+        factor_availability["merge_signals"] = "current_observed"
+        if merge_bus_factor == 0:
+            factor_availability["merge_signals"] = "unavailable_insufficient_sample"
     else:
         merge_bus_factor = github_data.merge_bus_factor
         merge_concentration = github_data.merge_concentration
@@ -1113,8 +1152,11 @@ def calculate_score_for_date(
         ),
         repos=historical_repos,
         sponsor_count=historical_sponsor_count,
-        orgs=github_data.maintainer_orgs if maintainer_identity_matches else [],
-        packages_maintained=[package_name],
+        orgs=(
+            [] if is_historical
+            else github_data.maintainer_orgs if maintainer_identity_matches else []
+        ),
+        packages_maintained=[] if is_historical else [package_name],
         ecosystem=ecosystem,
         as_of_date=cutoff_date if is_historical else None,
     )
@@ -1165,16 +1207,18 @@ def calculate_score_for_date(
         # failure). Coerce to 0 here so the engine's bucket comparisons stay
         # type-safe; the short-circuit above ensures we only reach this path
         # when fetch_errors was empty (i.e. the value really is an int or 0).
-        weekly_downloads=collected_data.weekly_downloads or 0,
+        weekly_downloads=effective_weekly_downloads,
         repo_stargazers=historical_repo_stargazers,
         maintainer_username=(
             github_data.maintainer_username if maintainer_identity_matches else ""
         ),
         maintainer_public_repos=(
-            github_data.maintainer_public_repos if maintainer_identity_matches else 0
+            github_data.maintainer_public_repos
+            if maintainer_identity_matches and not is_historical else 0
         ),
         maintainer_total_stars=(
-            github_data.maintainer_total_stars if maintainer_identity_matches else 0
+            github_data.maintainer_total_stars
+            if maintainer_identity_matches and not is_historical else 0
         ),
         has_github_sponsors=False if is_historical else github_data.has_github_sponsors,
         maintainer_account_created=(
@@ -1184,11 +1228,12 @@ def calculate_score_for_date(
         maintainer_repos=historical_repos,
         maintainer_sponsor_count=historical_sponsor_count,
         maintainer_orgs=(
-            github_data.maintainer_orgs if maintainer_identity_matches else []
+            github_data.maintainer_orgs
+            if maintainer_identity_matches and not is_historical else []
         ),
-        packages_maintained=[package_name],
+        packages_maintained=[] if is_historical else [package_name],
         reputation=reputation,
-        cii_badge_level=github_data.cii_badge_level,
+        cii_badge_level=("none" if is_historical else github_data.cii_badge_level),
         is_org_owned=github_data.is_org_owned,  # Stable property
         org_admin_count=github_data.org_admin_count if not is_historical else max(1, github_data.org_admin_count),
         # Maturity detection
@@ -1205,7 +1250,7 @@ def calculate_score_for_date(
         takeover_suspect=git_metrics.takeover_suspect,
         takeover_suspect_name=git_metrics.takeover_suspect_name,
         takeover_suspect_tenure_years=git_metrics.takeover_suspect_tenure_years,
-        # Merge concentration (v6.4) — cutoff-aware, see derivation above
+        # Merge concentration (v6.4) — current only; historical is neutralized
         merge_bus_factor=merge_bus_factor,
         merge_concentration=merge_concentration,
         # Sentiment
@@ -1220,8 +1265,8 @@ def calculate_score_for_date(
     breakdown.factor_availability = factor_availability
     breakdown.warnings.extend(warnings)
     if provisional_reasons:
-        # The score was produced from incomplete-but-conservative inputs
-        # (a non-essential signal failed). Surface so the user can rescore.
+        # A non-essential signal failed. Surface the incomplete state without
+        # claiming a bias direction so the user can rescore.
         breakdown.provisional_reasons = provisional_reasons
         breakdown.recommendations.append(
             "PROVISIONAL: one or more non-essential signals were unavailable; "
@@ -1370,7 +1415,13 @@ async def score_package(
 
     # Calculate score
     try:
-        breakdown = calculate_score_for_date(package_name, ecosystem, collected_data, cutoff)
+        breakdown = calculate_score_for_date(
+            package_name,
+            ecosystem,
+            collected_data,
+            cutoff,
+            is_historical=cutoff_date is not None,
+        )
     except Exception as e:
         return ScoringResult(success=False, error=str(e), warnings=warnings)
 
@@ -1509,7 +1560,11 @@ async def get_historical_scores(
 
         try:
             breakdown = calculate_score_for_date(
-                package_name, ecosystem, collected_data, cutoff
+                package_name,
+                ecosystem,
+                collected_data,
+                cutoff,
+                is_historical=True,
             )
             if breakdown.risk_level == RiskLevel.INSUFFICIENT_DATA:
                 warnings.append(

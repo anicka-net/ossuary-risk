@@ -41,6 +41,7 @@ from validate import (  # noqa: E402  (path inserted above)
 )
 from ossuary.scoring.engine import RiskScorer  # noqa: E402
 from ossuary.scoring.factors import ProtectiveFactors  # noqa: E402
+from ossuary._compat import parse_utc_date_end  # noqa: E402
 from ossuary.services.scorer import (  # noqa: E402
     cached_collect,
     calculate_score_for_date,
@@ -144,7 +145,7 @@ async def collect_all(cases):
         # datetime for incidents. The scorer below derives a concrete
         # cutoff for `calculate_score_for_date` separately.
         cutoff_for_collect = (
-            datetime.strptime(case.cutoff_date, "%Y-%m-%d")
+            parse_utc_date_end(case.cutoff_date)
             if case.cutoff_date else None
         )
         cutoff_for_score = cutoff_for_collect or datetime.now()
@@ -173,7 +174,11 @@ def score_one(case, collected, cutoff, prior_error):
 
     try:
         breakdown = calculate_score_for_date(
-            case.name, case.ecosystem, collected, cutoff,
+            case.name,
+            case.ecosystem,
+            collected,
+            cutoff,
+            is_historical=case.cutoff_date is not None,
         )
     except Exception as e:
         result.error = str(e)

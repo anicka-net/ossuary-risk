@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from ossuary._compat import parse_utc_date_end
 from ossuary.collectors.github import GitHubData, IssueData
 from ossuary.collectors.git import CommitData
 from ossuary.scoring.engine import PackageMetrics, RiskScorer
@@ -237,6 +238,215 @@ class TestHistoricalScoring:
         assert any("top contributor at the cutoff differs" in warning
                    for warning in historical.warnings)
 
+    def test_historical_reputation_is_neutralized_without_identity_binding(self):
+        commit = CommitData(
+            sha="old", author_name="Alice", author_email="alice@example.com",
+            authored_date=datetime(2020, 1, 1), committer_name="Alice",
+            committer_email="alice@example.com",
+            committed_date=datetime(2020, 1, 1), message="initial",
+        )
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=[commit],
+            github_data=GitHubData(
+                maintainer_username="someone",
+                maintainer_source_email="",
+                maintainer_repos=[{
+                    "created_at": "2010-01-01T00:00:00Z",
+                    "stargazers_count": 100_000,
+                }],
+            ),
+            weekly_downloads=0,
+            maintainer_account_created=datetime(2010, 1, 1),
+        )
+        result = calculate_score_for_date(
+            "pkg", "github", data, datetime(2021, 1, 1)
+        )
+        assert result.protective_factors.reputation_score == 0
+        assert result.factor_availability["reputation"] == (
+            "unavailable_historical_maintainer_identity_changed"
+        )
+
+    def test_historical_scoring_uses_tenure_only_from_current_profile(self):
+        cutoff = datetime(2021, 1, 1)
+        commit = CommitData(
+            sha="old",
+            author_name="Alice",
+            author_email="alice@example.com",
+            authored_date=datetime(2020, 6, 1),
+            committer_name="Alice",
+            committer_email="alice@example.com",
+            committed_date=datetime(2020, 6, 1),
+            message="initial",
+        )
+        current_repos = [
+            {
+                "created_at": "2010-01-01T00:00:00Z",
+                "fork": False,
+                "stargazers_count": 2_000,
+            }
+            for _ in range(60)
+        ]
+        data = CollectedData(
+            repo_url="https://github.com/example/lodash",
+            all_commits=[commit],
+            github_data=GitHubData(
+                maintainer_username="alice",
+                maintainer_source_email="alice@example.com",
+                maintainer_repos=current_repos,
+                maintainer_orgs=["nodejs"],
+                maintainer_sponsor_count=10,
+                has_github_sponsors=True,
+                cii_badge_level="passing",
+            ),
+            weekly_downloads=0,
+            maintainer_account_created=datetime(2010, 1, 1),
+        )
+
+        current = calculate_score_for_date(
+            "lodash", "npm", data, cutoff, is_historical=False
+        )
+        historical = calculate_score_for_date(
+            "lodash", "npm", data, cutoff, is_historical=True
+        )
+
+        assert current.protective_factors.reputation_score == -25
+        assert current.protective_factors.funding_score == -15
+        assert current.protective_factors.cii_score == -10
+        assert historical.protective_factors.reputation_score == 0
+        assert historical.protective_factors.funding_score == 0
+        assert historical.protective_factors.cii_score == 0
+        assert historical.factor_availability["reputation"] == (
+            "historical_tenure_only"
+        )
+        assert historical.factor_availability["cii_badge"] == (
+            "unavailable_historical_neutralized"
+        )
+
+    def test_yesterday_defaults_to_historical_but_explicit_intent_wins(self):
+        cutoff = datetime.now() - timedelta(days=1)
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=[],
+            github_data=GitHubData(),
+            weekly_downloads=100_000_000,
+            maintainer_account_created=None,
+        )
+
+        inferred = calculate_score_for_date("pkg", "npm", data, cutoff)
+        explicit_current = calculate_score_for_date(
+            "pkg", "npm", data, cutoff, is_historical=False
+        )
+
+        assert inferred.protective_factors.visibility_score == 0
+        assert explicit_current.protective_factors.visibility_score == -20
+
+    def test_named_cutoff_includes_whole_day_and_excludes_next_day(self):
+        cutoff = parse_utc_date_end("2026-08-14")
+        commits = [
+            CommitData(
+                sha=sha,
+                author_name="Alice",
+                author_email="alice@example.com",
+                authored_date=timestamp,
+                committer_name="Alice",
+                committer_email="alice@example.com",
+                committed_date=timestamp,
+                message="maintenance",
+            )
+            for sha, timestamp in (
+                ("before", datetime(2026, 8, 13, 12, 0)),
+                ("same-day", datetime(2026, 8, 14, 20, 0)),
+                ("next-day", datetime(2026, 8, 15, 0, 0)),
+            )
+        ]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits,
+            github_data=GitHubData(),
+            weekly_downloads=0,
+            maintainer_account_created=None,
+        )
+
+        result = calculate_score_for_date(
+            "pkg", "github", data, cutoff, is_historical=True
+        )
+
+        assert result.commits_last_year == 2
+
+    def test_historical_scoring_excludes_commits_committed_after_cutoff(self):
+        cutoff = datetime(2020, 6, 1)
+        commits = [
+            CommitData(
+                sha="visible", author_name="Alice",
+                author_email="alice@example.com",
+                authored_date=datetime(2020, 1, 1),
+                committer_name="Alice", committer_email="alice@example.com",
+                committed_date=datetime(2020, 1, 1), message="visible",
+            ),
+            CommitData(
+                sha="backdated", author_name="Bob",
+                author_email="bob@example.com",
+                authored_date=datetime(2020, 2, 1),
+                committer_name="Bob", committer_email="bob@example.com",
+                committed_date=datetime(2020, 7, 1), message="future merge",
+            ),
+        ]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits, github_data=GitHubData(),
+            weekly_downloads=0, maintainer_account_created=None,
+        )
+        result = calculate_score_for_date("pkg", "github", data, cutoff)
+        assert result.commits_last_year == 1
+
+    def test_historical_scoring_neutralizes_current_downloads(self):
+        commits = [CommitData(
+            sha="1", author_name="Alice", author_email="alice@example.com",
+            authored_date=datetime(2020, 1, 1), committer_name="Alice",
+            committer_email="alice@example.com",
+            committed_date=datetime(2020, 1, 1), message="visible",
+        )]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg",
+            all_commits=commits, github_data=GitHubData(),
+            weekly_downloads=100_000_000, maintainer_account_created=None,
+        )
+        result = calculate_score_for_date(
+            "pkg", "npm", data, datetime(2021, 1, 1)
+        )
+        assert result.weekly_downloads == 0
+        assert result.protective_factors.visibility_score == 0
+        assert result.factor_availability["visibility"] == (
+            "unavailable_historical_neutralized"
+        )
+
+    def test_historical_scoring_neutralizes_current_merge_sample(self):
+        commits = [CommitData(
+            sha="1", author_name="Alice", author_email="alice@example.com",
+            authored_date=datetime(2020, 1, 1), committer_name="Alice",
+            committer_email="alice@example.com",
+            committed_date=datetime(2020, 1, 1), message="visible",
+        )]
+        data = CollectedData(
+            repo_url="https://github.com/example/pkg", all_commits=commits,
+            github_data=GitHubData(
+                merged_prs=[
+                    {"login": "alice", "merged_at": "2020-01-02T00:00:00Z"}
+                    for _ in range(20)
+                ],
+                merge_bus_factor=1,
+            ),
+            weekly_downloads=0, maintainer_account_created=None,
+        )
+        result = calculate_score_for_date(
+            "pkg", "github", data, datetime(2021, 1, 1)
+        )
+        assert result.factor_availability["merge_signals"] == (
+            "unavailable_historical_neutralized"
+        )
+        assert any("merge-author signals" in warning for warning in result.warnings)
+
     def test_calculate_score_for_date_ignores_future_issue_sentiment(self):
         """Historical scores must not include issue content created after cutoff."""
         commits = [
@@ -397,7 +607,11 @@ class TestHistoricalScoring:
         )
 
         breakdown = calculate_score_for_date(
-            "pkg", "github", data, datetime(2024, 12, 31)
+            "pkg",
+            "github",
+            data,
+            datetime(2024, 12, 31),
+            is_historical=False,
         )
 
         assert breakdown.protective_factors.cii_score == -10

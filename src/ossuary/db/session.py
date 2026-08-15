@@ -114,6 +114,17 @@ def _autoapply_simple_migrations(connection) -> None:
         connection.execute(text(
             "ALTER TABLE scores ADD COLUMN data_snapshot_at DATETIME"
         ))
+    if "methodology_version" not in existing_cols:
+        # Existing rows were produced under an older or unknown formula and
+        # intentionally remain NULL. Score-cache reads require the active
+        # version, so the upgrade invalidates them without deleting evidence.
+        logger.warning(
+            "Auto-migrating scores schema: adding methodology_version; "
+            "legacy score-cache rows expire"
+        )
+        connection.execute(text(
+            "ALTER TABLE scores ADD COLUMN methodology_version VARCHAR(32)"
+        ))
     if "is_historical" not in existing_cols:
         # Without the tag, a --cutoff row written inside the freshness
         # window satisfied get_current_score, and accumulated current
@@ -182,6 +193,16 @@ def _autoapply_simple_migrations(connection) -> None:
                         ),
                         {"k": kind, "i": row.id},
                     )
+        if "failure_collector_version" not in package_cols:
+            # Existing failures intentionally remain NULL. They were produced
+            # under an older/unknown collector contract and must be re-probed.
+            logger.warning(
+                "Auto-migrating packages schema: adding "
+                "failure_collector_version; prior negative-cache rows expire"
+            )
+            connection.execute(text(
+                "ALTER TABLE packages ADD COLUMN failure_collector_version INTEGER"
+            ))
 
 
 def init_db() -> None:

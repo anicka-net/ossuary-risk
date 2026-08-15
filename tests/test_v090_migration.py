@@ -7,8 +7,10 @@ v0.9.0-shaped SQLite DB (the schema before any of the v0.10 cache
 work landed), runs ``init_db()``, and verifies:
 
 1. all v0.10 columns get added (``packages.failure_kind``,
+   ``packages.failure_collector_version``,
    ``packages.last_failed_at``, ``packages.failure_reason``,
    ``scores.is_provisional``, ``scores.data_snapshot_at``,
+   ``scores.methodology_version``,
    ``repo_snapshots.upstream_pushed_at``,
    ``repo_snapshots.repo_url_canonical``).
 2. the existing v0.9.0 ``packages`` and ``scores`` rows are
@@ -136,8 +138,12 @@ class TestV090ToV0101Migration:
             expected = {
                 "packages": {
                     "last_failed_at", "failure_reason", "failure_kind",
+                    "failure_collector_version",
                 },
-                "scores": {"is_provisional", "data_snapshot_at"},
+                "scores": {
+                    "is_provisional", "data_snapshot_at",
+                    "methodology_version",
+                },
                 "repo_snapshots": {
                     "upstream_pushed_at", "repo_url_canonical",
                 },
@@ -172,11 +178,12 @@ class TestV090ToV0101Migration:
             ), f"package row corrupted: {row}"
 
             score = conn.execute(
-                "SELECT final_score, risk_level, is_provisional "
+                "SELECT final_score, risk_level, is_provisional, "
+                "methodology_version "
                 "FROM scores WHERE package_id=?", (pkg_id,),
             ).fetchone()
             # is_provisional defaults to 0 (False) on the new column.
-            assert score == (25, "LOW", 0), f"score row issue: {score}"
+            assert score == (25, "LOW", 0, None), f"score row issue: {score}"
         finally:
             conn.close()
 

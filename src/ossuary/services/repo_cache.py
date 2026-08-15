@@ -121,15 +121,20 @@ def canonicalize_repo_url(repo_url: Optional[str]) -> Optional[str]:
 logger = logging.getLogger(__name__)
 
 
-# Bumped when the on-disk shape of CollectedData (or its nested dataclasses,
-# CommitData, GitHubData, IssueData) changes in a way that breaks
-# deserialisation. Methodology bumps do NOT touch this — the formula reads
-# the same raw data whether it's v6.3 or v6.5.
+# Bumped when the on-disk shape or collection semantics of CollectedData
+# change enough that old snapshots are not safe to reuse. Methodology-only
+# formula changes do not touch this constant.
 # v2: GitHubData.merged_prs (raw per-PR merge sample). Old blobs lack the
 # sample, carry aggregates from the pre-fix `last: 100` query (oldest PRs)
 # and were collected before clone_or_update fast-forwarded stale clones —
 # all three argue for forced re-collection.
-COLLECTOR_VERSION = 2
+# v3/v4 were used by local July audit experiments before committed code
+# returned to v2; reusing either number would not invalidate Anna's local DB.
+# v5: force the August 2026 pipeline-integrity recollection. Maintainer
+# profiles now exclude bots/non-User accounts, partial issue-comment failures
+# are recorded, and transient registry failures are no longer cached as a
+# permanent missing-repository result.
+COLLECTOR_VERSION = 5
 
 
 # Freshness SLA bands (days) for the current-scoring path. See
@@ -388,10 +393,10 @@ def _coverage_until_from_blob(blob: dict) -> Optional[datetime]:
 class RepoSnapshotCache:
     """Read/write access to ``repo_snapshots`` rows.
 
-    Append-only: ``store`` always inserts a new row. Lookups return the most
-    recent snapshot whose ``coverage_until`` is on or after the requested
-    cutoff (or any snapshot, when ``cutoff_date`` is None — used for
-    "current" scoring with the freshness SLA layered on top).
+    Append-only: ``store`` always inserts a new row. Current lookup uses the
+    newest snapshot within the freshness SLA. Historical lookup uses the
+    newest snapshot collected at or after the cutoff, then the scorer filters
+    later evidence from the blob.
     """
 
     def __init__(self, session: Session):
@@ -538,7 +543,12 @@ class RepoSnapshotCache:
             .filter(Package.name == canonical, Package.ecosystem == ecosystem)
             .first()
         )
-        if package is None or package.last_failed_at is None or not package.failure_reason:
+        if (
+            package is None
+            or package.last_failed_at is None
+            or not package.failure_reason
+            or package.failure_collector_version != COLLECTOR_VERSION
+        ):
             return None
 
         # Prefer the typed kind; fall back to re-classifying the legacy
@@ -567,6 +577,7 @@ class RepoSnapshotCache:
         package.last_failed_at = utcnow_naive()
         package.failure_reason = reason
         package.failure_kind = classify_failure(reason)
+        package.failure_collector_version = COLLECTOR_VERSION
 
     def clear_negative(self, name: str, ecosystem: str) -> None:
         """Clear any negative-cache state for a package.
@@ -585,6 +596,7 @@ class RepoSnapshotCache:
             package.last_failed_at = None
             package.failure_reason = None
             package.failure_kind = None
+            package.failure_collector_version = None
 
     # ----- Statistics / introspection -----
 
@@ -643,12 +655,14 @@ class RepoSnapshotCache:
         active_no_repo = self.session.query(func.count(Package.id)).filter(
             Package.last_failed_at.isnot(None),
             Package.failure_reason.isnot(None),
+            Package.failure_collector_version == COLLECTOR_VERSION,
             Package.failure_kind == FailureKind.NO_REPO_URL,
             Package.last_failed_at >= no_repo_cutoff,
         ).scalar() or 0
         active_dead_repo = self.session.query(func.count(Package.id)).filter(
             Package.last_failed_at.isnot(None),
             Package.failure_reason.isnot(None),
+            Package.failure_collector_version == COLLECTOR_VERSION,
             (Package.failure_kind != FailureKind.NO_REPO_URL)
             | (Package.failure_kind.is_(None)),
             Package.last_failed_at >= dead_repo_cutoff,

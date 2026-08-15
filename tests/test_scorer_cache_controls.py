@@ -14,7 +14,12 @@ from ossuary.services.repo_cache import (
     RepoSnapshotCache,
     serialise_collected_data,
 )
-from ossuary.services.scorer import CollectedData, RegistryData, cached_collect
+from ossuary.services.scorer import (
+    CollectedData,
+    RegistryData,
+    cached_collect,
+    collect_package_data,
+)
 
 
 @pytest.fixture
@@ -111,6 +116,46 @@ async def test_refresh_data_bypasses_invalid_snapshot(isolated_cache):
 
 
 @pytest.mark.asyncio
+async def test_default_read_retries_snapshot_with_essential_errors(isolated_cache):
+    stale = _data(
+        "https://github.com/acme/project",
+        fetch_errors=["github.repo_info: HTTP 503"],
+    )
+    recovered = _data("https://github.com/acme/project")
+    with isolated_cache() as session:
+        RepoSnapshotCache(session).store_snapshot(
+            "acme/project", "github", stale.repo_url,
+            serialise_collected_data(stale),
+        )
+
+    with patch(
+        "ossuary.services.scorer.collect_package_data",
+        return_value=(recovered, []),
+    ) as fresh_collect:
+        result, warnings = await cached_collect("acme/project", "github")
+
+    assert warnings == []
+    assert result is not None and result.fetch_errors == []
+    fresh_collect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_missing_repo_preserves_transient_registry_error():
+    registry = RegistryData(
+        repo_url=None,
+        weekly_downloads=None,
+        fetch_errors=["npm.package_info: HTTP 503 from registry.npmjs.org"],
+        warnings=[],
+    )
+    result, warnings = await collect_package_data(
+        "demo", "npm", prefetched_registry=registry,
+    )
+    assert result is None
+    assert warnings == registry.fetch_errors
+    assert "no repository URL" not in warnings[0]
+
+
+@pytest.mark.asyncio
 async def test_shared_snapshot_rekey_preserves_collection_time(isolated_cache):
     donor_time = utcnow_naive() - timedelta(days=10)
     donor = _data("https://github.com/acme/shared")
@@ -173,7 +218,7 @@ async def test_prefetched_registry_still_uses_shared_repo_snapshot(isolated_cach
 
 
 @pytest.mark.asyncio
-async def test_legacy_snapshot_backfills_maintainer_source_identity(isolated_cache):
+async def test_cache_does_not_invent_maintainer_source_identity(isolated_cache):
     collected_at = utcnow_naive()
     old = _data("https://github.com/acme/project")
     old.all_commits = [
@@ -201,4 +246,4 @@ async def test_legacy_snapshot_backfills_maintainer_source_identity(isolated_cac
 
     assert warnings == []
     assert result is not None
-    assert result.github_data.maintainer_source_email == "alice@example.com"
+    assert result.github_data.maintainer_source_email == ""

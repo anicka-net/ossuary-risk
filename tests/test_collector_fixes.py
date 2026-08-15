@@ -157,8 +157,12 @@ class TestMergeConcentrationWindow:
 
 
 class TestComputeMergeStats:
-    """Merge aggregates are re-derived from the raw (login, merged_at)
-    sample so historical scoring can exclude post-cutoff merges."""
+    """Merge aggregates can be inspected on raw or diagnostic subsets.
+
+    Historical scoring deliberately neutralizes the bounded current sample;
+    the cutoff option remains useful for demonstrating why a filtered slice is
+    not an adequate reconstruction.
+    """
 
     def _sample(self):
         # 30 merges across 3 humans, Jan..Sep 2024; bot noise mixed in.
@@ -233,6 +237,46 @@ class TestIssuesDeletedAuthor:
 
             assert len(issues) == 1
             assert issues[0].author_login == ""
+
+        asyncio.run(run())
+
+    def test_partial_comment_failure_survives_later_success(self):
+        async def run():
+            collector = GitHubCollector(token="test-token")
+            try:
+                issues = [
+                    {
+                        "number": 1, "title": "one", "body": "",
+                        "state": "open", "user": {"login": "u"},
+                        "created_at": "2026-01-01T00:00:00Z",
+                        "updated_at": "2026-01-02T00:00:00Z",
+                        "closed_at": None, "comments": 1,
+                    },
+                    {
+                        "number": 2, "title": "two", "body": "",
+                        "state": "open", "user": {"login": "u"},
+                        "created_at": "2026-01-01T00:00:00Z",
+                        "updated_at": "2026-01-02T00:00:00Z",
+                        "closed_at": None, "comments": 1,
+                    },
+                ]
+
+                async def fake_get(endpoint, params=None):
+                    if endpoint.endswith("/issues"):
+                        collector.last_error = None
+                        return issues
+                    if endpoint.endswith("/1/comments"):
+                        collector.last_error = "HTTP 502 from api.github.com"
+                        return None
+                    collector.last_error = None
+                    return [{"id": 2, "user": {"login": "u"}, "body": "ok"}]
+
+                collector._get = fake_get
+                result = await collector.get_issues("owner", "repo")
+                assert len(result) == 2
+                assert "HTTP 502" in (collector.last_error or "")
+            finally:
+                await collector.close()
 
         asyncio.run(run())
 

@@ -374,6 +374,7 @@ class TestNegativeCache:
         package = cache._get_or_create_package("expired-pkg", "npm")
         package.last_failed_at = utcnow_naive() - timedelta(days=120)
         package.failure_reason = "Repository not found"
+        package.failure_collector_version = COLLECTOR_VERSION
         session.commit()
 
         # 90-day TTL for "not found" — 120 days is past expiry.
@@ -387,6 +388,7 @@ class TestNegativeCache:
         package = cache._get_or_create_package("no-repo", "npm")
         package.last_failed_at = utcnow_naive() - timedelta(days=45)
         package.failure_reason = "Package 'no-repo' not found on npm (no repository URL)"
+        package.failure_collector_version = COLLECTOR_VERSION
         session.commit()
 
         # 45 days > 30-day no-repo-field TTL → expired.
@@ -401,6 +403,17 @@ class TestNegativeCache:
         cache.clear_negative("recovered", "npm")
         session.commit()
         assert cache.get_negative_cache("recovered", "npm") is None
+
+    def test_old_collector_negative_entry_is_not_served(self, session):
+        cache = RepoSnapshotCache(session)
+        package = cache._get_or_create_package("repaired", "npm")
+        package.last_failed_at = utcnow_naive()
+        package.failure_reason = "Repository not found"
+        package.failure_kind = "repo_not_found"
+        package.failure_collector_version = COLLECTOR_VERSION - 1
+        session.commit()
+
+        assert cache.get_negative_cache("repaired", "npm") is None
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +524,7 @@ class TestStats:
         package = cache._get_or_create_package("dead-stale", "npm")
         package.last_failed_at = utcnow_naive() - timedelta(days=120)
         package.failure_reason = "Repository not found"
+        package.failure_collector_version = COLLECTOR_VERSION
         session.commit()
 
         stats = cache.stats()
@@ -905,6 +919,7 @@ class TestStoreNegativeWritesTypedKind:
         session.commit()
         package = session.query(Package).filter(Package.name == "x").first()
         assert package.failure_kind == FailureKind.NO_REPO_URL
+        assert package.failure_collector_version == COLLECTOR_VERSION
         assert "no repository URL" in package.failure_reason
 
     def test_clear_negative_clears_typed_kind(self, session):
@@ -916,6 +931,7 @@ class TestStoreNegativeWritesTypedKind:
         session.commit()
         package = session.query(Package).filter(Package.name == "x").first()
         assert package.failure_kind is None
+        assert package.failure_collector_version is None
         assert package.failure_reason is None
         assert package.last_failed_at is None
 
@@ -932,6 +948,7 @@ class TestStoreNegativeWritesTypedKind:
         package.last_failed_at = utcnow_naive() - timedelta(days=10)
         package.failure_reason = "Package 'legacy' not found on npm (no repository URL)"
         package.failure_kind = None
+        package.failure_collector_version = COLLECTOR_VERSION
         session.commit()
 
         # 10 days < 30-day TTL (no-repo-url class) → still active despite

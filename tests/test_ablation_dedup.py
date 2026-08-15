@@ -107,10 +107,10 @@ class TestCollectAllDeduplication:
             cache = asyncio.run(collect_all([control, incident]))
 
         # Control: cutoff_date=None → cutoff_for_score = datetime.now() (a now-ish value)
-        # Incident: cutoff_for_score = 2026-03-30 exactly.
+        # Incident: the named cutoff includes the whole 2026-03-30 UTC day.
         _, control_cutoff, _ = cache[case_key(control)]
         _, incident_cutoff, _ = cache[case_key(incident)]
-        assert incident_cutoff == datetime(2026, 3, 30)
+        assert incident_cutoff == datetime(2026, 3, 30, 23, 59, 59, 999999)
         # Control cutoff must NOT be the incident's cutoff (the bug would
         # have made them equal because cache[name] was last-write-wins).
         assert control_cutoff != incident_cutoff

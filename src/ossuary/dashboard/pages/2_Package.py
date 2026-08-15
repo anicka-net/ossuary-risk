@@ -200,8 +200,7 @@ color = risk_color(level)
 
 st.divider()
 
-# Provisional banner: surface the conservative-skew before showing the
-# score so users don't make decisions on a number that's likely too high.
+# Provisional banner: surface incomplete inputs before showing the score.
 # ``getattr`` avoids hard-failing if a stale ``RiskBreakdown`` import
 # (Streamlit's module cache) doesn't yet have ``is_provisional``.
 is_provisional = getattr(b, "is_provisional", False)
@@ -209,8 +208,8 @@ provisional_reasons = getattr(b, "provisional_reasons", []) or []
 if is_provisional:
     st.warning(
         "⚠ **PROVISIONAL** — one or more non-essential signals were "
-        "unavailable when this score was computed. The number below is "
-        "**conservative** (likely higher than the true value). Re-run "
+        "unavailable when this score was computed. The number may be too "
+        "high or too low and is not final evidence. Re-run "
         "via `ossuary rescore-invalid` once the upstream stabilises.",
         icon="⚠️",
     )

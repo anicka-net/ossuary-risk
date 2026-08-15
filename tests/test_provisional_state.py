@@ -1,15 +1,13 @@
 """Provisional-score data-completeness contract.
 
-Background: both failure classes skew conservative relative to a
-complete-data run, but they differ in what the missing signal makes the
-engine blind to. A missing *visibility* signal (registry downloads)
-removes the largest protective factor and collapses the distinction
-between popular and obscure packages, so the run is refused as
-``INSUFFICIENT_DATA``. A missing *protective* GitHub auxiliary signal
-(Sponsors, maintainer profile, orgs, issues, CII badge) also raises the
-score because the corresponding factor defaults to 0, but the engine can
-still compute a usable result, so it flags the score
-``is_provisional=True`` for retry once the upstream recovers.
+Background: a missing *visibility* signal (registry downloads) removes
+the largest protective factor and collapses the distinction between
+popular and obscure packages, so the run is refused as
+``INSUFFICIENT_DATA``. A missing GitHub auxiliary signal still permits a
+numeric result, but its bias direction is not guaranteed: missing
+protection usually raises risk, while missing issue/comment text can
+remove a risk signal. Such results are flagged ``is_provisional=True``
+for retry once the upstream recovers.
 
 This test module pins the contract:
 
@@ -209,6 +207,57 @@ class TestEngineProvisionalState:
         assert data.provisional_reasons == [
             "github.merge_concentration: "
             "HTTP 502 from api.github.com (graphql)"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_unhandled_merge_processing_failure_is_provisional(self):
+        commit = CommitData(
+            sha="1",
+            author_name="Maintainer",
+            author_email="maintainer@example.com",
+            authored_date=datetime.now(),
+            committer_name="Maintainer",
+            committer_email="maintainer@example.com",
+            committed_date=datetime.now(),
+            message="test",
+        )
+        registry = RegistryData(
+            repo_url="https://github.com/example/pkg",
+            weekly_downloads=1,
+            fetch_errors=[],
+            warnings=[],
+        )
+        with (
+            patch(
+                "ossuary.services.scorer._collect_registry_data",
+                new=AsyncMock(return_value=registry),
+            ),
+            patch.object(GitCollector, "clone_or_update", return_value="/tmp/repo"),
+            patch.object(GitCollector, "extract_commits", return_value=[commit]),
+            patch.object(
+                GitHubCollector,
+                "collect",
+                new=AsyncMock(return_value=GitHubData()),
+            ),
+            patch.object(
+                GitHubCollector,
+                "get_repo_info",
+                new=AsyncMock(return_value={"stargazers_count": 0}),
+            ),
+            patch.object(
+                GitHubCollector,
+                "get_merge_concentration",
+                new=AsyncMock(side_effect=TypeError("malformed merge node")),
+            ),
+            patch.object(GitHubCollector, "close", new=AsyncMock()),
+        ):
+            data, warnings = await collect_package_data("pkg", "npm")
+
+        assert warnings == []
+        assert data is not None
+        assert data.provisional_reasons == [
+            "github.merge_concentration: unhandled exception "
+            "(TypeError: malformed merge node)"
         ]
 
     def test_to_dict_round_trips_provisional_state(self):
@@ -432,7 +481,8 @@ class TestGitHubFailureClassification:
             }
         )
         respx.get("https://api.github.com/users/octocat").respond(
-            200, json={"login": "octocat", "created_at": "2010-01-01T00:00:00Z",
+            200, json={"login": "octocat", "type": "User",
+                       "created_at": "2010-01-01T00:00:00Z",
                        "public_repos": 5}
         )
         respx.get("https://api.github.com/users/octocat/repos").respond(200, json=[])

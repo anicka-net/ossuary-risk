@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+from ossuary._compat import parse_utc_date_end
 from ossuary.services.scorer import collect_package_data, calculate_score_for_date
 from ossuary.scoring.engine import RiskScorer, PackageMetrics
 
@@ -32,7 +33,7 @@ async def collect_all():
         try:
             cutoff = datetime.now()
             if case.cutoff_date:
-                cutoff = datetime.strptime(case.cutoff_date, "%Y-%m-%d")
+                cutoff = parse_utc_date_end(case.cutoff_date)
 
             data, warnings = await collect_package_data(
                 case.name, case.ecosystem, case.repo_url,
@@ -43,7 +44,11 @@ async def collect_all():
                 continue
 
             breakdown = calculate_score_for_date(
-                case.name, case.ecosystem, data, cutoff,
+                case.name,
+                case.ecosystem,
+                data,
+                cutoff,
+                is_historical=case.cutoff_date is not None,
             )
             # Extract the PackageMetrics that was built internally
             # We need to reconstruct it from the collected data
@@ -72,7 +77,11 @@ def rescore(collected, maturity_bonus, lifetime_threshold):
 
         # Rebuild breakdown using services layer
         breakdown = calculate_score_for_date(
-            case.name, case.ecosystem, data, cutoff,
+            case.name,
+            case.ecosystem,
+            data,
+            cutoff,
+            is_historical=case.cutoff_date is not None,
         )
 
         score = breakdown.final_score

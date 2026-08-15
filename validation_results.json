@@ -1,7 +1,10 @@
 {
-  "timestamp": "2026-07-10T14:31:44.348846",
+  "timestamp": "2026-08-15T16:17:09.915634Z",
+  "run_started_at": "2026-08-15T15:49:38.364446Z",
+  "validation_cutoff_date": "2026-08-15",
+  "collector_version": 5,
   "methodology": {
-    "version": "6.4.1",
+    "version": "6.4.2",
     "frustration_weight": 15,
     "sentiment_in_score": false,
     "prediction_threshold": 60,
@@ -29,11 +32,14 @@
     ]
   },
   "dataset": {
+    "requested_cases": 184,
     "total_cases": 184,
     "controls": 120,
     "incidents": 64,
     "in_scope_incidents": 42,
-    "errors": 0
+    "errors": 0,
+    "provisional_results": 0,
+    "pinned_evidence_cases": 1
   },
   "scopes": {
     "threshold": 60,
@@ -50,15 +56,15 @@
     "unscoped": {
       "total_evaluated": 184,
       "confusion_matrix": {
-        "TP": 33,
+        "TP": 35,
         "FP": 2,
         "TN": 118,
-        "FN": 31
+        "FN": 29
       },
-      "accuracy": 0.8206521739130435,
-      "precision": 0.9428571428571428,
-      "recall": 0.515625,
-      "f1": 0.6666666666666666
+      "accuracy": 0.8315217391304348,
+      "precision": 0.9459459459459459,
+      "recall": 0.546875,
+      "f1": 0.6930693069306929
     },
     "scope_b": {
       "total_evaluated": 162,
@@ -80,13 +86,13 @@
         "in_scope": true
       },
       "T2": {
-        "detected": 2,
-        "missed": 4,
+        "detected": 4,
+        "missed": 2,
         "in_scope": true
       },
       "T4": {
-        "detected": 1,
-        "missed": 12,
+        "detected": 4,
+        "missed": 9,
         "in_scope": false
       },
       "T3": {
@@ -95,13 +101,13 @@
         "in_scope": true
       },
       "T_risk": {
-        "detected": 11,
-        "missed": 2,
+        "detected": 9,
+        "missed": 4,
         "in_scope": true
       },
       "T5": {
-        "detected": 1,
-        "missed": 8,
+        "detected": 0,
+        "missed": 9,
         "in_scope": false
       }
     }
@@ -120,6 +126,13 @@
       "tier": "T2",
       "score": 50,
       "notes": "EXPECTED FN: Active maintainer sabotage - governance metrics won't catch active projects."
+    },
+    {
+      "name": "moment",
+      "ecosystem": "npm",
+      "tier": "T_risk",
+      "score": 45,
+      "notes": "Governance risk: Officially deprecated/maintenance mode since 2020. Correctly flagged."
     },
     {
       "name": "devise",
@@ -143,20 +156,6 @@
       "notes": "Governance risk: sole maintainer (zloirock), 92% concentration. Was imprisoned Jan-Oct 2020 (7-month release gap). No malicious release occurred. Currently active (1174 commits/yr) so moderate score is defensible, but bus factor 1 with 26M weekly downloads remains a risk."
     },
     {
-      "name": "es5-ext",
-      "ecosystem": "npm",
-      "tier": "T2",
-      "score": 40,
-      "notes": "Protestware: maintainer (medikoo) added postinstall script showing anti-war message to Russian-locale users. Non-destructive but unilateral. Bus factor 1, 13M weekly downloads."
-    },
-    {
-      "name": "is-promise",
-      "ecosystem": "npm",
-      "tier": "T2",
-      "score": 35,
-      "notes": "Non-malicious: sole maintainer published broken ESM migration (missing ./ in exports). Broke create-react-app, firebase-tools, Angular CLI. Fixed in 3 hours. Bus factor 1, 766 direct dependents, 3.4M GitHub repos. Demonstrates governance fragility."
-    },
-    {
       "name": "telnyx",
       "ecosystem": "pypi",
       "tier": "T3",
@@ -164,18 +163,25 @@
       "notes": "NEAR-MISS FN at 55 (threshold 60). TeamPCP campaign \u2014 maintainer-account compromise, payload steganographically hidden in WAV file (matched the SDK's voice-AI use case). Versions 4.87.1/4.87.2. Governance weakness present (bus factor 1, 97% concentration, 78% attrition) but org backing (-15) softens score below threshold. Illustrates the boundary: vendor-backed solo projects sit at the edge of what concentration+activity scoring can flag."
     },
     {
+      "name": "fsnotify/fsnotify",
+      "ecosystem": "github",
+      "tier": "T_risk",
+      "score": 45,
+      "notes": "Maintainer dispute: contributors removed from GitHub org, unclear roles, rushed merges, funding disagreements. 10.7K stars, 321K dependent projects. No malware \u2014 pure governance signal. Kubernetes evaluating forks (kubernetes/kubernetes#138812)."
+    },
+    {
       "name": "monarch-initiative/pyphetools",
       "ecosystem": "github",
       "tier": "T3",
       "score": 50,
-      "notes": "EXPECTED FN: PyPI package 'pyphetools' (phenopacket tooling). High concentration (83%, 2 contributors) but scores 50 \u2014 the org-membership proxy credit (-15) for monarch-initiative pulls it below the threshold. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft."
+      "notes": "EXPECTED FN: PyPI package 'pyphetools' (phenopacket tooling). High concentration (83%, 2 contributors) but scores 50 \u2014 the repository-organization/admin proxy credit (-15) pulls it below the threshold. PyPI package removed post-incident; the source repo was later deleted, so the June 10 original-repo snapshot is pinned for reproducible T-1 scoring. Shared-maintainer PyPI token theft."
     },
     {
       "name": "P2GX/ppkt2synergy",
       "ecosystem": "github",
       "tier": "T3",
-      "score": 45,
-      "notes": "EXPECTED FN: PyPI package 'ppkt2synergy'. Lowest concentration in the cluster (47%, 3 contributors) \u2014 broadest contributor base scores 45, below threshold. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft."
+      "score": 25,
+      "notes": "EXPECTED FN: PyPI package 'ppkt2synergy'. Lowest concentration in the cluster (47%, 3 contributors) \u2014 broadest contributor base scores 25, below threshold. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft."
     },
     {
       "name": "monarch-initiative/phenopacket-store-toolkit",
@@ -187,16 +193,16 @@
   ],
   "false_positives": [
     {
-      "name": "rxjs",
+      "name": "jsonwebtoken",
       "ecosystem": "npm",
-      "score": 75,
-      "notes": "Google Angular team involvement, professional development"
+      "score": 65,
+      "notes": "Auth0, corporate backing, security-focused"
     },
     {
-      "name": "rayon",
-      "ecosystem": "cargo",
+      "name": "Newtonsoft.Json",
+      "ecosystem": "nuget",
       "score": 65,
-      "notes": "Data parallelism library. Multiple contributors, mature."
+      "notes": "JSON library for .NET. James Newton-King, extremely popular."
     }
   ],
   "by_attack_type": {
@@ -206,15 +212,15 @@
     },
     "maintainer_sabotage": {
       "total": 6,
-      "correct": 2
+      "correct": 4
     },
     "account_compromise": {
       "total": 36,
-      "correct": 12
+      "correct": 14
     },
     "governance_risk": {
       "total": 13,
-      "correct": 11
+      "correct": 9
     },
     "control": {
       "total": 120,
@@ -224,7 +230,7 @@
   "by_ecosystem": {
     "npm": {
       "total": 76,
-      "correct": 63
+      "correct": 67
     },
     "rubygems": {
       "total": 11,
@@ -232,7 +238,7 @@
     },
     "github": {
       "total": 24,
-      "correct": 13
+      "correct": 11
     },
     "pypi": {
       "total": 50,
@@ -240,7 +246,7 @@
     },
     "cargo": {
       "total": 8,
-      "correct": 7
+      "correct": 8
     },
     "packagist": {
       "total": 6,
@@ -248,7 +254,7 @@
     },
     "nuget": {
       "total": 4,
-      "correct": 4
+      "correct": 3
     },
     "go": {
       "total": 5,
@@ -266,19 +272,22 @@
         "incident_date": "2018-09-16",
         "cutoff_date": "2018-09-01",
         "notes": "Abandoned package, malicious maintainer gained access via social engineering",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 70,
-      "risk_level": "HIGH",
+      "score": 80,
+      "risk_level": "CRITICAL",
       "predicted_outcome": "risky",
       "correct": true,
       "classification": "TP",
       "maintainer": "dominictarr",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 74.45940518148329,
+      "reputation_tier": "",
+      "concentration": 74.45375837954946,
       "commits_last_year": 4,
-      "protective_factors_total": -10,
+      "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -291,7 +300,8 @@
         "incident_date": "2022-01-08",
         "cutoff_date": "2022-01-01",
         "notes": "Marak sabotaged as protest. Detected due to governance weakness.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -303,7 +313,9 @@
       "reputation_tier": "",
       "concentration": 100,
       "commits_last_year": 0,
-      "protective_factors_total": -10,
+      "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -316,19 +328,22 @@
         "incident_date": "2022-01-08",
         "cutoff_date": "2022-01-01",
         "notes": "EXPECTED FN: Community fork has good governance now - original incident not detectable.",
-        "repo_url": "https://github.com/faker-js/faker"
+        "repo_url": "https://github.com/faker-js/faker",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
-      "maintainer": "renovate[bot]",
+      "maintainer": "Marak",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 27.181567745793124,
+      "concentration": 27.137076326188804,
       "commits_last_year": 269,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -341,7 +356,8 @@
         "incident_date": "2022-03-15",
         "cutoff_date": "2022-03-01",
         "notes": "EXPECTED FN: Active maintainer sabotage - governance metrics won't catch active projects.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 50,
       "risk_level": "MODERATE",
@@ -351,9 +367,11 @@
       "maintainer": "RIAEvangelist",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 78.61298386404076,
+      "concentration": 78.59902972563393,
       "commits_last_year": 53,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -366,9 +384,10 @@
         "incident_date": "2021-10-22",
         "cutoff_date": "2021-10-01",
         "notes": "EXPECTED FN: Account compromise via email hijacking. Active project - governance metrics won't catch this.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 90,
+      "score": 100,
       "risk_level": "CRITICAL",
       "predicted_outcome": "risky",
       "correct": true,
@@ -376,9 +395,11 @@
       "maintainer": "faisalman",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 80.61599104743459,
-      "commits_last_year": 142,
-      "protective_factors_total": 10,
+      "concentration": 80.62010251712373,
+      "commits_last_year": 141,
+      "protective_factors_total": 20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -391,7 +412,8 @@
         "incident_date": "2021-11-04",
         "cutoff_date": "2021-11-01",
         "notes": "Account compromise, but scored HIGH due to underlying governance weakness.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -404,6 +426,8 @@
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -416,7 +440,8 @@
         "incident_date": "2021-11-04",
         "cutoff_date": "2021-11-01",
         "notes": "Account compromise, but scored HIGH due to underlying governance weakness.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -425,10 +450,12 @@
       "classification": "TP",
       "maintainer": "dominictarr",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
+      "reputation_tier": "",
       "concentration": 100,
       "commits_last_year": 0,
-      "protective_factors_total": -20,
+      "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -441,19 +468,22 @@
         "incident_date": "2018-07-12",
         "cutoff_date": "2018-07-01",
         "notes": "EXPECTED FN: Account compromise on org-owned project. Protective factors correctly reduce score.",
-        "repo_url": "https://github.com/eslint/eslint-scope"
+        "repo_url": "https://github.com/eslint/eslint-scope",
+        "evidence_fixture": null
       },
-      "score": 35,
-      "risk_level": "LOW",
-      "predicted_outcome": "safe",
-      "correct": false,
-      "classification": "FN",
+      "score": 65,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
       "maintainer": "Constellation",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
+      "reputation_tier": "",
       "concentration": 54.54545454545454,
       "commits_last_year": 11,
-      "protective_factors_total": -25,
+      "protective_factors_total": 5,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -466,7 +496,8 @@
         "incident_date": "2016-03-22",
         "cutoff_date": "2016-03-01",
         "notes": "Maintainer unpublished all packages in protest. Single maintainer, no governance.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 60,
       "risk_level": "HIGH",
@@ -479,6 +510,8 @@
       "concentration": 33.33333333333333,
       "commits_last_year": 3,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -491,7 +524,8 @@
         "incident_date": "2019-03-26",
         "cutoff_date": "2019-03-01",
         "notes": "RubyGems account compromised via weak password. Org-owned (twbs) - may have protective factors.",
-        "repo_url": "https://github.com/twbs/bootstrap-sass"
+        "repo_url": "https://github.com/twbs/bootstrap-sass",
+        "evidence_fixture": null
       },
       "score": 70,
       "risk_level": "HIGH",
@@ -501,9 +535,11 @@
       "maintainer": "glebm",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 95.43565965110368,
+      "concentration": 95.42228733839535,
       "commits_last_year": 23,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -516,19 +552,22 @@
         "incident_date": "2019-08-14",
         "cutoff_date": "2019-08-01",
         "notes": "Password reuse led to malicious code. Governance weakness present.",
-        "repo_url": "https://github.com/rest-client/rest-client"
+        "repo_url": "https://github.com/rest-client/rest-client",
+        "evidence_fixture": null
       },
-      "score": 95,
+      "score": 100,
       "risk_level": "CRITICAL",
       "predicted_outcome": "risky",
       "correct": true,
       "classification": "TP",
       "maintainer": "ab",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
+      "reputation_tier": "",
       "concentration": 100,
       "commits_last_year": 0,
-      "protective_factors_total": -25,
+      "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -541,7 +580,8 @@
         "incident_date": "2024-03-29",
         "cutoff_date": "2024-03-01",
         "notes": "Sole maintainer, attacker 'JiaT75' gained trust over 2 years. Classic governance failure.",
-        "repo_url": "https://github.com/tukaani-project/xz"
+        "repo_url": "https://github.com/tukaani-project/xz",
+        "evidence_fixture": null
       },
       "score": 80,
       "risk_level": "CRITICAL",
@@ -551,9 +591,11 @@
       "maintainer": "Larhzu",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 56.340034219102776,
-      "commits_last_year": 547,
+      "concentration": 56.52725259796,
+      "commits_last_year": 545,
       "protective_factors_total": 20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -566,7 +608,8 @@
         "incident_date": "2024-10-30",
         "cutoff_date": "2024-10-01",
         "notes": "EXPECTED FN: Account compromise on org-owned project (LottieFiles). Org protective factors.",
-        "repo_url": "https://github.com/LottieFiles/lottie-player"
+        "repo_url": "https://github.com/LottieFiles/lottie-player",
+        "evidence_fixture": null
       },
       "score": 45,
       "risk_level": "MODERATE",
@@ -576,9 +619,11 @@
       "maintainer": "karamalie",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 43.60573936922497,
+      "concentration": 43.478239252951276,
       "commits_last_year": 4,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -591,7 +636,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Maintainer archived repo. Single maintainer, no activity since 2021.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -604,6 +650,8 @@
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": 15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -616,7 +664,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Bus factor 1 but mitigated: ljharb (reputation + sponsors), 118M weekly downloads. Score ~35 is honest.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 35,
       "risk_level": "LOW",
@@ -624,11 +673,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "isaacs",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
       "concentration": 100.0,
       "commits_last_year": 1,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -641,19 +692,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Bus factor 1 but mitigated: 160M weekly downloads visibility. Score ~40 is honest.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 40,
-      "risk_level": "MODERATE",
+      "score": 25,
+      "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "renovate[bot]",
+      "maintainer": "ExplodingCabbage",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 61.061337282605066,
-      "commits_last_year": 10,
+      "concentration": 59.21764175229218,
+      "commits_last_year": 14,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -666,7 +720,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Mature utility, minimal activity pattern.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 75,
       "risk_level": "HIGH",
@@ -674,11 +729,13 @@
       "correct": true,
       "classification": "TP",
       "maintainer": "jonschlinkert",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -691,7 +748,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Trivial package, high concentration.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 75,
       "risk_level": "HIGH",
@@ -699,11 +757,13 @@
       "correct": true,
       "classification": "TP",
       "maintainer": "jonschlinkert",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -716,7 +776,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Old utility, minimal maintenance.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 90,
       "risk_level": "CRITICAL",
@@ -724,11 +785,13 @@
       "correct": true,
       "classification": "TP",
       "maintainer": "justmoon",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": -30,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -741,7 +804,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Bus factor 1 but mitigated: ljharb (reputation + sponsors), very active (158 cly), 115M weekly dl. Score ~25 is honest.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 15,
       "risk_level": "VERY_LOW",
@@ -749,11 +813,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "ljharb",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 95.94762707949303,
-      "commits_last_year": 172,
+      "concentration": 95.74833123090905,
+      "commits_last_year": 188,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -766,19 +832,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "High concentration but Sindre Sorhus has massive reputation and sponsors",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 0,
+      "score": 5,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "sindresorhus",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 65.6302833969169,
-      "commits_last_year": 6,
+      "concentration": 79.12282733731047,
+      "commits_last_year": 12,
       "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -791,7 +860,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Very popular, historically high concentration but visible and maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 35,
       "risk_level": "LOW",
@@ -799,11 +869,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "jdalton",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 54.285714285714285,
-      "commits_last_year": 35,
+      "concentration": 45.23809523809524,
+      "commits_last_year": 42,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -816,19 +888,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "OpenJS Foundation, multiple maintainers, very active",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 42.59869558864432,
-      "commits_last_year": 76,
-      "protective_factors_total": -55,
+      "maintainer": "tj",
+      "reputation_score": -25,
+      "reputation_tier": "TIER_1",
+      "concentration": 41.90031903061056,
+      "commits_last_year": 81,
+      "protective_factors_total": -85,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -841,7 +916,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Popular HTTP client, active development, multiple contributors",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -849,11 +925,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "mzabriskie",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 32.00613156633782,
-      "commits_last_year": 388,
+      "concentration": 29.950049732287976,
+      "commits_last_year": 469,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -866,19 +944,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Popular CLI framework, tj/commander.js, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 51.760151477938635,
-      "commits_last_year": 69,
-      "protective_factors_total": -30,
+      "maintainer": "tj",
+      "reputation_score": -25,
+      "reputation_tier": "TIER_1",
+      "concentration": 50.27592302203864,
+      "commits_last_year": 61,
+      "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -891,7 +972,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Extremely popular debugging utility, part of many package trees",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 20,
       "risk_level": "LOW",
@@ -901,9 +983,11 @@
       "maintainer": "mahmoodhamdi",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 34.12977434202131,
+      "concentration": 36.865978598537055,
       "commits_last_year": 3,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -916,19 +1000,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Popular async utilities, caolan/async, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 55,
+      "score": 50,
       "risk_level": "MODERATE",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "hashim1999164",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 100.0,
-      "commits_last_year": 13,
+      "concentration": 79.07469244459178,
+      "commits_last_year": 10,
       "protective_factors_total": -30,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -941,7 +1028,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Bus factor 1 but mitigated: Tier-1 reputation (-25), sponsors, 104M weekly dl. Score 0 reflects strong protective factors.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -949,11 +1037,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "ljharb",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
       "concentration": 100.0,
       "commits_last_year": 1,
       "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -966,7 +1056,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Transitioned from Kenneth Reitz to PSF, successful community handoff",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -974,11 +1065,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "kennethreitz",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 55.00654063049929,
-      "commits_last_year": 112,
+      "concentration": 50.551169264016394,
+      "commits_last_year": 118,
       "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -991,7 +1084,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Org-owned, multiple maintainers, good governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -999,11 +1093,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "shazow",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 37.18030010678064,
-      "commits_last_year": 119,
+      "concentration": 35.2476767983858,
+      "commits_last_year": 132,
       "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1016,7 +1112,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Django Software Foundation, many contributors, professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1024,11 +1121,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "timgraham",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 21.1055055227266,
-      "commits_last_year": 938,
+      "concentration": 23.970025510855137,
+      "commits_last_year": 1060,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1041,19 +1140,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Pallets project, multiple maintainers, professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 35,
+      "score": 25,
       "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "davidism",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 92.32155329068448,
-      "commits_last_year": 97,
-      "protective_factors_total": -35,
+      "concentration": 90.83940637390448,
+      "commits_last_year": 111,
+      "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1066,7 +1168,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Very active, multiple maintainers, well governed",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1074,11 +1177,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "nicoddemus",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 44.12127504650191,
-      "commits_last_year": 709,
-      "protective_factors_total": -70,
+      "concentration": 38.70263581743309,
+      "commits_last_year": 878,
+      "protective_factors_total": -80,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1091,19 +1196,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "NumFOCUS sponsored, many contributors, foundational scientific Python",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 0,
+      "score": 15,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "charris",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 29.183141388323065,
-      "commits_last_year": 2115,
-      "protective_factors_total": -65,
+      "concentration": 31.220008786288368,
+      "commits_last_year": 2448,
+      "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1116,7 +1224,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Pallets project, same governance as Flask",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 15,
       "risk_level": "VERY_LOW",
@@ -1124,11 +1233,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "rowlando13",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 33.5096022051757,
-      "commits_last_year": 501,
+      "concentration": 35.382478654492,
+      "commits_last_year": 515,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1141,19 +1252,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Very active, funded development, growing community",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 25,
-      "risk_level": "LOW",
+      "score": 15,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "viicos",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 40.47132933639429,
-      "commits_last_year": 526,
-      "protective_factors_total": -35,
+      "concentration": 39.85509297093593,
+      "commits_last_year": 604,
+      "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1166,7 +1280,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Meta/Facebook, massive org backing, professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1174,11 +1289,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "sebmarkbage",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 22.81380037564645,
-      "commits_last_year": 909,
+      "concentration": 21.184567939798036,
+      "commits_last_year": 902,
       "protective_factors_total": -40,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1191,7 +1308,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "OpenJS Foundation, multiple maintainers, professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 10,
       "risk_level": "VERY_LOW",
@@ -1199,11 +1317,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "alexander-akait",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 39.34014484419884,
-      "commits_last_year": 930,
+      "concentration": 47.632060512517526,
+      "commits_last_year": 1269,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1216,7 +1336,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Microsoft, corporate backing, professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1224,11 +1345,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "jakebailey",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 24.00638992904332,
-      "commits_last_year": 205,
-      "protective_factors_total": -65,
+      "concentration": 25.208796793342437,
+      "commits_last_year": 195,
+      "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1241,19 +1364,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Officially deprecated/maintenance mode since 2020. Correctly flagged.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 85,
-      "risk_level": "CRITICAL",
-      "predicted_outcome": "risky",
-      "correct": true,
-      "classification": "TP",
+      "score": 45,
+      "risk_level": "MODERATE",
+      "predicted_outcome": "safe",
+      "correct": false,
+      "classification": "FN",
       "maintainer": "ichernev",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 100,
-      "commits_last_year": 0,
-      "protective_factors_total": -35,
+      "concentration": 43.333333333333336,
+      "commits_last_year": 30,
+      "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1266,19 +1392,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Popular CLI tool, multiple contributors, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 25,
+      "score": 20,
       "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "bcoe",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 38.434082629396826,
-      "commits_last_year": 2,
-      "protective_factors_total": -35,
+      "concentration": 51.4682692841025,
+      "commits_last_year": 17,
+      "protective_factors_total": -40,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1291,7 +1420,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Fundamental utility, multiple contributors",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 35,
       "risk_level": "LOW",
@@ -1299,11 +1429,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "isaacs",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 98.52525802034535,
-      "commits_last_year": 51,
+      "concentration": 99.08678327031949,
+      "commits_last_year": 52,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1316,19 +1448,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "npm official package, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 28.64492276327038,
-      "commits_last_year": 30,
-      "protective_factors_total": -55,
+      "maintainer": "isaacs",
+      "reputation_score": -25,
+      "reputation_tier": "TIER_1",
+      "concentration": 23.871856813095636,
+      "commits_last_year": 34,
+      "protective_factors_total": -85,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1341,19 +1476,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Very popular, multiple maintainers",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 5,
+      "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "ctavan",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 79.09658800743618,
-      "commits_last_year": 29,
+      "concentration": 63.08342612948831,
+      "commits_last_year": 32,
       "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1366,7 +1504,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Bus factor 1 but mitigated: reputation + sponsors, 115M weekly dl. Score ~40 is honest.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 40,
       "risk_level": "MODERATE",
@@ -1374,11 +1513,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "isaacs",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
       "concentration": 100.0,
       "commits_last_year": 29,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1391,7 +1532,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Mature utility, minimal recent activity, high concentration.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 75,
       "risk_level": "HIGH",
@@ -1399,11 +1541,13 @@
       "correct": true,
       "classification": "TP",
       "maintainer": "isaacs",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1416,7 +1560,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Very popular, simple focused utility",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 40,
       "risk_level": "MODERATE",
@@ -1426,9 +1571,11 @@
       "maintainer": "motdotla",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 89.55451504387261,
-      "commits_last_year": 159,
+      "concentration": 89.24487648901773,
+      "commits_last_year": 202,
       "protective_factors_total": -10,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1441,19 +1588,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Popular CLI interaction library",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 20,
-      "risk_level": "LOW",
+      "score": 5,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
+      "maintainer": "SBoudrias",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 49.329186908056585,
-      "commits_last_year": 360,
-      "protective_factors_total": -10,
+      "concentration": 54.99683585437243,
+      "commits_last_year": 394,
+      "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1466,7 +1616,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Sindre Sorhus project, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 5,
       "risk_level": "VERY_LOW",
@@ -1474,11 +1625,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "sindresorhus",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 89.980284503484,
-      "commits_last_year": 20,
+      "concentration": 82.02273815114023,
+      "commits_last_year": 24,
       "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1491,19 +1644,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Sindre Sorhus project, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 0,
+      "score": 5,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "sindresorhus",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 42.62556390610835,
-      "commits_last_year": 13,
+      "concentration": 80.29958516614587,
+      "commits_last_year": 33,
       "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1516,19 +1672,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Sindre Sorhus project, modern HTTP client",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 20,
-      "risk_level": "LOW",
+      "score": 45,
+      "risk_level": "MODERATE",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "sindresorhus",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 99.50044239975242,
-      "commits_last_year": 121,
-      "protective_factors_total": -50,
+      "concentration": 98.15557277120786,
+      "commits_last_year": 131,
+      "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1541,7 +1700,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Amazon official SDK, corporate backing",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1549,11 +1709,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "aws-sdk-python-automation",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 87.16427197797134,
-      "commits_last_year": 761,
+      "concentration": 87.16285640919571,
+      "commits_last_year": 838,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1566,19 +1728,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Mozilla CA bundle, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 20,
       "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "Lukasa",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 70.74663040494595,
-      "commits_last_year": 38,
+      "concentration": 71.46846481005888,
+      "commits_last_year": 43,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1591,19 +1756,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "PyCA project, multiple maintainers, security-critical with professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "alex",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 37.46971911448349,
-      "commits_last_year": 1581,
+      "concentration": 35.94208872457935,
+      "commits_last_year": 1855,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1616,7 +1784,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "PIL fork, active community, multiple maintainers",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1624,11 +1793,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "radarhere",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 50.94680672093046,
-      "commits_last_year": 924,
+      "concentration": 50.39916883399914,
+      "commits_last_year": 1100,
       "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1641,7 +1812,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Mike Bayer, mature project, professional development, foundational ORM",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1649,11 +1821,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "zzzeek",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 67.39397275506114,
-      "commits_last_year": 533,
+      "concentration": 66.49652734499286,
+      "commits_last_year": 602,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1666,7 +1840,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Pallets project, same governance as Flask",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 45,
       "risk_level": "MODERATE",
@@ -1674,11 +1849,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "mitsuhiko",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": -75,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1691,19 +1868,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "aio-libs org, multiple maintainers, active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "asvetlov",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 49.68018463857139,
-      "commits_last_year": 1299,
-      "protective_factors_total": -55,
+      "concentration": 49.72814555792572,
+      "commits_last_year": 1544,
+      "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1716,19 +1896,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "encode project, Tom Christie, professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 5,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "lovelydinosaur",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 13.959063517817599,
-      "commits_last_year": 14,
+      "concentration": 14.30375056526913,
+      "commits_last_year": 13,
       "protective_factors_total": -40,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1741,19 +1924,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Sebasti\u00e1n Ram\u00edrez, very active, sponsored development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "github-actions[bot]",
-      "reputation_score": 0,
+      "maintainer": "tiangolo",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 44.38218749513292,
-      "commits_last_year": 1382,
-      "protective_factors_total": -55,
+      "concentration": 44.911166159127546,
+      "commits_last_year": 1707,
+      "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1766,7 +1952,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Will McGugan, Textualize, active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 5,
       "risk_level": "VERY_LOW",
@@ -1774,11 +1961,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "willmcgugan",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 88.34124451969065,
-      "commits_last_year": 179,
+      "concentration": 88.97444186835492,
+      "commits_last_year": 174,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1791,7 +1980,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "PSF project, professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1801,9 +1991,11 @@
       "maintainer": "cobaltt7",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 20.033856130166132,
-      "commits_last_year": 237,
+      "concentration": 20.2876449805876,
+      "commits_last_year": 292,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1816,7 +2008,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Dropbox origin, now PSF, professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1826,9 +2019,11 @@
       "maintainer": "JukkaL",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 23.063084472247432,
-      "commits_last_year": 980,
-      "protective_factors_total": -45,
+      "concentration": 22.173104071826508,
+      "commits_last_year": 964,
+      "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1841,7 +2036,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Active project, multiple maintainers, modern tooling",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 45,
       "risk_level": "MODERATE",
@@ -1851,9 +2047,11 @@
       "maintainer": "radoering",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 48.22082623088762,
-      "commits_last_year": 209,
+      "concentration": 45.12345451701677,
+      "commits_last_year": 224,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1866,19 +2064,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Sebasti\u00e1n Ram\u00edrez (FastAPI author), active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "github-actions[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "",
-      "concentration": 46.49758488065668,
-      "commits_last_year": 656,
-      "protective_factors_total": -45,
+      "maintainer": "tiangolo",
+      "reputation_score": -10,
+      "reputation_tier": "TIER_2",
+      "concentration": 46.03748657647069,
+      "commits_last_year": 747,
+      "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1891,19 +2092,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Evan You, massive community, professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "renovate[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 30.145738819279522,
-      "commits_last_year": 364,
-      "protective_factors_total": -55,
+      "maintainer": "yyx990803",
+      "reputation_score": -25,
+      "reputation_tier": "TIER_1",
+      "concentration": 30.369151785012626,
+      "commits_last_year": 440,
+      "protective_factors_total": -85,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1916,7 +2120,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Vercel, corporate backing, professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1924,11 +2129,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "ijjk",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 12.001795973426026,
-      "commits_last_year": 4550,
-      "protective_factors_total": -55,
+      "concentration": 9.867714016336562,
+      "commits_last_year": 4964,
+      "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1941,7 +2148,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "OpenJS Foundation, multiple maintainers, professional governance",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1949,11 +2157,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "nzakas",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 13.108715855388686,
-      "commits_last_year": 543,
+      "concentration": 11.800926825579047,
+      "commits_last_year": 656,
       "protective_factors_total": -95,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1966,7 +2176,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Active development, multiple maintainers",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1974,11 +2185,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "fisker",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 49.3379707309912,
-      "commits_last_year": 1122,
+      "concentration": 48.95531307235467,
+      "commits_last_year": 1461,
       "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -1991,7 +2204,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Meta/Facebook, corporate backing",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -1999,11 +2213,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "SimenB",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 29.100240840272495,
-      "commits_last_year": 214,
+      "concentration": 34.88913073956833,
+      "commits_last_year": 264,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2016,19 +2232,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "OpenJS Foundation, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "renovate[bot]",
-      "reputation_score": 0,
+      "maintainer": "mark-wiemer",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 22.42229914937451,
-      "commits_last_year": 281,
+      "concentration": 25.46504853199621,
+      "commits_last_year": 354,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2041,7 +2260,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Evan Wallace, active development, growing adoption",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 40,
       "risk_level": "MODERATE",
@@ -2049,11 +2269,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "evanw",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 91.86690911590128,
-      "commits_last_year": 145,
+      "concentration": 92.17763982305888,
+      "commits_last_year": 163,
       "protective_factors_total": -30,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2066,19 +2288,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Part of Vite ecosystem, active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "renovate[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "",
-      "concentration": 48.85061635170157,
-      "commits_last_year": 318,
-      "protective_factors_total": -45,
+      "maintainer": "lukastaegert",
+      "reputation_score": -10,
+      "reputation_tier": "TIER_2",
+      "concentration": 53.538037111375324,
+      "commits_last_year": 348,
+      "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2091,7 +2316,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Evan You (Vue author), very active, professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2099,11 +2325,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "yyx990803",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 30.41450502721881,
-      "commits_last_year": 1142,
+      "concentration": 30.322349675248834,
+      "commits_last_year": 1225,
       "protective_factors_total": -95,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2116,7 +2344,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Active project, multiple contributors",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 30,
       "risk_level": "LOW",
@@ -2124,11 +2353,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "rauchg",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 83.46192063970682,
-      "commits_last_year": 105,
+      "concentration": 85.45557785355274,
+      "commits_last_year": 123,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2141,7 +2372,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Automattic (WordPress.com), corporate backing",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2149,11 +2381,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "vkarpov15",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 69.93133493584978,
-      "commits_last_year": 1825,
+      "concentration": 64.86641102272776,
+      "commits_last_year": 1982,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2166,19 +2400,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Part of Express ecosystem, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 45,
-      "risk_level": "MODERATE",
+      "score": 35,
+      "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "",
-      "concentration": 43.790351096465216,
-      "commits_last_year": 69,
-      "protective_factors_total": -15,
+      "maintainer": "dougwilson",
+      "reputation_score": -10,
+      "reputation_tier": "TIER_2",
+      "concentration": 40.986602175233074,
+      "commits_last_year": 79,
+      "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2191,19 +2428,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Simple focused utility, part of Express ecosystem",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
-      "reputation_tier": "",
-      "concentration": 36.37548813751549,
-      "commits_last_year": 13,
-      "protective_factors_total": -45,
+      "maintainer": "dougwilson",
+      "reputation_score": -10,
+      "reputation_tier": "TIER_2",
+      "concentration": 32.53358314398261,
+      "commits_last_year": 12,
+      "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2216,19 +2456,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Auth0, corporate backing, security-focused",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 55,
-      "risk_level": "MODERATE",
-      "predicted_outcome": "safe",
-      "correct": true,
-      "classification": "TN",
+      "score": 65,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": false,
+      "classification": "FP",
       "maintainer": "jfromaniello",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 75.0,
-      "commits_last_year": 4,
-      "protective_factors_total": -25,
+      "concentration": 80.0,
+      "commits_last_year": 5,
+      "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2241,7 +2484,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Security-critical package with single maintainer, low recent activity. 65 HIGH is a valid concern.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 60,
       "risk_level": "HIGH",
@@ -2251,9 +2495,11 @@
       "maintainer": "ncb000gt",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 57.0130263215879,
+      "concentration": 61.2837293137214,
       "commits_last_year": 7,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2266,19 +2512,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Andrey Sitnik, active maintainer, modern alternative to uuid",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "postcss",
-      "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 44.105465793586575,
-      "commits_last_year": 75,
-      "protective_factors_total": -30,
+      "maintainer": "ai",
+      "reputation_score": -25,
+      "reputation_tier": "TIER_1",
+      "concentration": 54.708001982628595,
+      "commits_last_year": 129,
+      "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2291,19 +2540,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Modern alternative to moment, active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 20,
-      "risk_level": "LOW",
+      "score": 10,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "kossnocorp",
-      "reputation_score": 0,
-      "reputation_tier": "",
-      "concentration": 95.4379095846109,
-      "commits_last_year": 191,
-      "protective_factors_total": -50,
+      "reputation_score": -10,
+      "reputation_tier": "TIER_2",
+      "concentration": 93.96078129999044,
+      "commits_last_year": 74,
+      "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2316,7 +2568,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Colin McDonnell, very active, growing adoption",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2324,11 +2577,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "colinhacks",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 56.79831541643436,
-      "commits_last_year": 437,
+      "concentration": 45.85013515729465,
+      "commits_last_year": 420,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2341,7 +2596,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "NumFOCUS sponsored, many contributors, institutional backing",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2349,11 +2605,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "jbrockmendel",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 31.792202088692882,
-      "commits_last_year": 1853,
-      "protective_factors_total": -40,
+      "concentration": 40.17033055904704,
+      "commits_last_year": 2296,
+      "protective_factors_total": -30,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2366,7 +2624,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "NumFOCUS sponsored, many contributors",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2374,11 +2633,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "rgommers",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 10.403321959989348,
-      "commits_last_year": 2019,
+      "concentration": 9.936703180601635,
+      "commits_last_year": 2315,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2391,7 +2652,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "NumFOCUS sponsored, institutional backing",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2399,11 +2661,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "tacaswell",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 22.061599311522397,
-      "commits_last_year": 1681,
+      "concentration": 24.271729525425332,
+      "commits_last_year": 1914,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2416,7 +2680,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "NumFOCUS sponsored, many contributors",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2426,9 +2691,11 @@
       "maintainer": "ogrisel",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 14.822349424826179,
-      "commits_last_year": 1109,
+      "concentration": 14.770759479662948,
+      "commits_last_year": 1195,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2441,19 +2708,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "encode project, Tom Christie, active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 0,
-      "risk_level": "VERY_LOW",
+      "score": 20,
+      "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "Kludex",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 69.97284970551249,
-      "commits_last_year": 132,
-      "protective_factors_total": -45,
+      "concentration": 71.35004714108493,
+      "commits_last_year": 166,
+      "protective_factors_total": -30,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2466,7 +2736,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Mature project, multiple maintainers",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 35,
       "risk_level": "LOW",
@@ -2474,11 +2745,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "benoitc",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 92.23593612251396,
-      "commits_last_year": 424,
+      "concentration": 92.4332690143221,
+      "commits_last_year": 428,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2491,19 +2764,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Mature project, active community",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "ask",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 15.18409826794323,
-      "commits_last_year": 244,
+      "concentration": 16.09260969761149,
+      "commits_last_year": 279,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2516,7 +2792,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Redis official client, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 25,
       "risk_level": "LOW",
@@ -2524,11 +2801,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "andymccurdy",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 44.58737869304355,
-      "commits_last_year": 212,
+      "concentration": 42.50614859737818,
+      "commits_last_year": 253,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2541,7 +2820,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Mature database adapter, active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2549,11 +2829,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "dvarrazzo",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 60.46511627906976,
+      "concentration": 59.851106281526775,
       "commits_last_year": 43,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2566,19 +2848,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "SQLAlchemy author (Mike Bayer), professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 50,
-      "risk_level": "MODERATE",
+      "score": 15,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "zzzeek",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 76.73999951795692,
-      "commits_last_year": 107,
-      "protective_factors_total": 0,
+      "concentration": 77.09306780421039,
+      "commits_last_year": 125,
+      "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2591,7 +2876,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Pallets project, same governance as Flask",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2599,11 +2885,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "mitsuhiko",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 92.32771560176751,
-      "commits_last_year": 172,
+      "concentration": 93.78599664102568,
+      "commits_last_year": 203,
       "protective_factors_total": -75,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2616,7 +2904,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "encode project, foundation for FastAPI",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2624,11 +2913,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "Kludex",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 59.79281040217441,
-      "commits_last_year": 154,
+      "concentration": 59.176419648166245,
+      "commits_last_year": 198,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2641,7 +2932,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Hynek Schlawack, well maintained, Python core contributor",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2649,11 +2941,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "hynek",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 79.17693866873947,
-      "commits_last_year": 125,
+      "concentration": 82.04190949376502,
+      "commits_last_year": 150,
       "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2666,9 +2960,10 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Active project, multiple contributors",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 5,
+      "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
@@ -2676,9 +2971,11 @@
       "maintainer": "casperdcl",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 82.89975508160816,
-      "commits_last_year": 35,
-      "protective_factors_total": -60,
+      "concentration": 63.829787234042556,
+      "commits_last_year": 94,
+      "protective_factors_total": -70,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2691,7 +2988,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Poetry author (S\u00e9bastien Eustace), active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 10,
       "risk_level": "VERY_LOW",
@@ -2701,9 +2999,11 @@
       "maintainer": "sdispater",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 26.840856429962027,
-      "commits_last_year": 20,
+      "concentration": 28.45712314793833,
+      "commits_last_year": 21,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2716,19 +3016,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Google Angular team involvement, professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 75,
-      "risk_level": "HIGH",
-      "predicted_outcome": "risky",
-      "correct": false,
-      "classification": "FP",
+      "score": 25,
+      "risk_level": "LOW",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
       "maintainer": "benlesh",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 100,
-      "commits_last_year": 0,
+      "concentration": 100.0,
+      "commits_last_year": 511,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2741,7 +3044,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Rich Harris (Vercel), very active, growing adoption",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2749,11 +3053,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "Rich-Harris",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 32.00334080335442,
-      "commits_last_year": 871,
+      "concentration": 30.32939100927844,
+      "commits_last_year": 788,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2766,7 +3072,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Ryan Carniato, active development, modern framework",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 15,
       "risk_level": "VERY_LOW",
@@ -2776,9 +3083,11 @@
       "maintainer": "ryansolid",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 66.41792206399897,
-      "commits_last_year": 72,
+      "concentration": 68.23772051481008,
+      "commits_last_year": 75,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2791,7 +3100,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Bus factor 1 but mitigated: typicode (reputation + sponsors), 20M weekly dl. Score ~45 is honest.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 45,
       "risk_level": "MODERATE",
@@ -2799,11 +3109,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "typicode",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 85.71428571428571,
+      "concentration": 86.57307269037486,
       "commits_last_year": 7,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2816,7 +3128,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Popular developer tool, active community",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 40,
       "risk_level": "MODERATE",
@@ -2826,9 +3139,11 @@
       "maintainer": "iiroj",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 83.11921877311096,
-      "commits_last_year": 264,
+      "concentration": 85.92961085005136,
+      "commits_last_year": 317,
       "protective_factors_total": -10,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2841,19 +3156,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Charlie Marsh (Astral), very active, fast-growing",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "renovate[bot]",
+      "maintainer": "charliermarsh",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 14.197720399963378,
-      "commits_last_year": 4165,
+      "concentration": 15.715506216533182,
+      "commits_last_year": 4926,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2866,7 +3184,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Ritchie Vink, very active, modern alternative to pandas",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2874,11 +3193,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "ritchie46",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 16.244607811830964,
-      "commits_last_year": 2028,
+      "concentration": 16.035932488606576,
+      "commits_last_year": 2128,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2891,7 +3212,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Delgan, popular logging library, active development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 20,
       "risk_level": "LOW",
@@ -2901,9 +3223,11 @@
       "maintainer": "Delgan",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 51.18141576573966,
-      "commits_last_year": 85,
+      "concentration": 50.850967088197066,
+      "commits_last_year": 61,
       "protective_factors_total": -10,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2916,9 +3240,10 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Julien Danjou, focused utility, well maintained",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 15,
+      "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
@@ -2926,9 +3251,11 @@
       "maintainer": "jd",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 73.81136283577588,
-      "commits_last_year": 62,
+      "concentration": 67.65679305107678,
+      "commits_last_year": 89,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2941,7 +3268,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Hynek Schlawack (attrs author), professional development",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 5,
       "risk_level": "VERY_LOW",
@@ -2949,11 +3277,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "hynek",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 82.98722468896126,
-      "commits_last_year": 167,
+      "concentration": 81.23332763666251,
+      "commits_last_year": 172,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2966,9 +3296,10 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Single maintainer (ijl), 100% concentration, bus factor of 1 despite popularity.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 75,
+      "score": 65,
       "risk_level": "HIGH",
       "predicted_outcome": "risky",
       "correct": true,
@@ -2977,8 +3308,10 @@
       "reputation_score": 0,
       "reputation_tier": "",
       "concentration": 100.0,
-      "commits_last_year": 49,
-      "protective_factors_total": -10,
+      "commits_last_year": 40,
+      "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -2991,7 +3324,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Fundamental Rust serialization. David Tolnay, very active, foundational crate.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -2999,11 +3333,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "dtolnay",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 79.03080170928604,
-      "commits_last_year": 143,
+      "concentration": 82.21334619849827,
+      "commits_last_year": 149,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3016,7 +3352,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Async runtime for Rust. Multiple maintainers, active development.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3024,11 +3361,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "carllerche",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 19.457395952021507,
-      "commits_last_year": 381,
+      "concentration": 18.002615789684427,
+      "commits_last_year": 431,
       "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3041,7 +3380,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "CLI argument parser for Rust. Active, multiple contributors.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3049,11 +3389,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "epage",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 75.7504528299773,
-      "commits_last_year": 354,
+      "concentration": 73.27024312756956,
+      "commits_last_year": 404,
       "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3066,7 +3408,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "HTTP client for Rust. seanmonstar, active development.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3074,11 +3417,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "seanmonstar",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 44.808095269364586,
-      "commits_last_year": 101,
-      "protective_factors_total": -35,
+      "concentration": 39.45418218150116,
+      "commits_last_year": 99,
+      "protective_factors_total": -55,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3091,7 +3436,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Random number generation. Rust Crypto org, multiple contributors.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3099,11 +3445,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "dhardy",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 75.94167254465768,
-      "commits_last_year": 203,
+      "concentration": 73.0489633985291,
+      "commits_last_year": 212,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3116,7 +3464,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "JSON support for serde. David Tolnay, very active.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3124,11 +3473,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "dtolnay",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 88.18274948766039,
+      "concentration": 86.03621468886752,
       "commits_last_year": 59,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3141,7 +3492,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Error handling. David Tolnay, widely used.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 20,
       "risk_level": "LOW",
@@ -3149,11 +3501,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "dtolnay",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 93.0163758340618,
-      "commits_last_year": 58,
+      "concentration": 93.69766479393853,
+      "commits_last_year": 65,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3166,19 +3520,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Data parallelism library. Multiple contributors, mature.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 65,
-      "risk_level": "HIGH",
-      "predicted_outcome": "risky",
-      "correct": false,
-      "classification": "FP",
+      "score": 55,
+      "risk_level": "MODERATE",
+      "predicted_outcome": "safe",
+      "correct": true,
+      "classification": "TN",
       "maintainer": "cuviper",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 87.59513852874689,
-      "commits_last_year": 91,
-      "protective_factors_total": 15,
+      "concentration": 85.81024382386468,
+      "commits_last_year": 50,
+      "protective_factors_total": -10,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3191,7 +3548,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Ruby on Rails. Large org (rails), professional governance, many contributors.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3199,11 +3557,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "rafaelfranca",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 19.699114194612296,
-      "commits_last_year": 2673,
+      "concentration": 16.4336327302064,
+      "commits_last_year": 3558,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3216,7 +3576,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Critical Rails auth library, original creator (Jos\u00e9 Valim) moved on. Single active maintainer (Carlos da Silva) at 81% concentration, 42 commits/yr.",
-        "repo_url": "https://github.com/heartcombo/devise"
+        "repo_url": "https://github.com/heartcombo/devise",
+        "evidence_fixture": null
       },
       "score": 40,
       "risk_level": "MODERATE",
@@ -3224,11 +3585,13 @@
       "correct": false,
       "classification": "FN",
       "maintainer": "josevalim",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 83.96725468540367,
-      "commits_last_year": 56,
+      "concentration": 82.46144166668894,
+      "commits_last_year": 57,
       "protective_factors_total": -10,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3241,7 +3604,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Background job processing. Mike Perham, active, commercially backed.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 10,
       "risk_level": "VERY_LOW",
@@ -3249,11 +3613,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "mperham",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 66.736543044827,
-      "commits_last_year": 286,
+      "concentration": 65.00934247699774,
+      "commits_last_year": 274,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3266,7 +3632,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "HTML/XML parser. sparklemotion org, multiple maintainers.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3274,11 +3641,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "flavorjones",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 73.39640023163693,
-      "commits_last_year": 99,
+      "concentration": 74.34957408570826,
+      "commits_last_year": 126,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3291,7 +3660,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Ruby web server. Multiple maintainers, active development.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3299,11 +3669,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "msp-greg",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 24.45772604720429,
-      "commits_last_year": 201,
-      "protective_factors_total": -35,
+      "concentration": 24.09455528916282,
+      "commits_last_year": 196,
+      "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3316,7 +3688,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Ruby linter. rubocop org, very active, many contributors.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3324,11 +3697,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "koic",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 50.18114146974115,
-      "commits_last_year": 969,
+      "concentration": 47.525205307563695,
+      "commits_last_year": 1313,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3341,7 +3716,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Testing framework. rspec org, mature, many contributors.",
-        "repo_url": "https://github.com/rspec/rspec"
+        "repo_url": "https://github.com/rspec/rspec",
+        "evidence_fixture": null
       },
       "score": 25,
       "risk_level": "LOW",
@@ -3349,11 +3725,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "myronmarston",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 79.17174817259696,
-      "commits_last_year": 175,
+      "concentration": 77.97266631905947,
+      "commits_last_year": 180,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3366,7 +3744,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Build tool for Ruby. Ruby core, very mature.",
-        "repo_url": "https://github.com/ruby/rake"
+        "repo_url": "https://github.com/ruby/rake",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3374,11 +3753,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "hsbt",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 34.497646364862526,
-      "commits_last_year": 161,
+      "concentration": 36.49888805043914,
+      "commits_last_year": 186,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3391,7 +3772,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Laravel framework. Taylor Otwell, massive community, corporate backing.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3399,11 +3781,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "taylorotwell",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 15.514581149876506,
-      "commits_last_year": 1435,
+      "concentration": 14.091901061110107,
+      "commits_last_year": 2324,
       "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3416,7 +3800,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Symfony framework. SensioLabs, professional governance.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3424,11 +3809,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "fabpot",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 54.00015029266538,
-      "commits_last_year": 5391,
+      "concentration": 54.213195692176605,
+      "commits_last_year": 6217,
       "protective_factors_total": -50,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3441,19 +3828,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "HTTP client. Michael Dowling, very popular, active.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 45,
-      "risk_level": "MODERATE",
+      "score": 10,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "grahamcampbell",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 90.49407992954889,
-      "commits_last_year": 41,
+      "concentration": 71.6098844355119,
+      "commits_last_year": 754,
       "protective_factors_total": -40,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3466,19 +3856,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Testing framework. Sebastian Bergmann, foundational PHP tool.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 45,
-      "risk_level": "MODERATE",
+      "score": 25,
+      "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "sebastianbergmann",
-      "reputation_score": 0,
+      "reputation_score": -25,
       "reputation_tier": "TIER_1",
-      "concentration": 90.63611957305446,
-      "commits_last_year": 2540,
+      "concentration": 87.76277950482192,
+      "commits_last_year": 2604,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3491,19 +3884,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Logging library. Jordi Boggiano (Composer creator), well maintained.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 10,
+      "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
       "maintainer": "Seldaek",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 33.33333333333333,
-      "commits_last_year": 48,
-      "protective_factors_total": -35,
+      "concentration": 30.76923076923077,
+      "commits_last_year": 52,
+      "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3516,19 +3912,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "JSON library for .NET. James Newton-King, extremely popular.",
-        "repo_url": "https://github.com/JamesNK/Newtonsoft.Json"
+        "repo_url": "https://github.com/JamesNK/Newtonsoft.Json",
+        "evidence_fixture": null
       },
-      "score": 45,
-      "risk_level": "MODERATE",
-      "predicted_outcome": "safe",
-      "correct": true,
-      "classification": "TN",
+      "score": 65,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": false,
+      "classification": "FP",
       "maintainer": "JamesNK",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 82.08489636390821,
-      "commits_last_year": 14,
+      "concentration": 94.59124652495099,
+      "commits_last_year": 12,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3541,7 +3940,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Structured logging. Active community, multiple contributors.",
-        "repo_url": "https://github.com/serilog/serilog"
+        "repo_url": "https://github.com/serilog/serilog",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3549,11 +3949,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "nblumhardt",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 28.50859507238962,
-      "commits_last_year": 14,
+      "concentration": 33.137647528911565,
+      "commits_last_year": 19,
       "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3566,7 +3968,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Object mapping. Jimmy Bogard, well maintained.",
-        "repo_url": "https://github.com/AutoMapper/AutoMapper"
+        "repo_url": "https://github.com/AutoMapper/AutoMapper",
+        "evidence_fixture": null
       },
       "score": 45,
       "risk_level": "MODERATE",
@@ -3574,11 +3977,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "jbogard",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 93.12681558452721,
-      "commits_last_year": 128,
+      "concentration": 92.02180267786346,
+      "commits_last_year": 125,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3591,7 +3996,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Testing framework. .NET Foundation, professional governance.",
-        "repo_url": "https://github.com/xunit/xunit"
+        "repo_url": "https://github.com/xunit/xunit",
+        "evidence_fixture": null
       },
       "score": 45,
       "risk_level": "MODERATE",
@@ -3599,11 +4005,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "bradwilson",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 92.0215055746684,
-      "commits_last_year": 144,
+      "concentration": 94.86474705988041,
+      "commits_last_year": 271,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3616,19 +4024,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "HTTP web framework. Active community, many contributors.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "manucorporat",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 27.216858073367817,
-      "commits_last_year": 145,
+      "concentration": 26.165190208014188,
+      "commits_last_year": 136,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3641,7 +4052,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Testing toolkit. Very popular, active development.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 30,
       "risk_level": "LOW",
@@ -3649,11 +4061,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "ernesto-jimenez",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 33.969773537451516,
+      "concentration": 32.602556652155215,
       "commits_last_year": 78,
       "protective_factors_total": -10,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3666,7 +4080,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: Microservices toolkit in maintenance mode. 80 CRITICAL - correctly flagged as abandoned.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 80,
       "risk_level": "CRITICAL",
@@ -3679,6 +4094,8 @@
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": -40,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3691,7 +4108,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "CLI framework. Steve Francia, very popular, used by kubectl/docker.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 15,
       "risk_level": "VERY_LOW",
@@ -3699,11 +4117,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "marckhouzam",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 12.892176490528875,
-      "commits_last_year": 16,
+      "concentration": 13.278014049727652,
+      "commits_last_year": 15,
       "protective_factors_total": -30,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3716,19 +4136,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Prometheus Go client. CNCF project, professional governance.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "dependabot[bot]",
-      "reputation_score": 0,
+      "maintainer": "kakkoyun",
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 24.189842270343973,
-      "commits_last_year": 209,
-      "protective_factors_total": -45,
+      "concentration": 25.859313683205293,
+      "commits_last_year": 263,
+      "protective_factors_total": -60,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3741,7 +4164,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Container orchestration. CNCF, massive community, professional governance.",
-        "repo_url": "https://github.com/kubernetes/kubernetes"
+        "repo_url": "https://github.com/kubernetes/kubernetes",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3749,11 +4173,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "k8s-ci-robot",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 37.583873346798796,
-      "commits_last_year": 6970,
+      "concentration": 29.942308053036808,
+      "commits_last_year": 8141,
       "protective_factors_total": -75,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3766,7 +4192,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Observability platform. Grafana Labs, professional governance, many contributors.",
-        "repo_url": "https://github.com/grafana/grafana"
+        "repo_url": "https://github.com/grafana/grafana",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3774,11 +4201,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "torkelo",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 3.2950742240282787,
-      "commits_last_year": 9292,
+      "concentration": 3.7466227112854438,
+      "commits_last_year": 10747,
       "protective_factors_total": -65,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3791,7 +4220,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Infrastructure as Code. HashiCorp, corporate backing, professional governance.",
-        "repo_url": "https://github.com/hashicorp/terraform"
+        "repo_url": "https://github.com/hashicorp/terraform",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3799,11 +4229,13 @@
       "correct": true,
       "classification": "TN",
       "maintainer": "jbardin",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 25.71835801813988,
-      "commits_last_year": 1025,
+      "concentration": 17.690168744886815,
+      "commits_last_year": 1238,
       "protective_factors_total": -30,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3816,19 +4248,22 @@
         "incident_date": "2019-07-01",
         "cutoff_date": "2019-06-15",
         "notes": "RubyGems account compromise. Single maintainer, small package.",
-        "repo_url": "https://github.com/bdmac/strong_password"
+        "repo_url": "https://github.com/bdmac/strong_password",
+        "evidence_fixture": null
       },
-      "score": 60,
-      "risk_level": "HIGH",
+      "score": 100,
+      "risk_level": "CRITICAL",
       "predicted_outcome": "risky",
       "correct": true,
       "classification": "TP",
       "maintainer": "bdmac",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 43.75,
-      "commits_last_year": 16,
+      "concentration": 70.0,
+      "commits_last_year": 10,
       "protective_factors_total": 20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3841,7 +4276,8 @@
         "incident_date": "2026-02-17",
         "cutoff_date": "2026-02-16",
         "notes": "EXPECTED FN: Account compromise via clinebotorg npm account. Malicious postinstall silently installed openclaw backdoor. Well-governed project (256 contributors, 58K stars). Detected by missing provenance attestations \u2014 a signal ossuary doesn't track.",
-        "repo_url": "https://github.com/cline/cline"
+        "repo_url": "https://github.com/cline/cline",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3851,9 +4287,11 @@
       "maintainer": "saoudrizwan",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 16.584366868476128,
-      "commits_last_year": 3356,
+      "concentration": 16.518172294751402,
+      "commits_last_year": 3351,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3866,7 +4304,8 @@
         "incident_date": "2024-06-25",
         "cutoff_date": "2024-02-01",
         "notes": "Domain/project sold to Funnull CDN who injected malicious JS into 100K+ sites. Governance failure: ownership transfer without safeguards. Scores 40 \u2014 partial detection of underlying risk but ownership transfer itself is not a tracked signal.",
-        "repo_url": "https://github.com/polyfillpolyfill/polyfill-library"
+        "repo_url": "https://github.com/polyfillpolyfill/polyfill-library",
+        "evidence_fixture": null
       },
       "score": 40,
       "risk_level": "MODERATE",
@@ -3879,6 +4318,8 @@
       "concentration": 0.0,
       "commits_last_year": 0,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3891,19 +4332,22 @@
         "incident_date": "2025-03-11",
         "cutoff_date": "2025-03-01",
         "notes": "EXPECTED FN: CI/CD access policy exploit \u2014 contributors had automatic write access. Malicious actor modified v1 tag to dump secrets. Led to tj-actions cascade. Well-maintained org project; the issue was CI permissions, not governance.",
-        "repo_url": "https://github.com/reviewdog/action-setup"
+        "repo_url": "https://github.com/reviewdog/action-setup",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
-      "maintainer": "renovate[bot]",
+      "maintainer": "shogo82148",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 32.49506182513262,
+      "concentration": 32.5231378515759,
       "commits_last_year": 26,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3916,19 +4360,22 @@
         "incident_date": "2024-12-03",
         "cutoff_date": "2024-12-01",
         "notes": "EXPECTED FN: Maintainer spear-phished via fake npm site. Malicious versions exfiltrated Solana private keys. $130-160K stolen in ~5 hours. Well-governed project \u2014 pure credential theft.",
-        "repo_url": "https://github.com/solana-labs/solana-web3.js"
+        "repo_url": "https://github.com/solana-labs/solana-web3.js",
+        "evidence_fixture": null
       },
-      "score": 10,
+      "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
-      "maintainer": "dependabot[bot]",
+      "maintainer": "steveluscher",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 33.832428036533656,
+      "concentration": 33.89509671033064,
       "commits_last_year": 1044,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3941,7 +4388,8 @@
         "incident_date": "2024-12-05",
         "cutoff_date": "2024-12-01",
         "notes": "EXPECTED FN: GitHub Actions workflow vulnerability allowed malicious PR branch name to execute shell commands. Hit twice in 36 hours because tokens weren't rotated. Well-governed org project.",
-        "repo_url": "https://github.com/ultralytics/ultralytics"
+        "repo_url": "https://github.com/ultralytics/ultralytics",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3951,9 +4399,11 @@
       "maintainer": "glenn-jocher",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 41.70063200055279,
-      "commits_last_year": 1204,
+      "concentration": 41.535039083619566,
+      "commits_last_year": 1208,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3966,7 +4416,8 @@
         "incident_date": "2021-04-01",
         "cutoff_date": "2021-03-01",
         "notes": "EXPECTED FN: Build infra compromise \u2014 HMAC keys extracted from Docker image to modify bash uploader in GCS. Exfiltrated CI env vars for 2+ months undetected. Well-governed project with corporate backing (Codecov had 23K customers).",
-        "repo_url": "https://github.com/codecov/codecov-action"
+        "repo_url": "https://github.com/codecov/codecov-action",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -3976,9 +4427,11 @@
       "maintainer": "thomasrockhu-codecov",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 35.8271233635394,
+      "concentration": 35.869180840274275,
       "commits_last_year": 194,
       "protective_factors_total": -10,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -3991,7 +4444,8 @@
         "incident_date": "2024-12-19",
         "cutoff_date": "2024-12-01",
         "notes": "EXPECTED FN: CI/CD misconfiguration \u2014 'Release Canary' workflow ran attacker code on comment keywords. npm token stolen, XMRig published in @rspack/core v1.1.7. Active project with ByteDance backing.",
-        "repo_url": "https://github.com/web-infra-dev/rspack"
+        "repo_url": "https://github.com/web-infra-dev/rspack",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -4001,9 +4455,11 @@
       "maintainer": "LingyuCoder",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 14.625107290249979,
+      "concentration": 14.625644948393909,
       "commits_last_year": 2381,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4016,19 +4472,22 @@
         "incident_date": "2025-09-08",
         "cutoff_date": "2025-09-01",
         "notes": "EXPECTED FN: Qix account phished via fake npmjs.help domain. Malicious versions of chalk + 16 packages (2B weekly downloads) intercepted crypto wallet activity. Mitigated within ~2 hours. Sindre Sorhus project with strong governance.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
-      "score": 35,
-      "risk_level": "LOW",
-      "predicted_outcome": "safe",
-      "correct": false,
-      "classification": "FN",
+      "score": 80,
+      "risk_level": "CRITICAL",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
       "maintainer": "sindresorhus",
       "reputation_score": 0,
-      "reputation_tier": "TIER_1",
-      "concentration": 78.40463468232129,
+      "reputation_tier": "",
+      "concentration": 78.45331525935399,
       "commits_last_year": 9,
-      "protective_factors_total": -45,
+      "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4041,7 +4500,8 @@
         "incident_date": "2022-05-14",
         "cutoff_date": "2022-01-01",
         "notes": "Attacker purchased expired domain figlief.com, used PyPI password reset to claim maintainer account. Published malicious versions stealing env vars. Single maintainer, years of inactivity \u2014 classic abandonment signal.",
-        "repo_url": "https://github.com/figlief/ctx"
+        "repo_url": "https://github.com/figlief/ctx",
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -4054,6 +4514,8 @@
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4066,7 +4528,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Archived since 2018, single maintainer. Succeeded by etcd-io/bbolt. The abandonment enabled a typosquat (boltdb-go/bolt) that persisted 3+ years in Go Module Mirror cache. Classic governance risk: abandoned but still depended on.",
-        "repo_url": "https://github.com/boltdb/bolt"
+        "repo_url": "https://github.com/boltdb/bolt",
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -4074,11 +4537,13 @@
       "correct": true,
       "classification": "TP",
       "maintainer": "benbjohnson",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4091,7 +4556,8 @@
         "incident_date": "2025-07-19",
         "cutoff_date": "2025-07-01",
         "notes": "Old inactive maintainer's account phished, still had publish access. Malicious versions undetected for 6 hours. Single maintainer, very low activity \u2014 governance weakness correctly detected despite credential theft being the attack vector.",
-        "repo_url": "https://github.com/enricomarino/is"
+        "repo_url": "https://github.com/enricomarino/is",
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -4104,6 +4570,8 @@
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4116,19 +4584,22 @@
         "incident_date": "2025-07-28",
         "cutoff_date": "2025-07-01",
         "notes": "EXPECTED FN: Org-backed (savoirfairelinux), 15% concentration, 20 commits/yr. Governance was healthy \u2014 pure credential phishing, outside detection scope.",
-        "repo_url": "https://github.com/savoirfairelinux/num2words"
+        "repo_url": "https://github.com/savoirfairelinux/num2words",
+        "evidence_fixture": null
       },
-      "score": 20,
-      "risk_level": "LOW",
+      "score": 0,
+      "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
       "maintainer": "mrodriguezg1991",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 15.251501280822488,
+      "concentration": 15.257706692373382,
       "commits_last_year": 20,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4141,19 +4612,22 @@
         "incident_date": "2025-03-14",
         "cutoff_date": "2025-03-01",
         "notes": "EXPECTED FN: Multi-stage CI/CD cascade: SpotBugs pull_request_target vuln \u2192 stolen PAT \u2192 reviewdog compromise \u2192 tj-actions compromise. Dumped CI runner memory across 23K+ repos. Well-maintained project; attack exploited CI trust chains.",
-        "repo_url": "https://github.com/tj-actions/changed-files"
+        "repo_url": "https://github.com/tj-actions/changed-files",
+        "evidence_fixture": null
       },
       "score": 50,
       "risk_level": "MODERATE",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
-      "maintainer": "dependabot[bot]",
+      "maintainer": "jackton1",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 70.74031409409534,
-      "commits_last_year": 403,
+      "concentration": 71.05252346487548,
+      "commits_last_year": 406,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4166,19 +4640,22 @@
         "incident_date": "2025-07-17",
         "cutoff_date": "2025-07-01",
         "notes": "EXPECTED FN: Maintainer JounQin phished via npnjs.com (typosquatted npm domain). Malicious versions of eslint-config-prettier + 5 related packages (78M weekly downloads). Well-maintained Prettier org project \u2014 pure credential theft.",
-        "repo_url": "https://github.com/prettier/eslint-config-prettier"
+        "repo_url": "https://github.com/prettier/eslint-config-prettier",
+        "evidence_fixture": null
       },
-      "score": 45,
-      "risk_level": "MODERATE",
-      "predicted_outcome": "safe",
-      "correct": false,
-      "classification": "FN",
+      "score": 65,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
       "maintainer": "lydell",
       "reputation_score": 0,
       "reputation_tier": "",
       "concentration": 40.625,
       "commits_last_year": 32,
-      "protective_factors_total": -15,
+      "protective_factors_total": 5,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4191,7 +4668,8 @@
         "incident_date": "2025-08-26",
         "cutoff_date": "2025-08-01",
         "notes": "EXPECTED FN: Exploited pull_request_target workflow on old branch. 8 malicious versions stole SSH keys, tokens, crypto wallets. Also attempted to co-opt local AI CLI tools for recon. Very healthy governance (many contributors, active org).",
-        "repo_url": "https://github.com/nrwl/nx"
+        "repo_url": "https://github.com/nrwl/nx",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -4201,9 +4679,11 @@
       "maintainer": "FrozenPandaz",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 13.843162570697059,
-      "commits_last_year": 2521,
+      "concentration": 11.739929648830493,
+      "commits_last_year": 2386,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4216,7 +4696,8 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Governance risk: sole maintainer (zloirock), 92% concentration. Was imprisoned Jan-Oct 2020 (7-month release gap). No malicious release occurred. Currently active (1174 commits/yr) so moderate score is defensible, but bus factor 1 with 26M weekly downloads remains a risk.",
-        "repo_url": "https://github.com/zloirock/core-js"
+        "repo_url": "https://github.com/zloirock/core-js",
+        "evidence_fixture": null
       },
       "score": 50,
       "risk_level": "MODERATE",
@@ -4224,11 +4705,13 @@
       "correct": false,
       "classification": "FN",
       "maintainer": "zloirock",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 95.44005399336629,
-      "commits_last_year": 886,
+      "concentration": 95.46209831226426,
+      "commits_last_year": 889,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4241,19 +4724,22 @@
         "incident_date": "2022-03-07",
         "cutoff_date": "2022-03-01",
         "notes": "Protestware: maintainer (medikoo) added postinstall script showing anti-war message to Russian-locale users. Non-destructive but unilateral. Bus factor 1, 13M weekly downloads.",
-        "repo_url": "https://github.com/medikoo/es5-ext"
+        "repo_url": "https://github.com/medikoo/es5-ext",
+        "evidence_fixture": null
       },
-      "score": 40,
-      "risk_level": "MODERATE",
-      "predicted_outcome": "safe",
-      "correct": false,
-      "classification": "FN",
+      "score": 60,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
       "maintainer": "medikoo",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
+      "reputation_tier": "",
       "concentration": 100.0,
       "commits_last_year": 1,
-      "protective_factors_total": -20,
+      "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4266,7 +4752,8 @@
         "incident_date": "2022-03-17",
         "cutoff_date": "2022-03-01",
         "notes": "Protestware: maintainer (Yaffle) added runtime anti-war message for Russian users. Non-destructive. Bus factor 1, 600K weekly downloads, 135K GitHub repos.",
-        "repo_url": "https://github.com/Yaffle/EventSource"
+        "repo_url": "https://github.com/Yaffle/EventSource",
+        "evidence_fixture": null
       },
       "score": 60,
       "risk_level": "HIGH",
@@ -4276,9 +4763,11 @@
       "maintainer": "Yaffle",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 65.19621056492377,
+      "concentration": 65.23932578602334,
       "commits_last_year": 11,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4291,7 +4780,8 @@
         "incident_date": "2019-07-05",
         "cutoff_date": "2019-07-01",
         "notes": "Maintainer shinnn sabotaged dependency packages (load-from-cwd-or-npm, rate-map) after governance dispute with PureScript core team. Bus factor 1 on those deps. Discovered July 9, resolved mid-July 2019.",
-        "repo_url": "https://github.com/purescript/npm-installer"
+        "repo_url": "https://github.com/purescript/npm-installer",
+        "evidence_fixture": null
       },
       "score": 70,
       "risk_level": "HIGH",
@@ -4304,6 +4794,8 @@
       "concentration": 100.0,
       "commits_last_year": 13,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4316,19 +4808,22 @@
         "incident_date": "2020-04-25",
         "cutoff_date": "2020-04-01",
         "notes": "Non-malicious: sole maintainer published broken ESM migration (missing ./ in exports). Broke create-react-app, firebase-tools, Angular CLI. Fixed in 3 hours. Bus factor 1, 766 direct dependents, 3.4M GitHub repos. Demonstrates governance fragility.",
-        "repo_url": "https://github.com/then/is-promise"
+        "repo_url": "https://github.com/then/is-promise",
+        "evidence_fixture": null
       },
-      "score": 35,
-      "risk_level": "LOW",
-      "predicted_outcome": "safe",
-      "correct": false,
-      "classification": "FN",
+      "score": 65,
+      "risk_level": "HIGH",
+      "predicted_outcome": "risky",
+      "correct": true,
+      "classification": "TP",
       "maintainer": "ForbesLindesay",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
+      "reputation_tier": "",
       "concentration": 66.66666666666666,
       "commits_last_year": 3,
-      "protective_factors_total": -45,
+      "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4341,7 +4836,8 @@
         "incident_date": "2018-02-01",
         "cutoff_date": "2018-01-15",
         "notes": "Username recycling: original author deleted GitHub account, attacker re-registered 'jteeuwen' and pushed malicious code. Classic abandoned project takeover via namespace hijacking.",
-        "repo_url": "https://github.com/jteeuwen/go-bindata"
+        "repo_url": "https://github.com/jteeuwen/go-bindata",
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -4354,6 +4850,8 @@
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4366,7 +4864,8 @@
         "incident_date": "2026-03-31",
         "cutoff_date": "2026-03-30",
         "notes": "EXPECTED FN: Account compromise via long-lived npm token. Malicious versions 1.14.1/0.30.4 injected plain-crypto-js RAT. Healthy governance (19% conc, 223 commits/yr, org-owned, bf=6). Detected by Socket in 6 minutes.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -4375,10 +4874,12 @@
       "classification": "FN",
       "maintainer": "mzabriskie",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
-      "concentration": 18.314154349673267,
-      "commits_last_year": 219,
-      "protective_factors_total": -65,
+      "reputation_tier": "",
+      "concentration": 19.45635569738301,
+      "commits_last_year": 222,
+      "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4391,19 +4892,22 @@
         "incident_date": "2026-03-19",
         "cutoff_date": "2026-03-18",
         "notes": "EXPECTED FN: CI/CD compromise via stolen credential with write access. Attacker force-pushed 75/76 version tags to inject TeamPCP stealer. Well-governed project (Aqua Security org). Attack vector is credential theft + CI/CD tag manipulation, not governance weakness.",
-        "repo_url": "https://github.com/aquasecurity/trivy-action"
+        "repo_url": "https://github.com/aquasecurity/trivy-action",
+        "evidence_fixture": null
       },
-      "score": 80,
-      "risk_level": "CRITICAL",
-      "predicted_outcome": "risky",
-      "correct": true,
-      "classification": "TP",
+      "score": 45,
+      "risk_level": "MODERATE",
+      "predicted_outcome": "safe",
+      "correct": false,
+      "classification": "FN",
       "maintainer": "simar7",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 48.51015649966969,
+      "concentration": 48.56773156643665,
       "commits_last_year": 40,
-      "protective_factors_total": 20,
+      "protective_factors_total": 5,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4416,19 +4920,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Container security scanner. Aqua Security org, 3 core contributors, 573 commits/yr. Bus factor 3, elephant factor 1 (org-dominated). Well-governed despite org concentration.",
-        "repo_url": "https://github.com/aquasecurity/trivy"
+        "repo_url": "https://github.com/aquasecurity/trivy",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": true,
       "classification": "TN",
-      "maintainer": "knqyf263",
+      "maintainer": "dmitriylewen",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 20.08667531233624,
-      "commits_last_year": 487,
-      "protective_factors_total": -30,
+      "concentration": 20.046685638870485,
+      "commits_last_year": 509,
+      "protective_factors_total": -45,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4441,9 +4948,10 @@
         "incident_date": "2026-03-24",
         "cutoff_date": "2026-03-23",
         "notes": "EXPECTED FN: TeamPCP campaign \u2014 PYPI_PUBLISH token exfiltrated via compromised Trivy CI step. Malicious versions 1.82.7/1.82.8 deployed litellm_init.pth that runs on every Python startup, K8s privileged pods, systemd backdoor. Healthy Ossuary governance (21% conc, ~16K commits/yr, 1016 contributors, bf=4, BerriAI org). Underlying weakness (unpinned CI deps, broad publish tokens) is a CI hygiene issue Ossuary does not measure.",
-        "repo_url": "https://github.com/BerriAI/litellm"
+        "repo_url": "https://github.com/BerriAI/litellm",
+        "evidence_fixture": null
       },
-      "score": 0,
+      "score": 5,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": false,
@@ -4451,9 +4959,11 @@
       "maintainer": "ishaan-jaff",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 23.679327112295894,
-      "commits_last_year": 15490,
-      "protective_factors_total": -25,
+      "concentration": 23.612731106835533,
+      "commits_last_year": 15457,
+      "protective_factors_total": -5,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4466,19 +4976,22 @@
         "incident_date": "2026-03-27",
         "cutoff_date": "2026-03-26",
         "notes": "NEAR-MISS FN at 55 (threshold 60). TeamPCP campaign \u2014 maintainer-account compromise, payload steganographically hidden in WAV file (matched the SDK's voice-AI use case). Versions 4.87.1/4.87.2. Governance weakness present (bus factor 1, 97% concentration, 78% attrition) but org backing (-15) softens score below threshold. Illustrates the boundary: vendor-backed solo projects sit at the edge of what concentration+activity scoring can flag.",
-        "repo_url": "https://github.com/team-telnyx/telnyx-python"
+        "repo_url": "https://github.com/team-telnyx/telnyx-python",
+        "evidence_fixture": null
       },
       "score": 55,
       "risk_level": "MODERATE",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
-      "maintainer": "stainless-app[bot]",
+      "maintainer": "ankitTelnyx",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 97.7863432556502,
-      "commits_last_year": 510,
+      "concentration": 97.80232975118028,
+      "commits_last_year": 513,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4491,7 +5004,8 @@
         "incident_date": "2026-04-22",
         "cutoff_date": "2026-04-21",
         "notes": "EXPECTED FN: TeamPCP-style supply-chain attack. Malicious versions 2.6.0\u20132.6.2 shipped Base64 second-stage collector harvesting browser-extension wallets (MetaMask, Phantom), local crypto wallets, npm tokens. Marker '# hacked by teampcp' in decoded payload (TeamPCP claimed copycat). Healthy governance (19% conc, 596 commits/yr, 51 contributors, bf=4, Xprobe org). Score 0 (VERY_LOW). Same T4 profile as axios.",
-        "repo_url": "https://github.com/xorbitsai/inference"
+        "repo_url": "https://github.com/xorbitsai/inference",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -4501,9 +5015,11 @@
       "maintainer": "oliverbryant",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 18.686251045705323,
-      "commits_last_year": 595,
+      "concentration": 18.539021271482454,
+      "commits_last_year": 593,
       "protective_factors_total": -20,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4516,19 +5032,22 @@
         "incident_date": "2026-05-19",
         "cutoff_date": "2026-05-18",
         "notes": "Shai-Hulud campaign targeted dormant packages. ~3 years without a legitimate update, 10M monthly downloads, no OIDC trusted publishing configured. Classic governance decay \u2192 exploited.",
-        "repo_url": "https://github.com/hustcc/jest-canvas-mock"
+        "repo_url": "https://github.com/hustcc/jest-canvas-mock",
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
       "predicted_outcome": "risky",
       "correct": true,
       "classification": "TP",
-      "maintainer": "hustcc",
+      "maintainer": "gtk-grafana",
       "reputation_score": 0,
-      "reputation_tier": "TIER_2",
+      "reputation_tier": "",
       "concentration": 100,
       "commits_last_year": 0,
-      "protective_factors_total": -10,
+      "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4541,19 +5060,22 @@
         "incident_date": "2026-05-19",
         "cutoff_date": "2026-05-18",
         "notes": "Shai-Hulud campaign targeted dormant packages. Long period without updates. Same pattern as jest-canvas-mock.",
-        "repo_url": "https://github.com/hustcc/timeago.js"
+        "repo_url": "https://github.com/hustcc/timeago.js",
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
       "predicted_outcome": "risky",
       "correct": true,
       "classification": "TP",
-      "maintainer": "copilot",
+      "maintainer": "hustcc",
       "reputation_score": 0,
       "reputation_tier": "",
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4566,19 +5088,22 @@
         "incident_date": null,
         "cutoff_date": null,
         "notes": "Maintainer dispute: contributors removed from GitHub org, unclear roles, rushed merges, funding disagreements. 10.7K stars, 321K dependent projects. No malware \u2014 pure governance signal. Kubernetes evaluating forks (kubernetes/kubernetes#138812).",
-        "repo_url": "https://github.com/fsnotify/fsnotify"
+        "repo_url": "https://github.com/fsnotify/fsnotify",
+        "evidence_fixture": null
       },
-      "score": 70,
-      "risk_level": "HIGH",
-      "predicted_outcome": "risky",
-      "correct": true,
-      "classification": "TP",
+      "score": 45,
+      "risk_level": "MODERATE",
+      "predicted_outcome": "safe",
+      "correct": false,
+      "classification": "FN",
       "maintainer": "arp242",
-      "reputation_score": 0,
+      "reputation_score": -10,
       "reputation_tier": "TIER_2",
-      "concentration": 50.46572478407265,
-      "commits_last_year": 32,
-      "protective_factors_total": 10,
+      "concentration": 51.74994873362028,
+      "commits_last_year": 30,
+      "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4591,7 +5116,8 @@
         "incident_date": "2026-05-15",
         "cutoff_date": "2026-05-14",
         "notes": "SECOND incident (2022 protestware is separate T2 entry). Inactive maintainer 'atiertant' account compromised. Malicious versions 9.1.6/9.2.3/12.0.1 injected credential stealer with DNS TXT exfiltration. Governance weakness: package retained 690K weekly downloads despite 2022 sabotage history, inactive maintainers.",
-        "repo_url": null
+        "repo_url": null,
+        "evidence_fixture": null
       },
       "score": 100,
       "risk_level": "CRITICAL",
@@ -4604,6 +5130,8 @@
       "concentration": 100,
       "commits_last_year": 0,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4616,7 +5144,8 @@
         "incident_date": "2026-05-23",
         "cutoff_date": "2026-05-22",
         "notes": "EXPECTED FN: One credential with org-wide push access across 4 repos. Attackers rewrote 700+ historical Git tags to point at malicious fork commits. Third-party localization packages, not official Laravel. Healthy governance (score 5); weakness is access-control configuration (single org-wide credential), not governance decay. Same profile as T4 cases.",
-        "repo_url": "https://github.com/Laravel-Lang/lang"
+        "repo_url": "https://github.com/Laravel-Lang/lang",
+        "evidence_fixture": null
       },
       "score": 5,
       "risk_level": "VERY_LOW",
@@ -4626,9 +5155,11 @@
       "maintainer": "andrey-helldar",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 55.02101085243278,
+      "concentration": 55.047557747767705,
       "commits_last_year": 2401,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4641,7 +5172,8 @@
         "incident_date": "2026-05-12",
         "cutoff_date": "2026-05-11",
         "notes": "EXPECTED FN: TeamPCP/Shai-Hulud campaign. CI/CD exploit chaining pull_request_target workflow, GitHub Actions cache poisoning, and OIDC token theft from runner memory. 84 malicious versions across 42 TanStack packages with valid SLSA provenance attestations. Well-maintained project \u2014 pure CI/CD weakness, not governance.",
-        "repo_url": "https://github.com/TanStack/router"
+        "repo_url": "https://github.com/TanStack/router",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
@@ -4651,9 +5183,11 @@
       "maintainer": "tannerlinsley",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 25.41681775901537,
-      "commits_last_year": 1955,
+      "concentration": 25.35707858440781,
+      "commits_last_year": 1958,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4666,7 +5200,8 @@
         "incident_date": "2026-06-01",
         "cutoff_date": "2026-05-31",
         "notes": "EXPECTED FN: Miasma worm. Compromised employee GitHub account pushed orphan commits to RedHatInsights repos; on-push workflows exchanged OIDC tokens for npm trusted-publishing rights; >=32 releases shipped with valid SLSA provenance. Representative package for the @redhat-cloud-services scope (~80k combined weekly downloads). Well-governed corporate org \u2014 CI/CD trust-boundary exploit, not governance.",
-        "repo_url": "https://github.com/RedHatInsights/frontend-components"
+        "repo_url": "https://github.com/RedHatInsights/frontend-components",
+        "evidence_fixture": null
       },
       "score": 5,
       "risk_level": "VERY_LOW",
@@ -4676,9 +5211,11 @@
       "maintainer": "Hyperkid123",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 52.79049260452386,
-      "commits_last_year": 438,
+      "concentration": 52.29978510206777,
+      "commits_last_year": 442,
       "protective_factors_total": -25,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4691,19 +5228,22 @@
         "incident_date": "2026-04-30",
         "cutoff_date": "2026-04-29",
         "notes": "EXPECTED FN: Version 2.6.3 shipped ShaiWorm credential stealer via hidden execution chain. 11M monthly downloads, Lightning AI org-backed, professional governance. Build/release pipeline breached \u2014 mechanism under investigation. Microsoft Defender detected and notified maintainer.",
-        "repo_url": "https://github.com/Lightning-AI/pytorch-lightning"
+        "repo_url": "https://github.com/Lightning-AI/pytorch-lightning",
+        "evidence_fixture": null
       },
       "score": 0,
       "risk_level": "VERY_LOW",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
-      "maintainer": "dependabot[bot]",
+      "maintainer": "williamFalcon",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 34.738964485583125,
+      "concentration": 34.726631374712966,
       "commits_last_year": 494,
       "protective_factors_total": -35,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4716,7 +5256,8 @@
         "incident_date": "2026-06-08",
         "cutoff_date": "2026-06-07",
         "notes": "PyPI package 'gpsea' (genotype-phenotype association). Single-maintainer project: 100% concentration, 1 contributor, 72 commits/yr. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft.",
-        "repo_url": "https://github.com/P2GX/gpsea"
+        "repo_url": "https://github.com/P2GX/gpsea",
+        "evidence_fixture": null
       },
       "score": 70,
       "risk_level": "HIGH",
@@ -4729,6 +5270,8 @@
       "concentration": 100.0,
       "commits_last_year": 72,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4741,7 +5284,8 @@
         "incident_date": "2026-06-08",
         "cutoff_date": "2026-06-07",
         "notes": "PyPI package 'ensmallen' (GRAPE graph library). High concentration (82%, 2 contributors). PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft.",
-        "repo_url": "https://github.com/AnacletoLAB/ensmallen"
+        "repo_url": "https://github.com/AnacletoLAB/ensmallen",
+        "evidence_fixture": null
       },
       "score": 65,
       "risk_level": "HIGH",
@@ -4754,6 +5298,8 @@
       "concentration": 81.81818181818183,
       "commits_last_year": 11,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4766,7 +5312,8 @@
         "incident_date": "2026-06-08",
         "cutoff_date": "2026-06-07",
         "notes": "PyPI package 'embiggen' (GRAPE embeddings). Single-maintainer project: 100% concentration, 1 contributor, low activity. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft.",
-        "repo_url": "https://github.com/monarch-initiative/embiggen"
+        "repo_url": "https://github.com/monarch-initiative/embiggen",
+        "evidence_fixture": null
       },
       "score": 65,
       "risk_level": "HIGH",
@@ -4779,6 +5326,8 @@
       "concentration": 100.0,
       "commits_last_year": 3,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4790,8 +5339,9 @@
         "tier": "T3",
         "incident_date": "2026-06-08",
         "cutoff_date": "2026-06-07",
-        "notes": "EXPECTED FN: PyPI package 'pyphetools' (phenopacket tooling). High concentration (83%, 2 contributors) but scores 50 \u2014 the org-membership proxy credit (-15) for monarch-initiative pulls it below the threshold. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft.",
-        "repo_url": "https://github.com/monarch-initiative/pyphetools"
+        "notes": "EXPECTED FN: PyPI package 'pyphetools' (phenopacket tooling). High concentration (83%, 2 contributors) but scores 50 \u2014 the repository-organization/admin proxy credit (-15) pulls it below the threshold. PyPI package removed post-incident; the source repo was later deleted, so the June 10 original-repo snapshot is pinned for reproducible T-1 scoring. Shared-maintainer PyPI token theft.",
+        "repo_url": "https://github.com/monarch-initiative/pyphetools",
+        "evidence_fixture": "validation_fixtures/pyphetools-2026-06-10.json"
       },
       "score": 50,
       "risk_level": "MODERATE",
@@ -4801,9 +5351,11 @@
       "maintainer": "pnrobinson",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 83.17120210457155,
+      "concentration": 83.15867710258753,
       "commits_last_year": 12,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4815,20 +5367,23 @@
         "tier": "T3",
         "incident_date": "2026-06-08",
         "cutoff_date": "2026-06-07",
-        "notes": "EXPECTED FN: PyPI package 'ppkt2synergy'. Lowest concentration in the cluster (47%, 3 contributors) \u2014 broadest contributor base scores 45, below threshold. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft.",
-        "repo_url": "https://github.com/P2GX/ppkt2synergy"
+        "notes": "EXPECTED FN: PyPI package 'ppkt2synergy'. Lowest concentration in the cluster (47%, 3 contributors) \u2014 broadest contributor base scores 25, below threshold. PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft.",
+        "repo_url": "https://github.com/P2GX/ppkt2synergy",
+        "evidence_fixture": null
       },
-      "score": 45,
-      "risk_level": "MODERATE",
+      "score": 25,
+      "risk_level": "LOW",
       "predicted_outcome": "safe",
       "correct": false,
       "classification": "FN",
       "maintainer": "chenjing0525",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 46.71535254775146,
+      "concentration": 46.71481385282632,
       "commits_last_year": 50,
       "protective_factors_total": 0,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     },
     {
@@ -4841,7 +5396,8 @@
         "incident_date": "2026-06-08",
         "cutoff_date": "2026-06-07",
         "notes": "EXPECTED FN: PyPI package 'phenopacket-store-toolkit'. Small codebase (base 60) + inactivity + org credit score 15 (VERY_LOW). PyPI package removed post-incident; scored against source repo. Shared-maintainer PyPI token theft.",
-        "repo_url": "https://github.com/monarch-initiative/phenopacket-store-toolkit"
+        "repo_url": "https://github.com/monarch-initiative/phenopacket-store-toolkit",
+        "evidence_fixture": null
       },
       "score": 15,
       "risk_level": "VERY_LOW",
@@ -4851,9 +5407,11 @@
       "maintainer": "ielis",
       "reputation_score": 0,
       "reputation_tier": "",
-      "concentration": 66.5234658829184,
+      "concentration": 66.64786181348808,
       "commits_last_year": 58,
       "protective_factors_total": -15,
+      "is_provisional": false,
+      "provisional_reasons": [],
       "error": null
     }
   ]

@@ -125,11 +125,30 @@ if latest_path.exists():
         pass
 
 if validation_data:
+    dataset = validation_data.get("dataset", {})
+    validation_cutoff = (
+        validation_data.get("validation_cutoff_date")
+        or validation_data.get("timestamp", "")[:10]
+    )
     st.caption(
         f"Source: {latest_name} "
-        f"({validation_data.get('timestamp', '')[:10]}) · "
+        f"(validation cutoff {validation_cutoff}) · "
         f"methodology v{validation_data.get('methodology', {}).get('version', '?')}"
     )
+
+    incomplete = (
+        dataset.get("errors", 0) + dataset.get("provisional_results", 0)
+    )
+    if incomplete:
+        st.error(
+            f"Validation artifact is diagnostic only: {incomplete} row(s) "
+            "are errored or provisional."
+        )
+    if dataset.get("pinned_evidence_cases", 0):
+        st.caption(
+            f"Pinned historical evidence cases: "
+            f"{dataset['pinned_evidence_cases']} (see docs/validation.md)."
+        )
 
     # Pull the headline (Scope B) metrics from the unified artifact, with
     # backward-compatible fallback to the legacy top-level keys for older
@@ -137,8 +156,6 @@ if validation_data:
     scopes = validation_data.get("scopes", {})
     scope_b = scopes.get("scope_b", {})
     unscoped = scopes.get("unscoped", {})
-    dataset = validation_data.get("dataset", {})
-
     if scope_b:
         total_cases = dataset.get("total_cases", 0)
         accuracy = scope_b.get("accuracy", 0)
