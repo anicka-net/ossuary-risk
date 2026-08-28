@@ -4,6 +4,80 @@ All notable changes to Ossuary are documented in this file. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions track [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Release-candidate work for the next stable release. The scoring methodology
+advances to v6.4.3 and the final thesis-facing validation cutoff is 2026-08-15.
+
+Scores can differ from 0.11.0 for the same package. v6.4.1 corrected the
+weighted-concentration numerator and historical maintainer-identity reuse;
+v6.4.2 prevents current-only evidence from entering historical scores and
+tightens maintainer identity checks; v6.4.3 separates human stewardship from
+automation and contributor-authored commit text. The major-version boundary
+records those changes rather than presenting 1.0 as a packaging-only release.
+
+### Validation — final public checkpoint
+
+- Collector-version-5 evidence was freshly collected at the August checkpoint;
+  v6.4.3 re-scored the retained snapshots across all 184 cases with zero errors
+  and zero provisional rows. The deleted `pyphetools` repository is the single
+  disclosed pinned-evidence fixture.
+- Scope B (n=162): accuracy 92.6%, precision 94.1%, recall 76.2%, F1 0.842
+  (32 TP / 10 FN / 2 FP / 118 TN).
+- All cases: accuracy 83.7%, precision 94.7%, recall 56.2%, F1 0.706
+  (36 TP / 28 FN / 2 FP / 118 TN).
+- v6.4.2 matched the 0.11.0 Scope-B aggregate with changed membership:
+  `es5-ext` and `is-promise` entered detection while `moment` and `fsnotify`
+  left it. v6.4.3 then moved `telnyx` into detection by removing its bot-driven
+  activity bonus. Control false positives changed from `rxjs`/`rayon` to
+  `jsonwebtoken`/`Newtonsoft.Json` for the recorded factor-level reasons.
+- Out-of-scope bonus detections changed as historical isolation moved
+  `eslint-scope`, `eslint-config-prettier`, and `chalk` above threshold while
+  removing the post-incident `trivy-action` detection. Out-of-scope cases do
+  not contribute to Scope-B recall.
+
+### Methodology — v6.4.1 to v6.4.3
+
+- Select tapered concentration by the largest weighted contributor total,
+  rather than selecting by raw commit count and then applying weights.
+- Historical git evidence now requires both author and committer timestamps
+  at or before the cutoff. Named incident dates include the full UTC day.
+- Historical scoring neutralizes rolling current downloads, stars, Sponsors,
+  issue/comment samples, and bounded current merge-author samples.
+- Maintainer reputation requires a resolved human GitHub `User` bound to the
+  relevant Git contributor. Bots, organizations, and changed or unproven
+  identities receive no reputation reduction.
+- The 12-month activity modifier excludes standard GitHub `[bot]` authors.
+  This moves `telnyx` 55→85 because 502/513 window commits were automation;
+  five changed controls remain true negatives.
+- Commit frustration is attributed to the top non-`[bot]` contributor. False
+  technical-phrase matches in React, Next.js, pandas, and Terraform disappear
+  without changing their floored score or classification.
+- The retained v6.4.3 evidence comes from a second same-day collector-v5 pass.
+  Separate from the six methodology movements, corrected Guzzle evidence moves
+  `guzzlehttp/guzzle` 10→45 through activity (754→41 commits) and concentration
+  (71.6%→91.0%) changes; it remains a true negative.
+
+### Data and cache integrity
+
+- Score-cache rows carry their methodology version, so a methodology bump
+  cannot reuse an incompatible persisted score.
+- Snapshot and negative-cache reuse is collector-versioned; refresh controls
+  bypass reads without disabling writes.
+- Current validation checkpoints and git evidence use UTC consistently.
+- Per-row validation artifacts now populate reputation-factor detail and are
+  rejected unless every case is complete and non-provisional.
+
+### Reliability
+
+- CLI, API, dashboard, dependency-tree, SBOM, and support-period paths preserve
+  `INSUFFICIENT_DATA` instead of converting missing evidence into favourable
+  output.
+- Repository-aware cache reuse preserves package-specific registry data and
+  donor snapshot timestamps.
+- CI runs the complete test suite on pushes and pull requests. The release
+  candidate passes all 624 tests.
+
 ## [0.11.0] — 2026-06-13
 
 Scoring-correctness release. Methodology advances to v6.4, and a

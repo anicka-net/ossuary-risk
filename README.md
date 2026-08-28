@@ -128,24 +128,24 @@ Interactive docs at `http://localhost:8100/docs`.
 
 ## Validation
 
-Validated on 184 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4.2; current-state cutoff 2026-08-15, fixed per-incident T−1 cutoffs retained):
+Validated on 184 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4.3; current-state cutoff 2026-08-15, fixed per-incident T−1 cutoffs retained):
 
 | Metric | All incidents | In-scope only (Scope B) |
 |--------|--------------|------------------------|
-| **Accuracy** | 83.2% | 92.0% |
-| **Precision** | 94.6% | 93.9% |
-| **Recall** | 54.7% | 73.8% |
-| **F1 Score** | 0.693 | 0.827 |
+| **Accuracy** | 83.7% | 92.6% |
+| **Precision** | 94.7% | 94.1% |
+| **Recall** | 56.2% | 76.2% |
+| **F1 Score** | 0.706 | 0.842 |
 
 Ossuary detects governance risk, not all supply chain attacks. The "in-scope" metrics count only incidents where governance weakness was observable before the attack — governance decay, protestware, weak-governance compromise, and governance risk. Out-of-scope incidents (credential theft on healthy projects, CI/CD exploits) are included in the dataset but not counted against recall.
 
-2 false positives (`jsonwebtoken`, `Newtonsoft.Json`). The 11 in-scope
+2 false positives (`jsonwebtoken`, `Newtonsoft.Json`). The 10 in-scope
 false negatives are listed with package-level mechanisms in the validation
-report. The August integrity rerun reproduced the Scope B aggregate exactly,
-but not by stale carry-over: two historical T2 cases entered the detected set
-when unavailable current-era protection was neutralized, while two
-current-state T_risk cases left it as their observed August governance signals
-changed.
+report. The v6.4.3 measurement correction excludes standard GitHub `[bot]`
+commits from the activity count; this moves `telnyx` from 55 to 85 because 502 of its 513
+current-year commits were authored by `stainless-app[bot]`. Commit frustration
+is also restricted to the top non-`[bot]` contributor; four false technical-phrase
+hits disappear without changing a final score or classification.
 
 See [validation report](docs/validation.md) for full analysis.
 

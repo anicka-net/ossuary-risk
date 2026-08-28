@@ -44,6 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 METHODOLOGY = (REPO_ROOT / "docs" / "methodology.md").read_text(encoding="utf-8")
 README = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 VALIDATION_DOC = (REPO_ROOT / "docs" / "validation.md").read_text(encoding="utf-8")
+CHANGELOG = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 DASHBOARD_METHODOLOGY = (
     REPO_ROOT / "src" / "ossuary" / "dashboard" / "pages" / "4_Methodology.py"
 ).read_text(encoding="utf-8")
@@ -303,6 +304,12 @@ def test_validation_artifact_is_complete_final_checkpoint():
     dataset = data.get("dataset", {})
 
     assert data.get("validation_cutoff_date") == "2026-08-15"
+    assert data.get("current_state_cutoff_at") == (
+        "2026-08-15T15:49:38.364446Z"
+    )
+    assert data.get("snapshot_collected_before_at") == (
+        "2026-08-15T18:48:00Z"
+    )
     assert data.get("collector_version") == COLLECTOR_VERSION
     assert dataset.get("requested_cases") == 184
     assert dataset.get("total_cases") == 184
@@ -398,7 +405,26 @@ def test_validation_unscoped_metrics_match_public_docs():
                 f"{doc_name} must include unscoped metric '{needle}' "
                 f"(from validation_results.json). Re-run validate.py "
                 f"and update the doc."
-            )
+                )
+
+
+def test_release_changelog_metrics_match_artifact():
+    """The unreleased entry publishes both metric views and matrices."""
+    data = _load_validation_artifact()
+    release_entry = CHANGELOG.split("## [Unreleased]", 1)[1].split("\n## [", 1)[0]
+
+    for scope_name in ("scope_b", "unscoped"):
+        scope = data["scopes"][scope_name]
+        metrics = (
+            f"accuracy {scope['accuracy'] * 100:.1f}%, "
+            f"precision {scope['precision'] * 100:.1f}%, "
+            f"recall {scope['recall'] * 100:.1f}%, F1 {scope['f1']:.3f}"
+        )
+        assert metrics in release_entry
+
+        cm = scope["confusion_matrix"]
+        matrix = f"{cm['TP']} TP / {cm['FN']} FN / {cm['FP']} FP / {cm['TN']} TN"
+        assert matrix in release_entry
 
 
 def test_scope_b_confusion_matrix_matches_artifact():

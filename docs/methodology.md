@@ -6,9 +6,9 @@ This document describes the methodology used by Ossuary to assess governance-bas
 
 Ossuary calculates a risk score (0-100) based on observable governance signals in public package metadata. The methodology focuses on detecting **governance failures** - conditions that historically precede supply chain attacks like maintainer abandonment, frustration-driven sabotage, or social engineering takeovers.
 
-**Key Finding**: In validation testing against 184 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4.2 methodology achieves **93.9% Scope B precision** and **73.8% in-scope recall** (F1 0.827) on n = 184 cases. The final current-state checkpoint is 2026-08-15; dated incidents retain their fixed pre-incident cutoffs. v6.4.2 requires both author and committer timestamps to precede historical cutoffs, neutralizes rolling current downloads and bounded current merge samples in historical scores, and excludes bot/non-`User` accounts and unproven profile bindings from maintainer reputation. v6.4.1 corrected the tapered concentration numerator and guarded changed historical identities. v6.4 added burnout escalation, takeover-tenure interpretation, and current-state merge-author bus factor. Out-of-scope incidents remain in the dataset to measure the detection boundary but are not penalized in Scope B recall.
+**Key Finding**: In validation testing against 184 packages across 8 ecosystems using the §8.2 per-tier scope framework (T1 governance decay, T2 protestware, T3 weak-gov compromise, T_risk governance risk are in-scope; T4 strong-gov compromise and T5 CI/CD exploits are out of scope), the v6.4.3 methodology achieves **94.1% Scope B precision** and **76.2% in-scope recall** (F1 0.842) on n = 184 cases. The final current-state checkpoint is 2026-08-15; dated incidents retain their fixed pre-incident cutoffs. v6.4.3 excludes standard GitHub `[bot]` authors from the activity count and attributes commit frustration to the top non-`[bot]` contributor. v6.4.2 requires both author and committer timestamps to precede historical cutoffs, neutralizes rolling current downloads and bounded current merge samples in historical scores, and excludes bot/non-`User` accounts and unproven profile bindings from maintainer reputation. v6.4.1 corrected the tapered concentration numerator and guarded changed historical identities. v6.4 added burnout escalation, takeover-tenure interpretation, and current-state merge-author bus factor. Out-of-scope incidents remain in the dataset to measure the detection boundary but are not penalized in Scope B recall.
 
-**Version**: 6.4.2 (August 2026)
+**Version**: 6.4.3 (August 2026)
 **Validation Dataset**: 184 packages across npm, PyPI, Cargo, RubyGems, Packagist, NuGet, Go, and GitHub
 
 ---
@@ -110,7 +110,7 @@ Ossuary contributes to this body of research by:
 1. **Operationalizing** CHAOSS metrics into an actionable risk score
 2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
 3. **Validating predictively** against real incidents (T-1 analysis)
-4. **Achieving 93.9% precision** with 2 false positives across 184 packages (v6.4.2)
+4. **Achieving 94.1% precision** with 2 false positives across 184 packages (v6.4.3)
 5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
 6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
 
@@ -437,7 +437,7 @@ Base risk uses two complementary signals — top-1 **concentration** and CHAOSS 
 
 This catches cases concentration misses. Example: trivy has 18% top-1 concentration (looks distributed) but bus factor 3 — only 3 people account for 50% of commits. Concentration gives base 20; bus factor raises it to 40.
 
-**Calculation**: Concentration = (largest weighted contributor total / total weighted commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. The displayed top contributor and activity counts use the unweighted 12-month window; these can identify a different contributor than the tapered concentration numerator. Bus factor is computed from unweighted recent commits, excluding bots (`[bot]` in email/name).
+**Calculation**: Concentration = (largest weighted contributor total / total weighted commits) × 100, using a tapered window (full weight 0-10 months, linear fade 10-14 months) to smooth week-to-week boundary noise. The displayed top contributor and activity counts use the unweighted 12-month window; these can identify a different contributor than the tapered concentration numerator. Activity and bus factor exclude standard GitHub bot identities (`[bot]` in email/name); concentration continues to describe all repository commits, including automation.
 
 **Effective bus factor (v6.4):** For current-state scoring, when merge-author data is available via GitHub GraphQL, the effective bus factor is `min(code_bus_factor, merge_bus_factor)`. A project can have many code contributors but a single person doing all PR merges — the operational bus factor is the bottleneck. Merge bus factor is computed from the most recent 100 merged PRs and requires **≥10 merged PRs**. For historical T−1 scoring, v6.4.2 treats this bounded *current* sample as unavailable: filtering today's latest 100 by an old cutoff cannot reconstruct the merge population that existed then and frequently yields a biased or empty slice. Historical scores therefore use code bus factor only. The current-state signal was calibrated against the External Secrets Operator case: code bus_factor=14 but merge bus_factor=1; the project froze when the sole merger burned out.
 
@@ -446,6 +446,15 @@ For **non-mature** projects, only recent commits are used. For **mature** projec
 ### 4.2 Activity Modifier
 
 Activity level indicates whether maintainers are engaged and responsive.
+
+The count includes only commits attributed to non-`[bot]` authors in the
+unweighted 12-month window. It is therefore an automation-reduced stewardship
+proxy, not a raw repository-traffic count or proof of human activity.
+Automation that does not use GitHub's `[bot]` naming convention still counts
+and can receive maintainer reputation or frustration attribution. In the
+current artifact, `kubernetes/kubernetes` resolves the nonstandard
+`k8s-ci-robot` automation account as top contributor and counts 7,602 commits;
+the package remains at score 0.
 
 | Commits/Year | Modifier | Interpretation |
 |--------------|----------|----------------|
@@ -628,16 +637,16 @@ complaining about the project. Through v6.1, every issue text was
 weighted equally, which made noisy issue trackers a major source of
 spurious +20 frustration hits.
 
-v6.2 restricts frustration scoring to text authored by the
-maintainer login (`top_contributor_email` / `maintainer_username`
-already on `CollectedData`). Bot accounts (`*[bot]`) are always
-excluded. The general VADER pass continues to scan everything so the
-community-mood signal is not lost. When the maintainer login cannot
-be determined, the v6.1 behaviour (scan all texts) is preserved as a
-conservative fallback — the analyzer doesn't silently drop the
-signal.
-
-Commits already imply maintainer authorship and so are not filtered.
+Issue frustration is restricted to text authored by the resolved maintainer
+login. As of v6.4.3, commit frustration is likewise restricted to the top
+non-`[bot]` contributor's normalized email: merged commits do not imply that their
+authors are maintainers. Bot accounts (`*[bot]`) are always excluded. The
+general VADER pass continues to scan everything so the community-mood signal
+is not lost; VADER remains non-scoring. When an issue maintainer login cannot
+be determined, the v6.1 behaviour (scan all issue texts) is preserved as a
+conservative fallback. If the commit window contains no eligible non-`[bot]`
+identity, commit frustration is deliberately suppressed rather than attributed
+to an unknown author.
 
 ### 6.2 Frustration rules (v6.2)
 
@@ -818,7 +827,7 @@ The validation dataset (v6.4, n=184):
 
 Total: 184 packages across all 8 supported ecosystems. The v6.3 dataset extension (2026-04-23) added three TeamPCP-campaign incidents — `xinference` and `litellm` as T4 EXPECTED FN, `telnyx` as a T3 near-miss FN at score 55 — to validate detection boundaries against contemporary credential-theft attacks. The v6.4 dataset extension (2026-05-30, n=170 → n=177) added seven May 2026 incidents: two T1 Shai-Hulud dormant-package attacks (`jest-canvas-mock`, `timeago.js`), one T_risk maintainer dispute (`fsnotify`), one T3 re-compromise (`node-ipc` inactive-maintainer account), and three OOS cases (`@tanstack/router` T5, `pytorch-lightning` T4, `laravel-lang/lang` T4). All four new in-scope cases scored as TPs. The June 2026 holdout increment (2026-06-10, n=177 → n=183) added the six PyPI bioinformatics packages hit by the Shai-Hulud "Hades" worm on 2026-06-08 (`gpsea`, `ensmallen`, `embiggen`, `pyphetools`, `ppkt2synergy`, `phenopacket-store-toolkit`), all T3 (shared-maintainer token theft on concentrated academic projects); scored T-1 against the frozen v6.4 model, three detected and three missed. The June 2026 Miasma addition (2026-06-12, n=183 → n=184) added `@redhat-cloud-services/frontend-components` as a T5 EXPECTED FN: a compromised Red Hat employee GitHub account pushed orphan commits whose on-push workflows exchanged OIDC tokens for npm trusted-publishing rights; the package scores 5 (VERY_LOW), validating the CI/CD boundary.
 
-The final thesis checkpoint re-scores this fixed n=184 dataset under v6.4.2.
+The final thesis checkpoint re-scores this fixed n=184 dataset under v6.4.3.
 Current-state controls and T_risk cases use **2026-08-15**; every dated
 incident keeps its recorded pre-incident cutoff. The canonical artifact is
 admissible only with zero errors and zero provisional rows. One case uses
@@ -870,22 +879,22 @@ Out-of-scope incidents: 22 (T4=13, T5=9)
 Controls: 120
 
 Confusion Matrix (Scope B):
-  TP: 31  |  FN: 11
+  TP: 32  |  FN: 10
   FP: 2   |  TN: 118
 
-Accuracy:   92.0%
-Precision:  93.9%
-Recall:     73.8%
-F1 Score:   0.827
+Accuracy:   92.6%
+Precision:  94.1%
+Recall:     76.2%
+F1 Score:   0.842
 ```
 
 **Key results**:
 
 - **2 false positives** (`jsonwebtoken` 65 and `Newtonsoft.Json` 65) across 120 safe packages. The first combines 80% concentration, bus factor 1, and a takeover shift; the second crosses the 90% concentration boundary on fresh August data. The previous FPs (`rxjs`, `rayon`) moved below threshold through 511 current-year rxjs commits and the disappearance of rayon's frustration/burnout firing.
-- **11 in-scope false negatives**: faker, node-ipc, moment, polyfill.io, devise, core-js, telnyx, fsnotify, pyphetools, ppkt2synergy, and phenopacket-store-toolkit. Their package/factor mechanisms are enumerated in §8.6.
-- **73.8% in-scope recall** at the 2026-08-15 checkpoint is the same aggregate as July but not the same membership. Historical isolation moves `es5-ext` 40→60 and `is-promise` 35→65 into T2 detection; refreshed current state moves `moment` 85→45 and `fsnotify` 70→45 out of T_risk detection. The measured gains and losses cancel at TP=31/FN=11.
+- **10 in-scope false negatives**: faker, node-ipc, moment, polyfill.io, devise, core-js, fsnotify, pyphetools, ppkt2synergy, and phenopacket-store-toolkit. Their package/factor mechanisms are enumerated in §8.6.
+- **76.2% in-scope recall** at the 2026-08-15 checkpoint. The v6.4.3 activity correction moves `telnyx` 55→85 because 502 of its 513 activity-window commits were authored by `stainless-app[bot]`, not human maintainers. This post-validation correction was evaluated on the fixed cohort and is not independent predictive evidence.
 
-**Comparison with unscoped metrics**: Across all 64 incidents (including out-of-scope), overall recall is 54.7%. This lower number is expected — 22 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) mostly lack a pre-incident governance signal.
+**Comparison with unscoped metrics**: Across all 64 incidents (including out-of-scope), overall recall is 56.2%. This lower number is expected — 22 out-of-scope incidents (T4 well-governed credential theft, T5 CI/CD exploits) mostly lack a pre-incident governance signal.
 
 **Tuning history**: v4.0 initially used a -15 maturity bonus + lifetime concentration for all mature projects, achieving 91.6% accuracy on cached scores but only 81.8% on fresh validation. Parameter sweep across 16 configurations (bonus ∈ {0,-5,-10,-15} × lifetime threshold ∈ {1,4,8,12}) identified the optimal: bonus=0, lifetime fallback when <4 commits/year.
 
@@ -895,16 +904,16 @@ F1 Score:   0.827
 |------|----------|------|-------|
 | **T1: Governance decay** | 8/9 | **89%** | 1 miss: polyfill.io (ownership transfer) |
 | **T2: Protestware / sabotage** | 4/6 | **67%** | 2 misses: faker community fork, active node-ipc |
-| **T3: Weak-gov compromise** | 10/14 | **71%** | 4 misses: telnyx (org backing) + 3 Hades cluster (pyphetools, ppkt2synergy, phenopacket-store-toolkit) |
+| **T3: Weak-gov compromise** | 11/14 | **79%** | 3 misses: Hades cluster packages pyphetools, ppkt2synergy, phenopacket-store-toolkit |
 | **T_risk: Governance risk** | 9/13 | **69%** | 4 misses: moment, devise, core-js, fsnotify |
 | T4: Strong-gov compromise (OOS) | 4/13 | 31% | Bonus detections: ua-parser-js, eslint-scope, eslint-config-prettier, chalk |
 | T5: CI/CD exploits (OOS) | 0/9 | 0% | Expected — out of scope |
 
-T1 (governance decay, 89%) and T3 (weak-governance compromise, 71%) remain the primary targets. T2 rises to 67% because v6.4.2 stops borrowing present-day protection for historical incidents. T_risk falls to 69% because it is deliberately current-state: the August activity, concentration, funding, and frustration observations for moment and fsnotify differ from July.
+T1 (governance decay, 89%) and T3 (weak-governance compromise, 79%) remain the primary targets. T2 rises to 67% because v6.4.2 stops borrowing present-day protection for historical incidents. T_risk falls to 69% because it is deliberately current-state: the August activity, concentration, funding, and frustration observations for moment and fsnotify differ from July.
 
 ### 8.6 In-Scope False Negative Analysis
 
-11 in-scope false negatives, all explainable:
+10 in-scope false negatives, all explainable:
 
 | Package | Score | Tier | Why Missed |
 |---------|-------|------|-----------|
@@ -914,7 +923,6 @@ T1 (governance decay, 89%) and T3 (weak-governance compromise, 71%) remain the p
 | polyfill.io | 40 | T1 | Ownership transfer to malicious CDN is an untracked signal |
 | devise | 40 | T_risk | Borderline; concentration drift from minor changes |
 | core-js | 50 | T_risk | High activity gives discount despite 92% concentration; v6.4 burnout escalation raised 40→50 |
-| telnyx | 55 | T3 | T3 near-miss at score 55, five points below the 60-point threshold; org backing (-15) softens an otherwise risky bus-factor-1 / 97 % concentration profile |
 | fsnotify/fsnotify | 45 | T_risk | No August frustration/burnout firing; reputation, Sponsors, and visibility offset takeover risk |
 | pyphetools | 50 | T3 | June 2026 Hades cluster; 83% concentration but the repository-organization/admin proxy (−15) pulls it below threshold |
 | ppkt2synergy | 25 | T3 | June 2026 Hades cluster; 47% concentration and no backfilled current merge-author floor |
@@ -984,7 +992,7 @@ To validate **predictive** capability, we scored packages at a cutoff date *befo
 |---------|-------------|-------|-------|-------------|
 | express | 2022-01-01 | 0 | VERY_LOW | Org-backed (30 admins), tier-1 maintainer, 64M downloads/wk |
 
-**Result**: all three governance-decay worked examples scored CRITICAL at T-1, and the xz-utils takeover pattern scored HIGH (see the §4.4 timeline). This is an illustrative worked-example set, not a recall claim — the headline recall is the §8.4 Scope B figure (31/42 = 73.8 %); these T-1 cases are a subset of the in-scope incidents that already contribute to that recall, presented here at their cutoff dates to show the pre-incident signal in detail.
+**Result**: all three governance-decay worked examples scored CRITICAL at T-1, and the xz-utils takeover pattern scored HIGH (see the §4.4 timeline). This is an illustrative worked-example set, not a recall claim — the headline recall is the §8.4 Scope B figure (32/42 = 76.2%); these T-1 cases are a subset of the in-scope incidents that already contribute to that recall, presented here at their cutoff dates to show the pre-incident signal in detail.
 
 #### T-1 Analysis Details
 
@@ -1115,8 +1123,8 @@ Internal validity concerns whether the methodology correctly measures what it cl
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen based on incident analysis, not derived empirically | Validated against 184 packages across 8 ecosystems; threshold sensitivity tested at 50, 55, 60, 65 — ≥60 is optimal (93.9% precision, 73.8% in-scope recall) |
-| **Keyword Selection Bias** | Frustration keywords derived from known incidents may overfit to historical cases | Keywords based on general burnout/economic frustration patterns, not incident-specific |
+| **Threshold Selection** | Risk thresholds (60+ = risky) were chosen from incident analysis, not independently derived | Sensitivity at 50, 55, 60, and 65 selected ≥60 as the development-set operating point. The May and June 2026 temporal holdouts were evaluated later with that threshold frozen. |
+| **Keyword Selection Bias** | The frustration corpus and several rules were shaped by known incidents | Successful detection of those same cases is development/calibration evidence, not independent predictive evidence. Out-of-sample claims rely on the prospective May and June 2026 temporal holdouts; neither was used to refit the frozen v6.4 rules. |
 | **Scoring Formula Weights** | Point values for factors are hand-tuned, not learned from data | Weights validated through iterative testing; future work could use ML optimization |
 | **Maturity Classification** | 5-year/30-commit threshold is heuristic, not empirically derived | Validated against 94 SLE packages; eliminates false CRITICALs on known-stable infrastructure |
 | **Confounding Variables** | High scores might correlate with other unmeasured factors (e.g., project age, domain) | Controlled for by including diverse package types in validation set |
@@ -1141,7 +1149,7 @@ Construct validity concerns whether the theoretical constructs are correctly ope
 |--------|-------------|------------|
 | **"Governance Risk" Definition** | Governance risk is a latent construct; operationalization may not capture all dimensions | Definition grounded in incident analysis; validated by predictive accuracy |
 | **Maintainer Concentration Proxy** | Commit count used as proxy for "control"; doesn't capture npm publish rights, code review authority | Git commits are observable and historically correlate with incidents |
-| **Frustration Measurement** | Keyword matching is crude; may miss subtle frustration or produce false positives | Combined with VADER sentiment; keywords chosen for high precision |
+| **Frustration Measurement** | Rule matching may miss subtle frustration or match technical phrases; git authorship is only a maintainer proxy | Frustration is scoring only for the resolved issue maintainer or top non-`[bot]` commit contributor. v6.4.3 removed four non-maintainer technical-phrase hits; nonstandard automation remains a limitation and VADER remains descriptive and non-scoring. |
 | **Reputation Conflation** | GitHub stars/repos conflate popularity with trustworthiness | Reputation is one factor among many; not solely determinative |
 
 ### 10.4 Conclusion Validity
@@ -1160,9 +1168,9 @@ Conclusion validity concerns whether the statistical conclusions are justified.
 
 Despite these threats, several factors support the validity of findings:
 
-1. **93.9% Precision**: 2 false positives (`jsonwebtoken`, `Newtonsoft.Json`) across 184 packages and 8 ecosystems
-2. **73.8% In-Scope Recall**: Scoped framework with cutoff-isolated historical scoring and explicit unavailable-signal neutralization
-3. **Per-Tier Transparency**: T1 89%, T2 67%, T3 71%, T_risk 69% — specific strengths and weaknesses documented
+1. **94.1% Precision**: 2 false positives (`jsonwebtoken`, `Newtonsoft.Json`) across 184 packages and 8 ecosystems
+2. **76.2% In-Scope Recall**: Scoped framework with cutoff-isolated historical scoring and explicit unavailable-signal neutralization
+3. **Per-Tier Transparency**: T1 89%, T2 67%, T3 79%, T_risk 69% — specific strengths and weaknesses documented
 4. **Near-Census Coverage of the catalog-backed core**: Dataset covers 184 packages (64 incidents + 120 controls) across 8 ecosystems — a near-census for 2016–2024, plus the advisory-monitored 2025–2026 cohort (TeamPCP campaign, June 2026 Hades cluster, Miasma addition) for contemporary boundary validation
 5. **CHAOSS Bus Factor**: Contributor diversity metric catches patterns missed by top-1 concentration (e.g. trivy: 18% top-1 but bus factor 3)
 6. **T-1 Detection on the worked examples**: event-stream, colors, coa scored CRITICAL and xz-utils scored HIGH at their pre-incident cutoffs (see §8.9); the small worked-example set is illustrative, not a separate recall claim
@@ -1588,7 +1596,7 @@ These papers directly inform the methodology and should be read in full:
 
 ---
 
-*Document version: 6.4.2*
+*Document version: 6.4.3*
 *Last updated: August 2026*
-*Validation dataset: 184 packages across 8 ecosystems (Scope B: 93.9% precision, 73.8% recall, F1 0.827)*
-*Run validation: `python scripts/validate.py --validation-date 2026-08-15 -o validation_results.json`*
+*Validation dataset: 184 packages across 8 ecosystems (Scope B: 94.1% precision, 76.2% recall, F1 0.842)*
+*Replay frozen validation: `python scripts/validate.py --replay-instant 2026-08-15T15:49:38.364446Z --snapshot-collected-before 2026-08-15T18:48:00Z -o validation_results.json` (requires retained collector-v5 snapshots)*

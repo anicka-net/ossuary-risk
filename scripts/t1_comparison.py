@@ -24,7 +24,7 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from ossuary.collectors.git import GitCollector
+from ossuary.collectors.git import GitCollector, _normalize_email
 from ossuary.collectors.github import GitHubCollector
 from ossuary.collectors.npm import NpmCollector
 from ossuary._compat import parse_utc_date_end
@@ -139,7 +139,9 @@ async def score_package(name: str, ecosystem: str, cutoff: Optional[datetime] = 
     # Sentiment analysis
     sentiment_analyzer = SentimentAnalyzer()
     commit_sentiment = sentiment_analyzer.analyze_commits(
-        [c.message for c in git_metrics.commits]
+        [c.message for c in git_metrics.commits],
+        author_ids=[_normalize_email(c.author_email) for c in git_metrics.commits],
+        maintainer_ids={git_metrics.top_contributor_email},
     )
     issue_sentiment = sentiment_analyzer.analyze_issues(
         [{"title": i.title, "body": i.body,

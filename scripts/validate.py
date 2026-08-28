@@ -25,7 +25,7 @@ Usage:
     python scripts/validate.py --only controls
     python scripts/validate.py --ecosystem npm
     python scripts/validate.py --ecosystem rubygems,cargo
-    python scripts/validate.py --validation-date 2026-08-15 --output validation_results.json
+    python scripts/validate.py --replay-instant 2026-08-15T15:49:38.364446Z --snapshot-collected-before 2026-08-15T18:48:00Z --output validation_results.json
 """
 
 import argparse
@@ -34,7 +34,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -2291,6 +2291,8 @@ async def validate_package(
     *,
     current_cutoff: Optional[datetime] = None,
     refresh_data: bool = False,
+    replay_snapshots: bool = False,
+    snapshot_collected_before: Optional[datetime] = None,
 ) -> ValidationResult:
     """Validate a single package using the services layer (supports all ecosystems)."""
     result = ValidationResult(case=case)
@@ -2307,6 +2309,10 @@ async def validate_package(
             if case.cutoff_date else None
         )
         cutoff = cutoff_for_collect or current_cutoff or utcnow_naive()
+        snapshot_cutoff = (
+            cutoff_for_collect or current_cutoff
+            if replay_snapshots else cutoff_for_collect
+        )
 
         # Collect data via services layer (handles all 8 ecosystems).
         # Snapshot cache reuses prior runs' upstream data when available
@@ -2319,8 +2325,10 @@ async def validate_package(
         else:
             collected_data, warnings = await cached_collect(
                 case.name, case.ecosystem, case.repo_url,
-                cutoff_date=cutoff_for_collect,
+                cutoff_date=snapshot_cutoff,
                 refresh_data=refresh_data,
+                cache_only=replay_snapshots,
+                snapshot_collected_before=snapshot_collected_before,
             )
 
         if collected_data is None:
@@ -2471,6 +2479,8 @@ def build_artifact(
     *,
     validation_cutoff_date: str,
     run_started_at: datetime,
+    current_state_cutoff_at: Optional[datetime] = None,
+    snapshot_collected_before_at: Optional[datetime] = None,
 ) -> dict:
     """Assemble the validation_results.json artifact.
 
@@ -2514,6 +2524,13 @@ def build_artifact(
     return {
         "timestamp": utcnow_naive().isoformat() + "Z",
         "run_started_at": run_started_at.isoformat() + "Z",
+        "current_state_cutoff_at": (
+            current_state_cutoff_at or run_started_at
+        ).isoformat() + "Z",
+        "snapshot_collected_before_at": (
+            snapshot_collected_before_at.isoformat() + "Z"
+            if snapshot_collected_before_at else None
+        ),
         "validation_cutoff_date": validation_cutoff_date,
         "collector_version": COLLECTOR_VERSION,
         "methodology": {
@@ -2734,6 +2751,19 @@ def print_results(summary: ValidationSummary):
     print("\n" + "=" * 80)
 
 
+def parse_replay_instant(value: str) -> datetime:
+    """Parse an explicit UTC replay instant into the internal naive domain."""
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"replay instant must be ISO-8601: {exc}"
+        ) from exc
+    if parsed.tzinfo is None:
+        raise argparse.ArgumentTypeError("replay instant must include a UTC offset")
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Validate ossuary risk scoring")
     parser.add_argument("--output", "-o", help="Output JSON file")
@@ -2750,11 +2780,38 @@ async def main():
         help="Document the current-state validation cutoff date (YYYY-MM-DD)",
     )
     parser.add_argument(
+        "--replay-instant",
+        type=parse_replay_instant,
+        help=(
+            "Re-score only retained collector snapshots at this ISO-8601 "
+            "current-state cutoff; never contacts upstreams"
+        ),
+    )
+    parser.add_argument(
+        "--snapshot-collected-before",
+        type=parse_replay_instant,
+        help=(
+            "Upper bound for snapshot collection time in replay mode; "
+            "prevents later refreshes from replacing frozen evidence"
+        ),
+    )
+    parser.add_argument(
         "--allow-incomplete",
         action="store_true",
         help="Write a diagnostic artifact even when rows error or are provisional",
     )
     args = parser.parse_args()
+
+    if args.replay_instant and args.refresh:
+        parser.error("--replay-instant cannot be combined with --refresh")
+    if args.replay_instant and args.validation_date:
+        parser.error(
+            "--replay-instant already determines --validation-date"
+        )
+    if bool(args.replay_instant) != bool(args.snapshot_collected_before):
+        parser.error(
+            "--replay-instant and --snapshot-collected-before are required together"
+        )
 
     canonical_output = (
         Path(args.output).resolve() == (REPO_ROOT / "validation_results.json")
@@ -2770,8 +2827,9 @@ async def main():
     # control cutoff in that same domain; local-naive time shifts the 12-month
     # window on non-UTC hosts.
     run_started_at = utcnow_naive()
+    current_state_cutoff_at = args.replay_instant or run_started_at
     validation_cutoff_date = (
-        args.validation_date or run_started_at.date().isoformat()
+        args.validation_date or current_state_cutoff_at.date().isoformat()
     )
     try:
         parsed_validation_date = datetime.strptime(
@@ -2779,7 +2837,7 @@ async def main():
         ).date()
     except ValueError as exc:
         parser.error(f"--validation-date must be YYYY-MM-DD: {exc}")
-    if parsed_validation_date != run_started_at.date():
+    if not args.replay_instant and parsed_validation_date != run_started_at.date():
         parser.error(
             "--validation-date must equal the collection date; current-state "
             "controls cannot be reconstructed for another day"
@@ -2821,8 +2879,10 @@ async def main():
         print(f"[{i}/{len(cases)}] {case.name} ({case.ecosystem})...", end=" ", flush=True)
         result = await validate_package(
             case,
-            current_cutoff=run_started_at,
+            current_cutoff=current_state_cutoff_at,
             refresh_data=args.refresh,
+            replay_snapshots=bool(args.replay_instant),
+            snapshot_collected_before=args.snapshot_collected_before,
         )
         if result.error:
             print(f"ERROR: {result.error[:50]}")
@@ -2870,6 +2930,8 @@ async def main():
             by_eco_out,
             validation_cutoff_date=validation_cutoff_date,
             run_started_at=run_started_at,
+            current_state_cutoff_at=current_state_cutoff_at,
+            snapshot_collected_before_at=args.snapshot_collected_before,
         )
         incomplete = (
             output_data["dataset"]["errors"]

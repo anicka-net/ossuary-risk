@@ -110,6 +110,40 @@ class TestWeightedConcentration:
         assert metrics.maintainer_concentration > 50
 
 
+class TestHumanActivityCount:
+    def test_bot_commits_do_not_make_project_look_human_active(self):
+        from ossuary.collectors.git import CommitData
+
+        cutoff = datetime(2026, 1, 1)
+
+        def commit(sha, name, email):
+            return CommitData(
+                sha=sha,
+                author_name=name,
+                author_email=email,
+                authored_date=cutoff - timedelta(days=30),
+                committer_name=name,
+                committer_email=email,
+                committed_date=cutoff - timedelta(days=30),
+                message="test",
+            )
+
+        commits = [commit("human", "Alice", "alice@example.com")] + [
+            commit(
+                f"bot-{i}",
+                "dependabot[bot]",
+                "49699333+dependabot[bot]@users.noreply.github.com",
+            )
+            for i in range(20)
+        ]
+
+        metrics = GitCollector().calculate_metrics(commits, cutoff_date=cutoff)
+
+        assert metrics.commits_last_year == 1
+        assert len(metrics.commits) == 21
+        assert metrics.bus_factor == 1
+
+
 class TestParseRepoUrlEdgeCases:
     def test_github_pages_repo_preserved(self):
         owner, repo = GitHubCollector.parse_repo_url(

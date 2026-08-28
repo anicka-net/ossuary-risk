@@ -12,9 +12,13 @@ that affects produced scores or label boundaries.
 
 from __future__ import annotations
 
-METHODOLOGY_VERSION = "6.4.2"
+METHODOLOGY_VERSION = "6.4.3"
 """Active scoring methodology version (without ``v`` prefix; prose
-references add the ``v`` themselves). v6.4.2 closes three historical-
+references add the ``v`` themselves). v6.4.3 excludes bot-authored commits
+from the activity count, so automated dependency and release updates cannot
+stand in for human maintenance, and restricts commit frustration to the top
+human contributor instead of treating every merged author as a maintainer.
+v6.4.2 closes three historical-
 reconstruction leaks: commits must be both authored and committed by the
 cutoff, rolling current download counts are neutralized, and the bounded
 current merge-PR sample is not reused as historical governance evidence.

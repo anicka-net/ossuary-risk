@@ -413,6 +413,7 @@ class SentimentAnalyzer:
         authored_texts: list[tuple[Optional[str], str]],
         maintainer_logins: Optional[Iterable[str]] = None,
         source_type: str = "unknown",
+        require_attributed_frustration: bool = False,
     ) -> AggregatedSentiment:
         """Analyze texts with optional author-attribution filtering.
 
@@ -428,6 +429,10 @@ class SentimentAnalyzer:
                 scoring runs across every text.
             source_type: Tag used in evidence strings (commit / issue /
                 comment / etc).
+            require_attributed_frustration: When true, an empty maintainer set
+                suppresses frustration instead of using the author-agnostic
+                fallback. Commit scoring uses this because merged authorship
+                is not evidence of maintainership.
 
         Returns:
             AggregatedSentiment. ``total_analyzed`` counts every
@@ -437,15 +442,17 @@ class SentimentAnalyzer:
         if not authored_texts:
             return AggregatedSentiment()
 
-        # Normalise the maintainer set once. ``None`` → no filtering;
-        # empty iterable → also no filtering (callers shouldn't have to
-        # special-case "we have no maintainer username yet").
+        # Normalise the maintainer set once. Issue callers preserve the legacy
+        # empty/None author-agnostic fallback. Commit callers require positive
+        # attribution, so an explicit empty set allows no frustration hits.
         if maintainer_logins:
             allowed = {
                 login.lower()
                 for login in maintainer_logins
                 if login
             }
+        elif require_attributed_frustration:
+            allowed = set()
         else:
             allowed = None
 
@@ -515,14 +522,25 @@ class SentimentAnalyzer:
     def analyze_commits(
         self,
         commit_messages: list[str],
+        author_ids: Optional[list[Optional[str]]] = None,
+        maintainer_ids: Optional[Iterable[str]] = None,
     ) -> AggregatedSentiment:
-        """Analyze sentiment of commit messages.
+        """Analyze commit messages, optionally attributing frustration.
 
-        Commits already imply maintainer authorship (someone with push
-        access wrote them), so we don't bother with the
-        ``maintainer_logins`` filter here.
+        General VADER sentiment always includes every message. When authorship
+        is supplied, only messages from ``maintainer_ids`` contribute to the
+        maintainer-frustration signal.
         """
-        return self.analyze_texts(commit_messages, source_type="commit")
+        if author_ids is None:
+            return self.analyze_texts(commit_messages, source_type="commit")
+        if len(author_ids) != len(commit_messages):
+            raise ValueError("author_ids must match commit_messages length")
+        return self.analyze_authored_texts(
+            list(zip(author_ids, commit_messages)),
+            maintainer_logins=maintainer_ids,
+            source_type="commit",
+            require_attributed_frustration=maintainer_ids is not None,
+        )
 
     def analyze_issues(
         self,

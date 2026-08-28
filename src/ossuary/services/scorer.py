@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 from dateutil.relativedelta import relativedelta
 
 from ossuary._compat import utcnow_naive
-from ossuary.collectors.git import CommitData, GitCollector, GitMetrics
+from ossuary.collectors.git import CommitData, GitCollector, GitMetrics, _normalize_email
 from ossuary.collectors.github import GitHubCollector, GitHubData, IssueData
 from ossuary.collectors.npm import NpmCollector
 from ossuary.collectors.pypi import PyPICollector
@@ -289,6 +289,8 @@ async def cached_collect(
     use_cache: bool = True,
     refresh_data: bool = False,
     prefetched_registry: Optional[RegistryData] = None,
+    cache_only: bool = False,
+    snapshot_collected_before: Optional[datetime] = None,
 ) -> tuple[Optional[CollectedData], list[str]]:
     """
     Wrapper around :func:`collect_package_data` that consults the snapshot cache.
@@ -308,9 +310,12 @@ async def cached_collect(
     Set ``use_cache=False`` to bypass the cache entirely (writes still happen
     on miss; this only forces the read miss). The wrapper preserves the
     ``(CollectedData | None, warnings)`` tuple shape of the underlying
-    collector so callers can swap it in transparently.
+    collector so callers can swap it in transparently. ``cache_only=True``
+    returns an error on a snapshot miss instead of contacting upstreams; this
+    is used to replay a frozen current-state checkpoint.
     """
     from ossuary.services.repo_cache import (
+        COLLECTOR_VERSION,
         RepoSnapshotCache,
         canonicalize_repo_url,
         deserialise_collected_data,
@@ -353,7 +358,10 @@ async def cached_collect(
             cache = RepoSnapshotCache(session)
             # Positive cache (snapshot hit, package-keyed).
             snapshot = cache.get_snapshot_for_cutoff(
-                package_name, ecosystem, cutoff_date
+                package_name,
+                ecosystem,
+                cutoff_date,
+                collected_before=snapshot_collected_before,
             )
             if (
                 snapshot is not None
@@ -390,7 +398,9 @@ async def cached_collect(
                         else f"https://github.com/{name}"
                     )
                 shared = cache.get_snapshot_by_repo_url(
-                    derived_url, cutoff_date
+                    derived_url,
+                    cutoff_date,
+                    collected_before=snapshot_collected_before,
                 )
                 if shared is not None:
                     data, ok = _hydrate(shared, zero_registry_fields=True)
@@ -422,6 +432,12 @@ async def cached_collect(
                 cached_failure = cache.get_negative_cache(package_name, ecosystem)
                 if cached_failure is not None:
                     return None, [f"(cached) {cached_failure}"]
+
+    if cache_only:
+        return None, [
+            f"No reusable collector-v{COLLECTOR_VERSION} snapshot for "
+            f"{ecosystem}/{package_name} at the requested replay cutoff"
+        ]
 
     # Cross-package / cross-ecosystem repo-share lookup (v0.10.1 step 1b).
     #
@@ -459,7 +475,9 @@ async def cached_collect(
             with session_scope() as session:
                 cache = RepoSnapshotCache(session)
                 shared = cache.get_snapshot_by_repo_url(
-                    prefetched_registry.repo_url, cutoff_date
+                    prefetched_registry.repo_url,
+                    cutoff_date,
+                    collected_before=snapshot_collected_before,
                 )
                 if shared is not None:
                     try:
@@ -1161,15 +1179,19 @@ def calculate_score_for_date(
         as_of_date=cutoff_date if is_historical else None,
     )
 
-    # Run sentiment analysis on commits up to cutoff. Restrict
-    # frustration detection in issues to maintainer-authored text so
-    # noisy user comments don't spuriously fire the frustration risk
-    # factor (currently +FRUSTRATION_WEIGHT = +15 in v6.3, lowered
-    # from +20 in v6.2.1); commits already imply maintainer
-    # authorship. See ``ossuary.sentiment.analyzer`` module docstring
-    # for the v6.2 author-attribution design.
+    # Run sentiment analysis on commits up to cutoff. Restrict frustration
+    # detection to maintainer-authored text; merged commits can be authored by
+    # arbitrary contributors even though a maintainer pushed them.
     sentiment_analyzer = SentimentAnalyzer()
-    commit_sentiment = sentiment_analyzer.analyze_commits([c.message for c in git_metrics.commits])
+    commit_maintainers = (
+        {git_metrics.top_contributor_email}
+        if git_metrics.top_contributor_email else set()
+    )
+    commit_sentiment = sentiment_analyzer.analyze_commits(
+        [c.message for c in git_metrics.commits],
+        author_ids=[_normalize_email(c.author_email) for c in git_metrics.commits],
+        maintainer_ids=commit_maintainers,
+    )
     maintainer_logins = (
         {github_data.maintainer_username}
         if github_data.maintainer_username

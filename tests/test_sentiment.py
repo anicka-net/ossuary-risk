@@ -119,6 +119,39 @@ class TestAggregatedSentiment:
         result = self.analyzer.analyze_commits(messages)
         assert result.frustration_count >= 1
 
+    def test_commit_frustration_requires_maintainer_authorship(self):
+        messages = [
+            "Routine maintainer change",
+            "I'm burned out and tired of unpaid work",
+        ]
+        result = self.analyzer.analyze_commits(
+            messages,
+            author_ids=["maintainer@example.com", "contributor@example.com"],
+            maintainer_ids={"maintainer@example.com"},
+        )
+
+        assert result.total_analyzed == 2
+        assert result.frustration_count == 0
+
+    def test_maintainer_commit_frustration_still_counts(self):
+        result = self.analyzer.analyze_commits(
+            ["I'm burned out and tired of unpaid work"],
+            author_ids=["maintainer@example.com"],
+            maintainer_ids={"maintainer@example.com"},
+        )
+
+        assert result.frustration_count == 1
+
+    def test_known_empty_maintainer_set_suppresses_commit_frustration(self):
+        result = self.analyzer.analyze_commits(
+            ["I'm burned out and tired of unpaid work"],
+            author_ids=["contributor@example.com"],
+            maintainer_ids=set(),
+        )
+
+        assert result.total_analyzed == 1
+        assert result.frustration_count == 0
+
     def test_analyze_issues_basic(self):
         issues = [
             {"title": "Bug report", "body": "Something is broken", "comments": []},

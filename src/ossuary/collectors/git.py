@@ -336,7 +336,9 @@ class GitCollector(BaseCollector):
         taper_full = cutoff - timedelta(days=300)   # 10 months: full weight
         taper_start = cutoff - timedelta(days=425)  # ~14 months: zero weight
 
-        # Hard-window commits (for activity count)
+        # Hard-window commits. Activity is counted from the human-only subset
+        # below; the complete window remains available for concentration and
+        # sentiment analysis.
         recent_commits = [c for c in commits if c.authored_date >= one_year_ago and c.authored_date <= cutoff]
 
         # Tapered-window commits (for concentration)
@@ -356,7 +358,7 @@ class GitCollector(BaseCollector):
             weighted_counts[identity] += weight
             total_weight += weight
 
-        # Unweighted counts (for activity, contributor enumeration, names)
+        # Unweighted counts (for contributor enumeration and names)
         author_counts: dict[str, int] = defaultdict(int)
         author_names: dict[str, str] = {}
         for commit in recent_commits:
@@ -574,7 +576,7 @@ class GitCollector(BaseCollector):
 
         return GitMetrics(
             total_commits=len(commits),
-            commits_last_year=total_recent,
+            commits_last_year=sum(human_counts.values()),
             unique_contributors=unique_contributors,
             maintainer_concentration=concentration,
             top_contributor_email=top_email,

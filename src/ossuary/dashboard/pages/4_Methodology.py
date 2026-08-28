@@ -40,9 +40,9 @@ with col1:
         "Points": [20, 40, 60, 80, 100],
     }, use_container_width=True, hide_index=True)
 
-    st.markdown("##### Activity modifier (commits/year)")
+    st.markdown("##### Activity modifier (non-`[bot]` commits/year)")
     st.dataframe({
-        "Commits/year": ["> 50", "12–50", "4–11", "< 4"],
+        "Non-`[bot]` commits/year": ["> 50", "12–50", "4–11", "< 4"],
         "Points": ["-30", "-15", "0", "+20"],
     }, use_container_width=True, hide_index=True)
 

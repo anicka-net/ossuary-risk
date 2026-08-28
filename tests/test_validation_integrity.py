@@ -57,6 +57,7 @@ def test_artifact_separates_errors_and_provisional_rows():
 
     assert summary.total == 1
     assert artifact["validation_cutoff_date"] == "2026-08-15"
+    assert artifact["current_state_cutoff_at"] == "2026-08-15T10:00:00Z"
     assert artifact["dataset"] == {
         "requested_cases": 3,
         "total_cases": 1,
@@ -113,6 +114,33 @@ async def test_validate_package_propagates_provisional_state_and_refresh():
     assert result.reputation_tier == "TIER_1"
     assert result.classification == "TN"
     assert collect.await_args.kwargs["refresh_data"] is True
+
+
+@pytest.mark.asyncio
+async def test_replay_uses_only_snapshots_at_the_explicit_current_cutoff():
+    case = validation.ValidationCase("demo", "npm", "safe")
+    collect = AsyncMock(return_value=(None, ["snapshot missing"]))
+    cutoff = datetime(2026, 8, 15, 15, 49, 38, 364446)
+
+    with patch.object(validation, "cached_collect", collect):
+        result = await validation.validate_package(
+            case,
+            current_cutoff=cutoff,
+            replay_snapshots=True,
+        )
+
+    assert result.error == "snapshot missing"
+    assert collect.await_args.kwargs["cutoff_date"] == cutoff
+    assert collect.await_args.kwargs["cache_only"] is True
+    assert collect.await_args.kwargs["snapshot_collected_before"] is None
+
+
+def test_replay_instant_requires_offset_and_normalizes_to_utc():
+    assert validation.parse_replay_instant(
+        "2026-08-15T17:49:38.364446+02:00"
+    ) == datetime(2026, 8, 15, 15, 49, 38, 364446)
+    with pytest.raises(Exception, match="UTC offset"):
+        validation.parse_replay_instant("2026-08-15T15:49:38")
 
 
 @pytest.mark.asyncio
@@ -276,6 +304,8 @@ def test_canonical_artifact_has_utc_metadata_and_real_reputation_factors():
 
     assert payload["timestamp"].endswith("Z")
     assert payload["run_started_at"].endswith("Z")
+    assert payload["current_state_cutoff_at"].endswith("Z")
+    assert payload["snapshot_collected_before_at"].endswith("Z")
     assert datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
     assert datetime.fromisoformat(
         payload["run_started_at"].replace("Z", "+00:00")

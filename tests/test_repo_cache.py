@@ -26,6 +26,23 @@ from ossuary.services.repo_cache import (
 from ossuary.services.scorer import CollectedData
 
 
+@pytest.fixture(autouse=True)
+def isolate_default_database(monkeypatch, tmp_path):
+    """Keep cached_collect integration tests out of the retained evidence DB."""
+    from ossuary.db import session as db_session
+
+    isolated_engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
+    Base.metadata.create_all(isolated_engine)
+    monkeypatch.setattr(db_session, "engine", isolated_engine)
+    monkeypatch.setattr(
+        db_session,
+        "SessionLocal",
+        sessionmaker(autocommit=False, autoflush=False, bind=isolated_engine),
+    )
+    yield
+    isolated_engine.dispose()
+
+
 @pytest.fixture
 def session():
     """In-memory SQLite session per test."""
@@ -225,6 +242,29 @@ class TestRepoSnapshotCache:
         past_cutoff = datetime(2025, 6, 1)  # collected_at >= cutoff
         snapshot = cache.get_snapshot_for_cutoff("widget", "npm", past_cutoff)
         assert snapshot is not None
+
+    def test_collection_upper_bound_excludes_later_snapshot(self, session):
+        cache = RepoSnapshotCache(session)
+        blob = serialise_collected_data(_make_collected_data())
+        cache.store_snapshot(
+            "widget", "npm", "https://example", blob,
+            collected_at=datetime(2026, 8, 15, 18, 30),
+        )
+        cache.store_snapshot(
+            "widget", "npm", "https://example", blob,
+            collected_at=datetime(2026, 8, 20, 12, 0),
+        )
+        session.commit()
+
+        snapshot = cache.get_snapshot_for_cutoff(
+            "widget",
+            "npm",
+            datetime(2026, 8, 15, 15, 49),
+            collected_before=datetime(2026, 8, 15, 19, 0),
+        )
+
+        assert snapshot is not None
+        assert snapshot.collected_at == datetime(2026, 8, 15, 18, 30)
 
     def test_current_scoring_serves_recent_snapshot(self, session):
         """When cutoff_date is None, a snapshot fresher than the SLA is served

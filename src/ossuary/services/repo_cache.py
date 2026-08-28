@@ -427,6 +427,7 @@ class RepoSnapshotCache:
         ecosystem: str,
         cutoff_date: Optional[datetime] = None,
         sla_expired_days: int = SLA_EXPIRED_DAYS,
+        collected_before: Optional[datetime] = None,
     ) -> Optional[RepoSnapshot]:
         """Return the most recent usable snapshot, or None on miss.
 
@@ -446,6 +447,9 @@ class RepoSnapshotCache:
           gets filtered out at scoring time). ``coverage_until`` is
           deliberately NOT used as a lookup constraint here — see module
           docstring for why.
+
+        ``collected_before`` optionally freezes the evidence collection
+        window so later snapshots cannot silently replace a validation replay.
         """
         canonical = normalize_package_name(name, ecosystem)
         package = (
@@ -463,6 +467,8 @@ class RepoSnapshotCache:
                 RepoSnapshot.fetcher_version == COLLECTOR_VERSION,
             )
         )
+        if collected_before is not None:
+            query = query.filter(RepoSnapshot.collected_at <= collected_before)
         if cutoff_date is None:
             # Current-scoring path: enforce freshness SLA on collected_at.
             sla_cutoff = utcnow_naive() - timedelta(days=sla_expired_days)
@@ -479,6 +485,7 @@ class RepoSnapshotCache:
         repo_url: str,
         cutoff_date: Optional[datetime] = None,
         sla_expired_days: int = SLA_EXPIRED_DAYS,
+        collected_before: Optional[datetime] = None,
     ) -> Optional[RepoSnapshot]:
         """Look up the most recent snapshot for a canonical repo URL.
 
@@ -514,6 +521,8 @@ class RepoSnapshotCache:
                 RepoSnapshot.repo_url_canonical == canonical,
             )
         )
+        if collected_before is not None:
+            query = query.filter(RepoSnapshot.collected_at <= collected_before)
 
         if cutoff_date is None:
             sla_cutoff = utcnow_naive() - timedelta(days=sla_expired_days)

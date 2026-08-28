@@ -342,14 +342,14 @@ class RiskScorer:
 
         # Activity explanation
         if breakdown.activity_modifier == 20:
-            parts.append("Project appears abandoned (<4 commits/year)")
+            parts.append("Project appears abandoned (<4 human-authored commits/year)")
         elif breakdown.activity_modifier == -30:
-            parts.append("Actively maintained (>50 commits/year)")
+            parts.append("Actively maintained (>50 non-bot commits/year)")
         elif breakdown.activity_modifier == -15:
-            parts.append("Moderately active (12-50 commits/year)")
+            parts.append("Moderately active (12-50 non-bot commits/year)")
         elif breakdown.activity_modifier == 0:
             if metrics and metrics.is_mature and metrics.commits_last_year < 4:
-                parts.append("Low recent activity (expected for mature project)")
+                parts.append("Low recent human activity (expected for mature project)")
             elif (
                 metrics
                 and metrics.commits_last_year >= 12
@@ -363,7 +363,7 @@ class RiskScorer:
                     "of the takeover pattern"
                 )
             else:
-                parts.append("Low activity (4-11 commits/year)")
+                parts.append("Low human activity (4-11 commits/year)")
 
         # Protective factors summary
         pf_total = breakdown.protective_factors.total
