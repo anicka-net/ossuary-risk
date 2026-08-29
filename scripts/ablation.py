@@ -11,11 +11,32 @@ Strategy: collect per-package data once, then re-score N+1 times with
 the protective-factor calculator monkey-patched. This avoids re-hitting
 the network for each factor and keeps runs comparable on identical inputs.
 
+Evidence modes (current-state cases — controls and T_risk — have
+``cutoff_date=None`` in the case definitions):
+
+* **Pinned checkpoint (required for final/thesis runs):** pass
+  ``--replay-instant`` and ``--snapshot-collected-before`` together.
+  Current-state cases are then collected and scored at the declared
+  canonical current-state cutoff, replaying the frozen snapshot cache
+  (``cache_only=True``, no upstream contact), exactly like
+  ``scripts/validate.py --replay-instant ...``. Historical incidents
+  keep their declared T-1 cutoffs and replay from the same frozen
+  snapshot pool.
+* **Run-time cutoff (explicit opt-in only):** pass
+  ``--allow-run-time-cutoff`` to score current-state cases at
+  ``datetime.now()`` against whatever the snapshot SLA serves. This
+  mode is for interactive exploration only; final artefacts produced
+  this way are not frozen-evidence diagnostics.
+
 Usage:
-    python scripts/ablation.py
-    python scripts/ablation.py --factors visibility,frustration --limit 20
-    python scripts/ablation.py --output thesis/ablation_results.json \
-                               --table thesis/ablation_table.md
+    python scripts/ablation.py --limit 5 --allow-run-time-cutoff   # smoke
+    python scripts/ablation.py --factors visibility,frustration --limit 20 \
+        --allow-run-time-cutoff
+    python scripts/ablation.py \
+        --replay-instant 2026-08-15T15:49:38.364446Z \
+        --snapshot-collected-before 2026-08-15T18:48:00Z \
+        --output thesis/ablation_results_pinned_20260815.json \
+        --table thesis/ablation_table_pinned_20260815.md
 """
 
 import argparse
@@ -38,10 +59,13 @@ from validate import (  # noqa: E402  (path inserted above)
     VALIDATION_CASES,
     ValidationResult,
     RISK_THRESHOLD,
+    parse_replay_instant,
 )
+from ossuary.scoring import METHODOLOGY_VERSION  # noqa: E402
 from ossuary.scoring.engine import RiskScorer  # noqa: E402
 from ossuary.scoring.factors import ProtectiveFactors  # noqa: E402
 from ossuary._compat import parse_utc_date_end  # noqa: E402
+from ossuary.services.repo_cache import COLLECTOR_VERSION  # noqa: E402
 from ossuary.services.scorer import (  # noqa: E402
     cached_collect,
     calculate_score_for_date,
@@ -126,7 +150,36 @@ def is_in_scope(case) -> bool:
     return case.tier in IN_SCOPE_TIERS
 
 
-async def collect_all(cases):
+def check_arg_compatibility(replay_instant, snapshot_collected_before,
+                            allow_run_time_cutoff):
+    """Return an error message for an unsafe flag combination, or None.
+
+    Guards the diagnosed harness defect (2026-08-29): a run without a
+    declared canonical current-state checkpoint silently scored
+    controls/T_risk at ``datetime.now()``, drifting current-state
+    evidence away from the canonical validation checkpoint (isarray
+    40→60 between 15 Aug and 28 Aug on identical snapshot blobs). Final
+    ablation artefacts must pin the checkpoint; run-time scoring is an
+    explicit opt-in for interactive exploration only.
+    """
+    if bool(replay_instant) != bool(snapshot_collected_before):
+        return ("--replay-instant and --snapshot-collected-before are "
+                "required together")
+    if replay_instant is None and not allow_run_time_cutoff:
+        return ("refusing to score current-state cases at run time: pass "
+                "--replay-instant and --snapshot-collected-before to pin the "
+                "canonical current-state checkpoint (frozen-evidence mode), or "
+                "--allow-run-time-cutoff to explicitly opt in to run-time "
+                "scoring (interactive exploration only, not a frozen-evidence "
+                "diagnostic)")
+    if replay_instant is not None and allow_run_time_cutoff:
+        return ("--allow-run-time-cutoff is meaningless with --replay-instant: "
+                "the current-state cutoff is already pinned")
+    return None
+
+
+async def collect_all(cases, *, current_state_cutoff=None,
+                      snapshot_collected_before=None, cache_only=False):
     """Fetch upstream data once per case; return case_key -> (collected, cutoff, error).
 
     Keyed on ``case_key(case)`` (full tuple) rather than ``case.name``: the
@@ -136,17 +189,23 @@ async def collect_all(cases):
     Keying on name alone would let the second iteration overwrite the
     first's data, contaminating the per-case dump that downstream §5.10.1
     cites.
+
+    ``current_state_cutoff`` (the pinned replay instant) changes both the
+    collection lookup and the scoring cutoff for current-state cases
+    (``cutoff_date=None``): they are collected via the frozen-snapshot
+    replay path (``cutoff_date=replay instant``, ``collected_before``
+    upper bound) and scored at that instant — never at ``datetime.now()``.
+    Historical incidents keep their declared T-1 cutoffs in both modes.
     """
     cache = {}
     print(f"Collecting upstream data for {len(cases)} packages...")
     for i, case in enumerate(cases, 1):
-        # Pass the original cutoff_date — None for controls (current
-        # scoring, freshness SLA applies) vs an explicit historical
-        # datetime for incidents. The scorer below derives a concrete
-        # cutoff for `calculate_score_for_date` separately.
+        # Current-state cases: cutoff_for_collect is None in run-time mode
+        # (SLA-served current snapshot) or the pinned replay instant in
+        # frozen-evidence mode. cutoff_for_score is always concrete.
         cutoff_for_collect = (
             parse_utc_date_end(case.cutoff_date)
-            if case.cutoff_date else None
+            if case.cutoff_date else current_state_cutoff
         )
         cutoff_for_score = cutoff_for_collect or datetime.now()
         key = case_key(case)
@@ -154,6 +213,8 @@ async def collect_all(cases):
             collected, warnings = await cached_collect(
                 case.name, case.ecosystem, case.repo_url,
                 cutoff_date=cutoff_for_collect,
+                cache_only=cache_only,
+                snapshot_collected_before=snapshot_collected_before,
             )
             err = None if collected is not None else (warnings[0] if warnings else "no data")
             cache[key] = (collected, cutoff_for_score, err)
@@ -290,12 +351,26 @@ def run_pass(label, factor, cases, cache):
     return results, metrics
 
 
-def write_markdown_table(path, runs, factors, baseline, n_cases):
+def write_markdown_table(path, runs, factors, baseline, n_cases, provenance=None):
     base = baseline
     lines = [
         f"# Factor ablation — scope-B (n={base['n']} of {n_cases} cases)",
         "",
         f"Generated: {datetime.now().isoformat(timespec='seconds')}",
+    ]
+    if provenance:
+        lines += [
+            f"Evidence mode: {provenance.get('evidence_mode', 'unspecified')}",
+            f"Methodology: {provenance.get('methodology_version', '?')} "
+            f"(collector v{provenance.get('collector_version', '?')})",
+        ]
+        if provenance.get("current_state_cutoff"):
+            lines.append(
+                "Current-state checkpoint (replayed, cache-only): "
+                f"{provenance['current_state_cutoff']} "
+                f"(snapshots collected before {provenance['snapshot_collected_before']})"
+            )
+    lines += [
         "",
         "Each row clamps one protective factor to 0 and re-runs the full validation set.",
         "Negative ΔF1 means the factor was load-bearing on this dataset; values close to",
@@ -342,7 +417,33 @@ async def main():
     ap.add_argument("--table", "-t", default=str(REPO / "thesis" / "ablation_table.md"))
     ap.add_argument("--factors", help="Comma-separated subset of factor names")
     ap.add_argument("--limit", type=int, help="Only run first N cases (smoke test)")
+    ap.add_argument(
+        "--replay-instant",
+        type=parse_replay_instant,
+        help=("Pin the canonical current-state cutoff (ISO-8601 with UTC "
+              "offset). Current-state cases are collected from the frozen "
+              "snapshot cache and scored at this instant; no upstream contact"),
+    )
+    ap.add_argument(
+        "--snapshot-collected-before",
+        type=parse_replay_instant,
+        help=("Upper bound for snapshot collection time in pinned mode; "
+              "prevents later refreshes from replacing frozen evidence"),
+    )
+    ap.add_argument(
+        "--allow-run-time-cutoff",
+        action="store_true",
+        help=("Explicitly opt in to scoring current-state cases at run time "
+              "(interactive exploration only; not a frozen-evidence diagnostic)"),
+    )
     args = ap.parse_args()
+
+    err = check_arg_compatibility(
+        args.replay_instant, args.snapshot_collected_before,
+        args.allow_run_time_cutoff,
+    )
+    if err:
+        ap.error(err)
 
     cases = list(VALIDATION_CASES)
     if args.limit:
@@ -356,7 +457,12 @@ async def main():
         if not hasattr(ProtectiveFactors(), f"{f}_score"):
             raise SystemExit(f"Unknown factor: {f}. Known: {FACTORS}")
 
-    cache = await collect_all(cases)
+    cache = await collect_all(
+        cases,
+        current_state_cutoff=args.replay_instant,
+        snapshot_collected_before=args.snapshot_collected_before,
+        cache_only=bool(args.replay_instant),
+    )
 
     runs = {}
     baseline_results, baseline_metrics = run_pass("BASELINE", None, cases, cache)
@@ -376,8 +482,30 @@ async def main():
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        import subprocess
+        git_commit = subprocess.run(
+            ["git", "-C", str(REPO), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:  # noqa: BLE001
+        git_commit = None
     payload = {
         "timestamp": datetime.now().isoformat(),
+        "methodology_version": METHODOLOGY_VERSION,
+        "collector_version": COLLECTOR_VERSION,
+        "git_commit": git_commit,
+        "evidence_mode": (
+            "pinned current-state checkpoint (cache-only replay)"
+            if args.replay_instant else "run-time current-state cutoff (opt-in)"
+        ),
+        "current_state_cutoff": (
+            args.replay_instant.isoformat() + "Z" if args.replay_instant else None
+        ),
+        "snapshot_collected_before": (
+            args.snapshot_collected_before.isoformat() + "Z"
+            if args.snapshot_collected_before else None
+        ),
         "n_cases": len(cases),
         "scope": "B (in-scope only)",
         "threshold": RISK_THRESHOLD,
@@ -386,7 +514,10 @@ async def main():
     }
     out_path.write_text(json.dumps(payload, indent=2))
 
-    write_markdown_table(args.table, runs, factors, baseline_metrics, len(cases))
+    write_markdown_table(
+        args.table, runs, factors, baseline_metrics, len(cases),
+        provenance=payload,
+    )
 
     print(f"\nResults JSON: {out_path}")
     print(f"Markdown table: {args.table}")

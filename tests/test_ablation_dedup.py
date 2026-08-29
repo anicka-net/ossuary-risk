@@ -65,7 +65,9 @@ class TestCollectAllDeduplication:
         # can verify each slot stored a *distinct* result.
         call_count = {"n": 0}
 
-        async def fake_cached_collect(name, ecosystem, repo_url, cutoff_date=None):
+        async def fake_cached_collect(name, ecosystem, repo_url, cutoff_date=None,
+                                      cache_only=False,
+                                      snapshot_collected_before=None):
             call_count["n"] += 1
             # Return a sentinel that records which call produced it.
             return f"data-call-{call_count['n']}", []
@@ -100,7 +102,9 @@ class TestCollectAllDeduplication:
             tier="T4", cutoff_date="2026-03-30",
         )
 
-        async def fake_cached_collect(name, ecosystem, repo_url, cutoff_date=None):
+        async def fake_cached_collect(name, ecosystem, repo_url, cutoff_date=None,
+                                      cache_only=False,
+                                      snapshot_collected_before=None):
             return "data", []
 
         with patch("ablation.cached_collect", side_effect=fake_cached_collect):
