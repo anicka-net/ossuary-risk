@@ -87,7 +87,7 @@ The xz-utils backdoor (CVE-2024-3094) represents the most sophisticated governan
 
 This incident validates Ossuary's approach: the attacker specifically targeted a project with high concentration and a burned-out maintainer - both signals Ossuary detects.
 
-**Proportion Shift Detection (v4.0)**: Ossuary's takeover detection compares each contributor's historical commit share against their recent (12-month) share. Applied to xz-utils, this detects Jia Tan by **March 2023** — a full 12 months before the backdoor was discovered in March 2024. At the March 2023 cutoff Jia Tan's share was 0.6% historical → 31% recent = **+30.4 percentage point shift**, just over the 30pp detection threshold; by January 2024 the shift had grown to +46.5pp (3.5% → 50%). See Section 4.4 for the full time-series.
+**Proportion Shift Detection (v4.0)**: Ossuary compares each contributor's historical commit share against their recent (12-month) share. Applied to xz-utils, this detects Jia Tan by **March 2023** — a full 12 months before the backdoor was discovered in March 2024. At the March 2023 cutoff Jia Tan's share was 0.6% historical → 31% recent = **+30.4 percentage point shift**, just over the 30pp detection threshold; by January 2024 the shift had grown to +46.5pp (3.5% → 50%). See Section 4.4 for the full time-series.
 
 ### 2.4 Existing Tools and Gap Analysis
 
@@ -384,7 +384,7 @@ A critical insight from validating against real-world package inventories: the o
 Ossuary uses a **two-track scoring model**:
 
 - **Non-mature projects**: Standard scoring (described in 4.1–4.2 below)
-- **Mature projects**: Modified scoring that uses lifetime contributor history and suppresses the abandonment penalty, while adding takeover detection
+- **Mature projects**: Modified scoring that uses lifetime contributor history and suppresses the abandonment penalty, while adding responsibility-shift detection
 
 #### Maturity Heuristics
 
@@ -976,7 +976,7 @@ A key methodological contribution is the **tier-based scoped evaluation**:
 
 This is more honest than either (a) reporting only in-scope incidents (hides the limitations) or (b) counting all incidents equally (artificially depresses recall for a tool with a clear, stated scope).
 
-### 8.9 T-1 Validation (Predictive Power)
+### 8.9 T-1 Validation (Pre-Incident Signal Visibility)
 
 To illustrate pre-incident signal visibility, packages were scored at cutoffs before their incidents became public:
 
@@ -1035,7 +1035,7 @@ This shows that the methodology could have flagged these packages **before** the
 
 #### xz-utils Proportion Shift Detection (v4.0)
 
-The xz-utils attack (CVE-2024-3094) was the most sophisticated governance attack documented, with a 2.6-year timeline. Using proportion shift takeover detection, Ossuary detects the anomaly by **March 2023**:
+The xz-utils attack (CVE-2024-3094) was the most sophisticated governance attack documented, with a 2.6-year timeline. Using proportion shift detection, Ossuary detects the anomaly by **March 2023**:
 
 ```
 Cutoff: 2023-03 (12 months before disclosure)
