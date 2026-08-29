@@ -2,7 +2,7 @@
 
 **OSS Supply Chain Risk Scoring** - Where abandoned packages come to rest.
 
-Ossuary analyzes open source packages to identify governance-based supply chain risks before incidents occur. It calculates a risk score (0-100) based on maintainer concentration, activity patterns, protective factors, and takeover detection.
+Ossuary is a governance-risk triage system for open source packages. It scores each package on observable governance evidence (0-100) so that a reviewer can decide where limited attention should go before an incident becomes known.
 
 ## What It Detects
 
@@ -77,7 +77,7 @@ Final Score = Base Risk + Activity Modifier + Protective Factors
 
 **Base Risk** from maintainer concentration. **Activity Modifier** rewards active maintenance, penalizes abandonment. **Protective Factors** include maintainer reputation, funding (GitHub Sponsors), org ownership, visibility (downloads/stars), community size, and takeover detection.
 
-**Takeover Detection** (novel contribution): compares each contributor's recent commit share vs historical baseline. A newcomer jumping from 2% to 50% on a mature project triggers an alert. Guards prevent false positives for established contributors, long-tenure maintainers, and internal org handoffs.
+**Responsibility-shift detection**: compares a contributor's recent commit share against its historical baseline. A shift from 2% to 50% on a mature project raises an alert that deserves review; it does not imply malicious intent, only that responsibility changed enough to justify a look. Guards prevent false positives for established contributors, long-tenure maintainers, and internal org handoffs.
 
 See [methodology](docs/methodology.md) for full details.
 
@@ -178,7 +178,7 @@ MBA thesis research on OSS supply chain risk (VŠE Prague, due Dec 2026).
 
 **AI assistance declaration**: The tool was co-developed with Claude Opus (Anthropic) and reviewed by OpenAI Codex/GPT. AI assistance was used for implementation, data collection, analysis scripts, and working notes. Code reviews by both models are marked in commit history via `Co-Authored-By` trailers. All thesis text is the author's own.
 
-Key contribution: governance-based risk indicators are observable in public metadata before incidents occur, but they address a specific attack subset — not a universal detector.
+Key contribution: governance-based risk indicators are observable in public metadata before incidents occur, supporting governance-risk triage across a declared attack subset rather than a universal detector.
 
 ## Agent Contract
 

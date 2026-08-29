@@ -35,7 +35,7 @@ Modern software relies heavily on open source dependencies. A typical applicatio
 
 ### 1.3 Research Question
 
-> Can publicly observable metadata predict which packages are vulnerable to governance-based attacks **before** incidents occur?
+> Can publicly observable governance evidence support useful governance-risk triage before an incident becomes known?
 
 ---
 
@@ -101,18 +101,18 @@ This incident validates Ossuary's approach: the attacker specifically targeted a
 | **LFX Insights** | Project criticality ranking | Identifies important projects but not governance risk; complementary as prioritization input |
 | **OSSInsight** | GitHub analytics at scale | Raw activity dashboards (stars, commits, PRs) but no risk scoring or governance assessment |
 
-**The Gap**: No existing tool combines maintainer concentration, activity patterns, and frustration signals into a predictive governance risk score validated against historical incidents.
+**The Gap**: No existing public, reproducible tool combines maintainer concentration, activity patterns and takeover detection into a governance-risk triage score with declared scope. Commercial services such as Bitergia Risk Radar share several of these observables; the contribution here is the surrounding public assessment contract rather than the signals themselves.
 
 ### 2.5 Academic Contribution
 
 Ossuary contributes to this body of research by:
 
-1. **Operationalizing** CHAOSS metrics into an actionable risk score
-2. **Adding sentiment analysis** for frustration/burnout detection (extending Raman et al.)
-3. **Validating predictively** against real incidents (T-1 analysis)
+1. **Operationalizing** CHAOSS metrics into an actionable risk score with declared scope
+2. **Adding a responsibility-shift signal** for changes in who carries development (validated against the xz-utils timeline)
+3. **Validating against real incidents** at pre-incident cutoffs (T-1 analysis)
 4. **Achieving 94.1% precision** with 2 false positives across 184 packages (v6.4.3)
-5. **Detecting social engineering takeovers** via proportion shift analysis, validated against the xz-utils timeline (12-month early detection)
-6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to empirically demonstrate what governance scoring can and cannot detect
+5. **Using pre-incident cutoffs and historical reconstruction** rather than leaking current evidence into the past
+6. **Explicitly validating detection boundaries** — including out-of-scope attack types in the validation set to demonstrate what governance scoring can and cannot detect
 
 ---
 
@@ -978,7 +978,7 @@ This is more honest than either (a) reporting only in-scope incidents (hides the
 
 ### 8.9 T-1 Validation (Predictive Power)
 
-To validate **predictive** capability, we scored packages at a cutoff date *before* their incidents occurred:
+To illustrate pre-incident signal visibility, packages were scored at cutoffs before their incidents became public:
 
 | Package | Incident Date | Cutoff Date | T-1 Score | Level | Key Signals Detected |
 |---------|---------------|-------------|-----------|-------|---------------------|
@@ -1031,7 +1031,7 @@ Score: 100 CRITICAL
 ```
 Classic abandonment pattern - single maintainer, no activity, prime target for malicious takeover.
 
-This demonstrates that the methodology could have flagged these packages **before** their incidents occurred, validating the predictive value of governance metrics.
+This shows that the methodology could have flagged these packages **before** their incidents became public, and illustrates the usefulness of governance observables for pre-incident triage.
 
 #### xz-utils Proportion Shift Detection (v4.0)
 
@@ -1147,7 +1147,7 @@ Construct validity concerns whether the theoretical constructs are correctly ope
 
 | Threat | Description | Mitigation |
 |--------|-------------|------------|
-| **"Governance Risk" Definition** | Governance risk is a latent construct; operationalization may not capture all dimensions | Definition grounded in incident analysis; validated by predictive accuracy |
+| **"Governance Risk" Definition** | Governance risk is a latent construct; operationalization may not capture all dimensions | Definition grounded in incident analysis; supported by observed detection rates |
 | **Maintainer Concentration Proxy** | Commit count used as proxy for "control"; doesn't capture npm publish rights, code review authority | Git commits are observable and historically correlate with incidents |
 | **Frustration Measurement** | Rule matching may miss subtle frustration or match technical phrases; git authorship is only a maintainer proxy | Frustration is scoring only for the resolved issue maintainer or top non-`[bot]` commit contributor. v6.4.3 removed four non-maintainer technical-phrase hits; nonstandard automation remains a limitation and VADER remains descriptive and non-scoring. |
 | **Reputation Conflation** | GitHub stars/repos conflate popularity with trustworthiness | Reputation is one factor among many; not solely determinative |
@@ -1319,7 +1319,7 @@ Critically, the 5 incidents where Scorecard ≥ 5.0 (indicating good security pr
 | codecov/codecov-action | 0 | 7.0 | account_compromise |
 | nrwl/nx | 0 | 6.4 | account_compromise |
 
-Of these 5, Ossuary flagged 2 (xz-utils and ua-parser-js) — precisely the governance-detectable ones. The remaining 3 (tj-actions, codecov, nx) are CI/CD or credential compromises that neither governance nor security-practice scoring can predict, confirming the detection boundary analysis from §8.7.
+Of these 5, Ossuary flagged 2 (xz-utils and ua-parser-js), the two governance-detectable cases. The remaining 3 (tj-actions, codecov, nx) are CI/CD or credential compromises that sit outside the governance detection boundary; security-practice scoring does not reach them either. This is consistent with the detection boundary analysis from §8.7.
 
 #### Key Findings
 
