@@ -2,7 +2,7 @@
 """Score the exact H-matrix rows with frozen Ossuary v6.4.3 at their cutoffs.
 
 Same-population comparator for the ML diagnostic: positives reuse the
-canonical same-cutoff scores from validation_results.json; the 95 matched
+canonical same-cutoff scores from validation_results.json; the 91 matched
 historical control observations are scored through the frozen scorer using
 the same cache/replay semantics as the committed validation run
 (cache-only, snapshot-collected-before 2026-08-15T18:48Z).

@@ -1,5 +1,5 @@
 {
- "built_utc": "2026-08-28T19:55:23.346395+00:00",
+ "built_utc": "2026-08-30T20:33:10.594926+00:00",
  "source_commit": "715b36cf549d998bf1e2e928cc5a1b9f4e346a00",
  "methodology": "6.4.3",
  "collector_version": 5,
@@ -56,5 +56,18 @@
   "account_age_years",
   "account_age_years_missing"
  ],
- "matching_rule": "chronological incidents (name tie-break); same ecosystem; control first_commit_date <= incident cutoff; fewest previous selections first; equal-use ties alphabetical; up to four"
+ "matching_rule": "chronological incidents (name tie-break); same ecosystem; control first_commit_date <= incident cutoff; fewest previous selections first; equal-use ties alphabetical; up to four",
+ "H_population": {
+  "canonical_positive_cases": 29,
+  "fitted_positive_cases": 28,
+  "excluded_cases": [
+   {
+    "ecosystem": "github",
+    "package": "polyfillpolyfill/polyfill-library",
+    "cutoff_date": "2024-02-01",
+    "reason": "The retained repository lineage has no commits observable at the 2024-02-01 cutoff, so it cannot support a valid historical feature row."
+   }
+  ]
+ },
+ "historical_commit_filter": "author timestamp <= cutoff and committer timestamp <= cutoff"
 }

@@ -10,11 +10,11 @@
  },
  "ossuary_comparators": {
   "H_population": {
-   "n": 123,
+   "n": 119,
    "n_pos": 28,
    "TP": 23,
    "FP": 14,
-   "TN": 81,
+   "TN": 77,
    "FN": 5,
    "precision": 0.6216,
    "recall": 0.8214,
@@ -35,7 +35,7 @@
  },
  "H": {
   "regime": "H",
-  "n": 123,
+  "n": 119,
   "n_pos": 28,
   "n_groups": 70,
   "features": [
@@ -57,105 +57,105 @@
   "ossuary_recall_target": 0.8214,
   "models": {
    "logreg": {
-    "roc_auc": 0.8985,
-    "pr_auc": 0.6864,
+    "roc_auc": 0.8399,
+    "pr_auc": 0.5842,
     "at_0.5": {
      "threshold": 0.5,
-     "TP": 14,
-     "FP": 3,
-     "TN": 92,
-     "FN": 14,
-     "precision": 0.8235,
-     "recall": 0.5,
-     "f1": 0.6222
+     "TP": 12,
+     "FP": 5,
+     "TN": 86,
+     "FN": 16,
+     "precision": 0.7059,
+     "recall": 0.4286,
+     "f1": 0.5333
     },
     "recall_at_fp<=14": {
-     "threshold": 0.3202,
-     "TP": 21,
-     "FP": 14,
-     "TN": 81,
-     "FN": 7,
-     "precision": 0.6,
-     "recall": 0.75,
-     "f1": 0.6667
+     "threshold": 0.3492,
+     "TP": 17,
+     "FP": 11,
+     "TN": 80,
+     "FN": 11,
+     "precision": 0.6071,
+     "recall": 0.6071,
+     "f1": 0.6071
     },
     "precision_at_recall>=0.8214": {
-     "threshold": 0.2954,
+     "threshold": 0.2009,
      "TP": 23,
-     "FP": 15,
-     "TN": 80,
+     "FP": 24,
+     "TN": 67,
      "FN": 5,
-     "precision": 0.6053,
+     "precision": 0.4894,
      "recall": 0.8214,
-     "f1": 0.697
+     "f1": 0.6133
     }
    },
    "gbm": {
-    "roc_auc": 0.888,
-    "pr_auc": 0.6898,
+    "roc_auc": 0.8925,
+    "pr_auc": 0.7165,
     "at_0.5": {
      "threshold": 0.5,
-     "TP": 21,
-     "FP": 7,
-     "TN": 88,
-     "FN": 7,
-     "precision": 0.75,
-     "recall": 0.75,
-     "f1": 0.75
+     "TP": 20,
+     "FP": 9,
+     "TN": 82,
+     "FN": 8,
+     "precision": 0.6897,
+     "recall": 0.7143,
+     "f1": 0.7018
     },
     "recall_at_fp<=14": {
-     "threshold": 0.198,
-     "TP": 24,
-     "FP": 14,
-     "TN": 81,
-     "FN": 4,
-     "precision": 0.6316,
-     "recall": 0.8571,
-     "f1": 0.7273
+     "threshold": 0.4209,
+     "TP": 21,
+     "FP": 11,
+     "TN": 80,
+     "FN": 7,
+     "precision": 0.6562,
+     "recall": 0.75,
+     "f1": 0.7
     },
     "precision_at_recall>=0.8214": {
-     "threshold": 0.4087,
-     "TP": 23,
-     "FP": 8,
-     "TN": 87,
-     "FN": 5,
-     "precision": 0.7419,
-     "recall": 0.8214,
-     "f1": 0.7797
+     "threshold": 0.1291,
+     "TP": 25,
+     "FP": 15,
+     "TN": 76,
+     "FN": 3,
+     "precision": 0.625,
+     "recall": 0.8929,
+     "f1": 0.7353
     }
    },
    "rf": {
-    "roc_auc": 0.9117,
-    "pr_auc": 0.6944,
+    "roc_auc": 0.8991,
+    "pr_auc": 0.678,
     "at_0.5": {
      "threshold": 0.5,
-     "TP": 21,
-     "FP": 4,
-     "TN": 91,
-     "FN": 7,
-     "precision": 0.84,
-     "recall": 0.75,
-     "f1": 0.7925
+     "TP": 18,
+     "FP": 6,
+     "TN": 85,
+     "FN": 10,
+     "precision": 0.75,
+     "recall": 0.6429,
+     "f1": 0.6923
     },
     "recall_at_fp<=14": {
-     "threshold": 0.3975,
-     "TP": 24,
-     "FP": 6,
-     "TN": 89,
-     "FN": 4,
-     "precision": 0.8,
-     "recall": 0.8571,
-     "f1": 0.8276
+     "threshold": 0.3461,
+     "TP": 22,
+     "FP": 11,
+     "TN": 80,
+     "FN": 6,
+     "precision": 0.6667,
+     "recall": 0.7857,
+     "f1": 0.7213
     },
     "precision_at_recall>=0.8214": {
-     "threshold": 0.4934,
+     "threshold": 0.3084,
      "TP": 23,
-     "FP": 4,
-     "TN": 91,
+     "FP": 16,
+     "TN": 75,
      "FN": 5,
-     "precision": 0.8519,
+     "precision": 0.5897,
      "recall": 0.8214,
-     "f1": 0.8364
+     "f1": 0.6866
     }
    }
   }

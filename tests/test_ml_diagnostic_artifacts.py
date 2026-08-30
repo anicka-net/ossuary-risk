@@ -82,8 +82,8 @@ def test_same_population_ossuary_comparators_reproduce():
     summary = json.loads((ARTIFACTS / "ml_model_summary.json").read_text())
     h_rows = _rows("ossuary_h_scores.csv")
     h_matrix = _matrix(h_rows, "score", 60)
-    assert h_matrix == {"TP": 23, "FP": 14, "TN": 81, "FN": 5}
-    assert summary["ossuary_comparators"]["H_population"]["n"] == 123
+    assert h_matrix == {"TP": 23, "FP": 14, "TN": 77, "FN": 5}
+    assert summary["ossuary_comparators"]["H_population"]["n"] == 119
 
     validation = json.loads((ROOT / "validation_results.json").read_text())
     validation_c_rows = [
@@ -105,6 +105,50 @@ def test_same_population_ossuary_comparators_reproduce():
     c_summary = summary["ossuary_comparators"]["C_population"]
     assert c_summary["n"] == len(frozen_c_rows) == 133
     assert {key: c_summary[key] for key in c_matrix} == c_matrix
+
+
+def test_h_population_exclusions_are_explicit_and_leave_no_orphaned_controls():
+    provenance = json.loads((ARTIFACTS / "ml_matrix_provenance.json").read_text())
+    population = provenance["H_population"]
+    assert provenance["historical_commit_filter"] == (
+        "author timestamp <= cutoff and committer timestamp <= cutoff"
+    )
+    assert population["canonical_positive_cases"] == 29
+    assert population["fitted_positive_cases"] == 28
+    assert population["excluded_cases"] == [{
+        "ecosystem": "github",
+        "package": "polyfillpolyfill/polyfill-library",
+        "cutoff_date": "2024-02-01",
+        "reason": (
+            "The retained repository lineage has no commits observable at the "
+            "2024-02-01 cutoff, so it cannot support a valid historical feature row."
+        ),
+    }]
+
+    rows = _rows("ml_feature_matrix.csv")
+    h_rows = [row for row in rows if row["analysis"] == "H"]
+    positive_groups = {
+        row["match_group"] for row in h_rows if row["label"] == "1"
+    }
+    negative_groups = {
+        group
+        for row in h_rows if row["label"] == "0"
+        for group in row["match_group"].split("|")
+    }
+    assert negative_groups <= positive_groups
+
+    excluded_group = (
+        "mg:github:polyfillpolyfill/polyfill-library:2024-02-01"
+    )
+    assert excluded_group not in positive_groups
+    assert excluded_group not in negative_groups
+    assert any(
+        row["analysis"] == "Q"
+        and row["package"] == "polyfillpolyfill/polyfill-library"
+        and row["cutoff_date"] == "2024-02-01"
+        and row["label"] == ""
+        for row in rows
+    )
 
 
 def test_public_matrix_omits_maintainer_identity_columns():

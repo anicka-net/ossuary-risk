@@ -65,6 +65,13 @@ NPM_2021 = {"coa", "rc", "ua-parser-js"}
 TEAMPCP = {"trivy-action", "litellm", "telnyx", "xinference", "@tanstack/router"}
 MIASMA = {"@redhat-cloud-services/frontend-components"}
 
+H_EXCLUSIONS = {
+    ("github", "polyfillpolyfill/polyfill-library", "2024-02-01"): (
+        "The retained repository lineage has no commits observable at the "
+        "2024-02-01 cutoff, so it cannot support a valid historical feature row."
+    ),
+}
+
 # ---- explicit feature whitelists (nothing outside these may enter a model) ----
 # H: genuinely cutoff-reconstructable git-history observables only.
 #    Removed after review: is_org_owned (current ownership not historically
@@ -129,6 +136,22 @@ class UnionFind:
             self.p[rb] = ra
 
 
+def commits_observable_at(commits, cutoff):
+    """Return commits whose author and committer timestamps were observable."""
+    return [
+        commit for commit in commits
+        if commit.authored_date <= cutoff and commit.committed_date <= cutoff
+    ]
+
+
+def calculate_metrics_at_cutoff(git, commits, cutoff):
+    return git.calculate_metrics(commits_observable_at(commits, cutoff), cutoff)
+
+
+def h_exclusion(case):
+    return H_EXCLUSIONS.get((case.ecosystem, case.name, case.cutoff_date))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--output-dir", type=Path, default=ARTIFACTS)
@@ -162,7 +185,7 @@ async def build(output_dir: Path):
     def compute(case, collected, is_hist):
         cutoff = (parse_utc_date_end(case.cutoff_date)
                   if case.cutoff_date else REPLAY_INSTANT.replace(tzinfo=None))
-        m = git.calculate_metrics(collected.all_commits, cutoff)
+        m = calculate_metrics_at_cutoff(git, collected.all_commits, cutoff)
         gd = collected.github_data
 
         # frustration, frozen attribution discipline
@@ -251,7 +274,12 @@ async def build(output_dir: Path):
 
     # ---------- pass 2: row plan ----------
     controls = [c for c in cases if c.expected_outcome == "safe"]
-    h_pos = [c for c in cases if c.expected_outcome == "incident" and c.tier in {"T1", "T2", "T3"}]
+    h_candidates = [
+        c for c in cases
+        if c.expected_outcome == "incident" and c.tier in {"T1", "T2", "T3"}
+    ]
+    excluded_h_pos = [c for c in h_candidates if h_exclusion(c)]
+    h_pos = [c for c in h_candidates if not h_exclusion(c)]
     t_risk = [c for c in cases if c.tier == "T_risk"]
     boundary = [c for c in cases if c.tier in {"T4", "T5"}]
 
@@ -272,8 +300,10 @@ async def build(output_dir: Path):
             # own current-state cutoff. Defer feature computation to emit().
             collected_map[key] = collected
             cutoff = parse_utc_date_end(case.cutoff_date) if case.cutoff_date else None
-            m = git.calculate_metrics(collected.all_commits,
-                                      cutoff or REPLAY_INSTANT.replace(tzinfo=None))
+            metric_cutoff = cutoff or REPLAY_INSTANT.replace(tzinfo=None)
+            m = calculate_metrics_at_cutoff(
+                git, collected.all_commits, metric_cutoff
+            )
             metrics_map[key] = m
         except Exception as e:  # noqa: BLE001
             errors.append((key, str(e)))
@@ -385,19 +415,12 @@ async def build(output_dir: Path):
         deduped.append((row, node))
     rows = deduped
 
-    # exclude polyfillpolyfill/polyfill-library from H fitting: failed
-    # historical reconstruction (repo_age_years = -0.06, one lifetime commit
-    # at cutoff 2024-02-01 — repository-lineage discontinuity, not a valid
-    # feature value). Retained as analysis 'Q' for qualitative disagreement
-    # / error analysis, never fitted.
-    reclassified = []
-    for row, node in rows:
-        if (row["analysis"] == "H" and row["label"] == 1
-                and row["package"] == "polyfillpolyfill/polyfill-library"):
-            row["analysis"] = "Q"
-            row["label"] = ""
-        reclassified.append((row, node))
-    rows = reclassified
+    # Keep invalid historical reconstructions visible for qualitative review,
+    # but exclude them before matching so they cannot leave orphaned controls.
+    for case in excluded_h_pos:
+        mg = f"mg:{case.ecosystem}:{case.name}:{case.cutoff_date}"
+        emit(f"Q:{case.ecosystem}:{case.name}:{case.cutoff_date}",
+             "Q", case, "", mg)
 
     # globally unique row_ids after dedup
     for n, (row, node) in enumerate(rows, 1):
@@ -454,6 +477,22 @@ async def build(output_dir: Path):
             "chronological incidents (name tie-break); same ecosystem; control "
             "first_commit_date <= incident cutoff; fewest previous selections "
             "first; equal-use ties alphabetical; up to four"
+        ),
+        "H_population": {
+            "canonical_positive_cases": len(h_candidates),
+            "fitted_positive_cases": len(h_pos),
+            "excluded_cases": [
+                {
+                    "ecosystem": case.ecosystem,
+                    "package": case.name,
+                    "cutoff_date": case.cutoff_date,
+                    "reason": h_exclusion(case),
+                }
+                for case in excluded_h_pos
+            ],
+        },
+        "historical_commit_filter": (
+            "author timestamp <= cutoff and committer timestamp <= cutoff"
         ),
     }, open(output_dir / "ml_matrix_provenance.json", "w"), indent=1)
     print(f"wrote {len(out_rows)} rows; {len(errors)} errors")

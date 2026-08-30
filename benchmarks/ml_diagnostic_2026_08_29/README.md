@@ -16,8 +16,8 @@ incidents.
 
 ## Populations
 
-- H: 123 historical rows, comprising 28 T1/T2/T3 incident observations at
-  their pre-incident cutoffs and 95 matched control observations. Connected
+- H: 119 historical rows, comprising 28 T1/T2/T3 incident observations at
+  their pre-incident cutoffs and 91 matched control observations. Connected
   leakage groups are evaluated with repeated five-fold grouped
   cross-validation.
 - C: 133 current-state rows, comprising 13 purposively selected `T_risk`
@@ -25,6 +25,24 @@ incidents.
   are evaluated with repeated four-fold grouped cross-validation.
 - X: T4/T5 boundary cases. These are interpreted separately and are never
   fitted as positive training cases.
+
+Canonical validation contains 29 T1/T2/T3 cases. H excludes
+`polyfillpolyfill/polyfill-library` at its 2024-02-01 cutoff because the
+retained repository lineage has no commits observable by both author and
+committer timestamp at that date, so it cannot support a valid historical
+feature row. The excluded case remains visible as analysis `Q` in the matrix.
+Its four previously matched controls (`aquasecurity/trivy`, `grafana/grafana`,
+`hashicorp/terraform`, and `kubernetes/kubernetes`) are also excluded from H;
+they had no independent match to a retained positive at that cutoff.
+
+The 30 August 2026 correction filters every checkpoint row to commits whose
+author and committer timestamps are both at or before the cutoff before any
+lifetime, maturity, inactivity, activity, concentration, or takeover feature
+is calculated. It supersedes the initially published H results, whose lifetime
+features could include post-cutoff commits. The same checkpoint filter removes
+post-checkpoint commits from eight C rows; ten logistic OOF probabilities move
+by at most 0.0002, while every reported C metric and operating point remains
+unchanged.
 
 The models are fixed L2 logistic regression, shallow histogram gradient
 boosting, and shallow random forest. There is no hyperparameter search.
