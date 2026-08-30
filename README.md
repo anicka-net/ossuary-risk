@@ -75,7 +75,7 @@ Final Score = Base Risk + Activity Modifier + Protective Factors
              (20-100)      (-30 to +20)        (-105 to +45)
 ```
 
-**Base Risk** from maintainer concentration. **Activity Modifier** rewards active maintenance, penalizes abandonment. **Protective Factors** include maintainer reputation, funding (GitHub Sponsors), org ownership, visibility (downloads/stars), community size, and takeover detection.
+**Base Risk** from maintainer concentration. **Activity Modifier** rewards active maintenance, penalizes abandonment. **Protective Factors** include maintainer reputation, funding (GitHub Sponsors), org ownership, visibility (downloads/stars), community size, and responsibility-shift detection.
 
 **Responsibility-shift detection**: compares a contributor's recent commit share against its historical baseline. A shift from 2% to 50% on a mature project raises an alert that deserves review; it does not imply malicious intent, only that responsibility changed enough to justify a look. Guards prevent false positives for established contributors, long-tenure maintainers, and internal org handoffs.
 

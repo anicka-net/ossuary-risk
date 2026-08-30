@@ -2,8 +2,9 @@
 
 This directory contains the code-facing artifacts needed to reproduce the
 post-freeze machine-learning comparison reported in the thesis. It was
-published on 29 August 2026. Its evidence remains pinned to the final public
-validation checkpoint of 15 August 2026 and methodology v6.4.3.
+assembled on 29 August 2026 and published in commit `776670f` on 30 August
+2026. Its evidence remains pinned to the final public validation checkpoint of
+15 August 2026 and methodology v6.4.3.
 
 The experiment asks whether fixed learned models can discriminate cases from
 the same raw governance observables used by Ossuary, and how their operating
