@@ -409,9 +409,9 @@ def test_validation_unscoped_metrics_match_public_docs():
 
 
 def test_release_changelog_metrics_match_artifact():
-    """The unreleased entry publishes both metric views and matrices."""
+    """The 1.0.0 release entry publishes both metric views and matrices."""
     data = _load_validation_artifact()
-    release_entry = CHANGELOG.split("## [Unreleased]", 1)[1].split("\n## [", 1)[0]
+    release_entry = CHANGELOG.split("## [1.0.0]", 1)[1].split("\n## [", 1)[0]
 
     for scope_name in ("scope_b", "unscoped"):
         scope = data["scopes"][scope_name]

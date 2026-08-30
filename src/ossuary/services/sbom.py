@@ -38,6 +38,26 @@ PURL_TYPE_TO_ECOSYSTEM = {
 SUPPORTED_FORMATS = ("cyclonedx", "spdx")
 
 
+def _mapping_list(raw: dict, field: str, context: str = "SBOM") -> list[dict]:
+    """Read a JSON array of objects without silently dropping bad entries."""
+    value = raw.get(field)
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{context}.{field} must be an array")
+    for idx, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ValueError(f"{context}.{field}[{idx}] must be an object")
+    return value
+
+
+def _optional_string(value: object, field: str) -> Optional[str]:
+    """Validate an optional JSON string field and return it."""
+    if value is not None and not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
 @dataclass
 class SBOMComponent:
     """A single component extracted from an SBOM, ready to be scored."""
@@ -128,41 +148,59 @@ def _detect_format(raw: dict) -> Optional[str]:
 
 
 def _iter_cyclonedx_components(raw: dict) -> Iterator[SBOMComponent]:
-    for idx, component in enumerate(raw.get("components", []) or []):
-        purl = component.get("purl")
+    for idx, component in enumerate(_mapping_list(raw, "components")):
+        purl = _optional_string(component.get("purl"), f"SBOM.components[{idx}].purl")
         ecosystem, purl_name, purl_version = parse_purl(purl) if purl else (None, None, None)
-        name = purl_name or component.get("name")
+        name = purl_name or _optional_string(
+            component.get("name"), f"SBOM.components[{idx}].name"
+        )
         if not name:
             continue
-        version = purl_version or component.get("version")
+        version = purl_version or _optional_string(
+            component.get("version"), f"SBOM.components[{idx}].version"
+        )
         yield SBOMComponent(
             name=name,
             ecosystem=ecosystem,
             version=version,
             purl=purl,
-            bom_ref=component.get("bom-ref"),
+            bom_ref=_optional_string(
+                component.get("bom-ref"), f"SBOM.components[{idx}].bom-ref"
+            ),
             raw_index=idx,
         )
 
 
 def _iter_spdx_components(raw: dict) -> Iterator[SBOMComponent]:
-    document_describes = set(raw.get("documentDescribes") or [])
+    described = raw.get("documentDescribes")
+    if described is None:
+        described = []
+    if not isinstance(described, list) or not all(
+        isinstance(item, str) for item in described
+    ):
+        raise ValueError("SBOM.documentDescribes must be an array of strings")
+    document_describes = set(described)
     # Tools like syft and the GitHub SBOM export declare the root via a
     # DESCRIBES relationship instead of documentDescribes — without this
     # the product would be scored as one of its own dependencies.
-    for rel in raw.get("relationships", []) or []:
+    for rel in _mapping_list(raw, "relationships"):
         if rel.get("relationshipType") == "DESCRIBES":
-            related = rel.get("relatedSpdxElement")
+            related = _optional_string(
+                rel.get("relatedSpdxElement"),
+                "SBOM.relationships[].relatedSpdxElement",
+            )
             if related:
                 document_describes.add(related)
-    for idx, package in enumerate(raw.get("packages", []) or []):
-        spdx_id = package.get("SPDXID")
+    for idx, package in enumerate(_mapping_list(raw, "packages")):
+        spdx_id = _optional_string(
+            package.get("SPDXID"), f"SBOM.packages[{idx}].SPDXID"
+        )
         # Skip the root document package (the product itself, not a dependency).
         if spdx_id and spdx_id in document_describes:
             continue
 
         purl = None
-        for ref in package.get("externalRefs", []) or []:
+        for ref in _mapping_list(package, "externalRefs", f"SBOM.packages[{idx}]"):
             # SPDX 2.2 documents and several emitters spell the category
             # with an underscore; 2.3 uses the hyphen.
             if (
@@ -170,13 +208,22 @@ def _iter_spdx_components(raw: dict) -> Iterator[SBOMComponent]:
                 and ref.get("referenceType") == "purl"
             ):
                 purl = ref.get("referenceLocator")
+                if not isinstance(purl, str):
+                    raise ValueError(
+                        f"SBOM.packages[{idx}].externalRefs referenceLocator "
+                        "must be a string"
+                    )
                 break
 
         ecosystem, purl_name, purl_version = parse_purl(purl) if purl else (None, None, None)
-        name = purl_name or package.get("name")
+        name = purl_name or _optional_string(
+            package.get("name"), f"SBOM.packages[{idx}].name"
+        )
         if not name:
             continue
-        version = purl_version or package.get("versionInfo")
+        version = purl_version or _optional_string(
+            package.get("versionInfo"), f"SBOM.packages[{idx}].versionInfo"
+        )
         yield SBOMComponent(
             name=name,
             ecosystem=ecosystem,
@@ -200,6 +247,9 @@ def parse_sbom(path: str | Path) -> SBOMDocument:
         raw = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"SBOM file is not valid JSON: {exc}") from exc
+
+    if not isinstance(raw, dict):
+        raise ValueError("SBOM document must be a JSON object")
 
     fmt = _detect_format(raw)
     if fmt == "cyclonedx":

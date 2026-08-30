@@ -98,12 +98,12 @@ class TestApiCommand:
 
     @patch("subprocess.run")
     def test_api_default_host(self, mock_run):
-        """API binds to 0.0.0.0 by default."""
+        """API is local-only by default; network exposure must be explicit."""
         mock_run.return_value = None
         result = self.runner.invoke(app, ["api"])
         args = mock_run.call_args[0][0]
         assert "--host" in args
-        assert "0.0.0.0" in args
+        assert "127.0.0.1" in args
 
     @patch("subprocess.run")
     def test_api_custom_host(self, mock_run):

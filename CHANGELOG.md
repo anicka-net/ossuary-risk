@@ -4,7 +4,7 @@ All notable changes to Ossuary are documented in this file. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions track [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] — 2026-08-30
 
 Release-candidate work for the next stable release. The scoring methodology
 advances to v6.4.3 and the final thesis-facing validation cutoff is 2026-08-15.
@@ -76,7 +76,22 @@ records those changes rather than presenting 1.0 as a packaging-only release.
 - Repository-aware cache reuse preserves package-specific registry data and
   donor snapshot timestamps.
 - CI runs the complete test suite on pushes and pull requests. The release
-  candidate passes all 624 tests.
+  candidate passes all 647 tests.
+
+### Security and release hardening
+
+- Require GitPython 3.1.60 or newer and reject clone URLs outside HTTPS
+  `github.com` / `gitlab.com` repositories before they reach GitPython,
+  including embedded control characters that URL parsers silently strip.
+- Bind the REST API to loopback by default. Network exposure is explicit and
+  documented as requiring an authenticated, rate-limited reverse proxy.
+- Reject malformed CycloneDX and SPDX collection structures with a clean
+  input error instead of an `AttributeError` traceback or silent omission.
+- Restrict the PyPI source distribution to runtime/build files and include the
+  MIT licence; research scripts, validation data, seeds, and internal project
+  material remain available in Git but are not installation payload.
+- Document that git identities and history are self-asserted evidence rather
+  than tamper-resistant maintainer provenance.
 
 ## [0.11.0] — 2026-06-13
 

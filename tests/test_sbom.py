@@ -221,6 +221,34 @@ class TestUnrecognisedSBOM:
         with pytest.raises(ValueError, match="Unrecognised SBOM format"):
             parse_sbom(path)
 
+    @pytest.mark.parametrize(
+        "doc, message",
+        [
+            ([], "JSON object"),
+            (
+                {"bomFormat": "CycloneDX", "specVersion": "1.5", "components": "oops"},
+                "components must be an array",
+            ),
+            (
+                {"bomFormat": "CycloneDX", "specVersion": "1.5", "components": ["oops"]},
+                r"components\[0\] must be an object",
+            ),
+            (
+                {"spdxVersion": "SPDX-2.3", "packages": "oops"},
+                "packages must be an array",
+            ),
+            (
+                {"spdxVersion": "SPDX-2.3", "packages": [], "relationships": "oops"},
+                "relationships must be an array",
+            ),
+        ],
+    )
+    def test_malformed_structure_raises_clean_value_error(self, tmp_path, doc, message):
+        path = tmp_path / "malformed.json"
+        path.write_text(json.dumps(doc))
+        with pytest.raises(ValueError, match=message):
+            parse_sbom(path)
+
 
 class TestEnrichment:
     def _score(self, final, level="HIGH", concentration=80.0, bus_factor=1, commits=2):

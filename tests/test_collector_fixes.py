@@ -12,7 +12,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from ossuary.collectors.git import GitCollector
+import pytest
+
+from ossuary.collectors.git import GitCollector, validate_repo_url
 from ossuary.collectors.github import GitHubCollector
 
 
@@ -40,7 +42,7 @@ class TestCloneOrUpdateFreshness:
     toward zero and abandonment signals fire spuriously.
     """
 
-    def test_update_picks_up_new_upstream_commits(self, tmp_path):
+    def test_update_picks_up_new_upstream_commits(self, tmp_path, monkeypatch):
         origin = tmp_path / "origin"
         origin.mkdir()
         _git(origin, "init", "-b", "main")
@@ -49,6 +51,9 @@ class TestCloneOrUpdateFreshness:
         _git(origin, "commit", "-m", "first")
 
         collector = GitCollector(repos_path=str(tmp_path / "repos"))
+        # The production boundary accepts public HTTPS forges only. This test
+        # deliberately uses a local origin to exercise fetch/fast-forward.
+        monkeypatch.setattr("ossuary.collectors.git.validate_repo_url", lambda url: url)
         repo_path = collector.clone_or_update(str(origin))
         assert len(collector.extract_commits(repo_path)) == 1
 
@@ -74,6 +79,49 @@ class TestRepoPathNaming:
         collector = GitCollector(repos_path=str(tmp_path))
         path = collector._get_repo_path("https://github.com/foo/bar.git")
         assert path.name.startswith("bar_")
+
+
+class TestRepoUrlValidation:
+    def test_accepts_supported_public_forges(self):
+        assert validate_repo_url("https://github.com/owner/repo.git") == (
+            "https://github.com/owner/repo.git"
+        )
+        assert validate_repo_url("https://gitlab.com/group/subgroup/repo") == (
+            "https://gitlab.com/group/subgroup/repo"
+        )
+
+    def test_rejects_unsafe_protocols_hosts_and_credentials(self):
+        rejected = [
+            "ext::touch /tmp/marker",
+            "file:///tmp/repo",
+            "ssh://git@github.com/owner/repo",
+            "https://github.com.evil.example/owner/repo",
+            "https://user:secret@github.com/owner/repo",
+            "https://127.0.0.1/owner/repo",
+            "https://github.com/owner/repo?upload-pack=evil",
+            "https://github.com/owner/../repo",
+            "https://github.com//owner/repo",
+            # Control characters: urlsplit strips tab/CR/LF internally, so
+            # without an explicit check these validate as github.com while
+            # still carrying the raw control character into git.
+            "https://git\nhub.com/owner/repo",
+            "https://github\t.com/owner/repo",
+            "https://github.com/owner\r/repo",
+            "https://github.com/owner/repo\x7f",
+        ]
+        for url in rejected:
+            with pytest.raises(ValueError):
+                validate_repo_url(url)
+
+    def test_clone_rejects_before_gitpython(self, tmp_path, monkeypatch):
+        def unexpected_clone(*args, **kwargs):
+            raise AssertionError("unsafe URL reached GitPython")
+
+        monkeypatch.setattr("ossuary.collectors.git.Repo.clone_from", unexpected_clone)
+        collector = GitCollector(repos_path=str(tmp_path / "repos"))
+
+        with pytest.raises(ValueError, match="must use HTTPS"):
+            collector.clone_or_update("ext::touch /tmp/marker")
 
 
 class TestWeightedConcentration:

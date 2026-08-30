@@ -79,7 +79,7 @@ def dashboard(
 @app.command()
 def api(
     port: int = typer.Option(8100, "--port", "-p", help="Port to run API on"),
-    host: str = typer.Option("0.0.0.0", "--host", help="Host to bind to"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
 ):
     """Launch the REST API server."""
     import subprocess

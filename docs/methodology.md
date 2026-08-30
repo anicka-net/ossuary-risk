@@ -1057,6 +1057,13 @@ This validates that governance-based scoring can detect social engineering attac
 2. **Historical data**: Git history can be rewritten; metrics reflect current state
 3. **English bias**: Sentiment analysis optimized for English text
 4. **API rate limits**: Full analysis requires authenticated GitHub API access
+5. **Self-asserted git identities**: Git author names, emails, and timestamps
+   are not cryptographic attestations. A repository controller can rewrite
+   history or graft a well-known person's public email or GitHub noreply
+   identity onto fabricated commits, which can misattribute maintainer
+   reputation. Ossuary is a due-diligence triage signal, not a tamper-resistant
+   provenance verifier; high-stakes review should corroborate identity and
+   repository history independently.
 
 ### 9.2 Detection Limitations
 

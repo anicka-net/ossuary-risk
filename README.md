@@ -55,7 +55,7 @@ ossuary xkcd-tree transformers -e pypi --tower -o tower.svg
 
 # Batch score from seed file (--repo-aware groups sibling packages
 # that share a repo so the snapshot cache is warmed once per repo)
-ossuary seed-custom seeds/pypi-popular.yaml --repo-aware
+ossuary seed-custom my-seed.yaml --repo-aware
 
 # Show packages with biggest score changes
 ossuary movers
@@ -79,7 +79,8 @@ Final Score = Base Risk + Activity Modifier + Protective Factors
 
 **Responsibility-shift detection**: compares a contributor's recent commit share against its historical baseline. A shift from 2% to 50% on a mature project raises an alert that deserves review; it does not imply malicious intent, only that responsibility changed enough to justify a look. Guards prevent false positives for established contributors, long-tenure maintainers, and internal org handoffs.
 
-See [methodology](docs/methodology.md) for full details.
+See the [methodology](https://github.com/anicka-net/ossuary-risk/blob/main/docs/methodology.md)
+for full details.
 
 ## Visualization
 
@@ -99,7 +100,7 @@ Ossuary plugs into a Cyber Resilience Act (Regulation (EU) 2024/2847) workflow:
 - `--annex-vii` produces a structured, timestamped, methodology-versioned record suitable for inclusion in the Annex VII technical documentation required by Article 13(4).
 - `ossuary support-period[-sbom]` derives the implied maximum support period a manufacturer can defensibly claim under Article 13(8), bounded by the worst-governance critical dependency.
 
-These outputs do not change the underlying scoring methodology; they are derivations on top of it. See [methodology §12](docs/methodology.md#12-cra-aligned-outputs) for full details and the heuristic mapping behind the support-period derivation.
+These outputs do not change the underlying scoring methodology; they are derivations on top of it. See [methodology §12](https://github.com/anicka-net/ossuary-risk/blob/main/docs/methodology.md#12-cra-aligned-outputs) for full details and the heuristic mapping behind the support-period derivation.
 
 ## Dashboard
 
@@ -126,6 +127,10 @@ curl http://localhost:8100/check/npm/express
 
 Interactive docs at `http://localhost:8100/docs`.
 
+The API binds to `127.0.0.1` by default. If you deliberately expose it with
+`--host 0.0.0.0`, put it behind an authenticated, rate-limited reverse proxy:
+scoring performs outbound registry/GitHub requests and repository clones.
+
 ## Validation
 
 Validated on 184 packages across 8 ecosystems with a formal scoped validation framework (methodology v6.4.3; current-state cutoff 2026-08-15, fixed per-incident T−1 cutoffs retained):
@@ -147,8 +152,9 @@ current-year commits were authored by `stainless-app[bot]`. Commit frustration
 is also restricted to the top non-`[bot]` contributor; four false technical-phrase
 hits disappear without changing a final score or classification.
 
-See [validation report](docs/validation.md) for full analysis.
-The separate [post-freeze diagnostic ML experiment](benchmarks/ml_diagnostic_2026_08_29/README.md)
+See the [validation report](https://github.com/anicka-net/ossuary-risk/blob/main/docs/validation.md)
+for full analysis.
+The separate [post-freeze diagnostic ML experiment](https://github.com/anicka-net/ossuary-risk/blob/main/benchmarks/ml_diagnostic_2026_08_29/README.md)
 publishes its sanitized matrix, fixed model protocol, OOF predictions, and
 reviewed same-population comparisons. It is methodological support, not an
 independent prospective validation set.
@@ -186,7 +192,7 @@ Key contribution: governance-based risk indicators are observable in public meta
 
 ## Agent Contract
 
-This repository accepts AI agent contributions. See [AGENTS.md](AGENTS.md)
+This repository accepts AI agent contributions. See [AGENTS.md](https://github.com/anicka-net/ossuary-risk/blob/main/AGENTS.md)
 for the repository contract and `spec/` for the machine-facing version.
 The contract emphasizes correctness, reproducibility, and academic honesty:
 agents must not overclaim results, fabricate sources, or let methodology,

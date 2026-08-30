@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
@@ -19,6 +20,60 @@ from git.exc import GitCommandError, InvalidGitRepositoryError
 from ossuary.collectors.base import BaseCollector
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_REPO_HOSTS = {"github.com", "gitlab.com"}
+_REPO_PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def validate_repo_url(repo_url: str) -> str:
+    """Return a safe public-forge clone URL or raise ``ValueError``.
+
+    Registry repository fields and API ``repo_url`` overrides are untrusted.
+    Keep the clone boundary deliberately narrow instead of relying solely on
+    GitPython's argument and protocol guards.
+    """
+    if not isinstance(repo_url, str):
+        raise ValueError("Repository URL must be a string")
+
+    url = repo_url.strip()
+    # Reject embedded control characters. ``urlsplit`` silently strips
+    # tab/CR/LF before parsing, so a URL like ``https://git\nhub.com/...``
+    # would otherwise validate as github.com while the returned string still
+    # carries the control character into git/libcurl (which does reject it,
+    # but the boundary must not depend on downstream parsers disagreeing).
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in url):
+        raise ValueError("Repository URL contains control characters")
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Repository URL is malformed") from exc
+
+    if parsed.scheme.lower() != "https":
+        raise ValueError("Repository URL must use HTTPS")
+    if parsed.username or parsed.password or port is not None:
+        raise ValueError("Repository URL must not contain credentials or a port")
+    if parsed.hostname not in _ALLOWED_REPO_HOSTS:
+        raise ValueError("Repository URL host must be github.com or gitlab.com")
+    if parsed.query or parsed.fragment:
+        raise ValueError("Repository URL must not contain a query or fragment")
+    if not parsed.path.startswith("/") or "" in parsed.path.split("/")[1:-1]:
+        raise ValueError("Repository URL contains an empty path segment")
+
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    minimum_segments = 2
+    if len(segments) < minimum_segments:
+        raise ValueError("Repository URL must identify an owner and repository")
+    if parsed.hostname == "github.com" and len(segments) != 2:
+        raise ValueError("GitHub repository URL must have owner/repository form")
+    if any(
+        segment in {".", ".."}
+        or not _REPO_PATH_SEGMENT_RE.fullmatch(segment.removesuffix(".git"))
+        for segment in segments
+    ):
+        raise ValueError("Repository URL contains an invalid path segment")
+
+    return url
 
 # GitHub noreply format: 12345+username@users.noreply.github.com
 _GITHUB_NOREPLY_RE = re.compile(r"^\d+\+(.+)@users\.noreply\.github\.com$")
@@ -174,6 +229,7 @@ class GitCollector(BaseCollector):
         Returns:
             Path to the local repository
         """
+        repo_url = validate_repo_url(repo_url)
         repo_path = self._get_repo_path(repo_url)
 
         if repo_path.exists():
