@@ -705,8 +705,11 @@ This explains why:
 - **The existing ML comparison did not beat the hand-tuned model**: n≈64
   incidents is too few to estimate nonlinear feature interactions reliably
   (XGBoost achieved F1 0.787 vs hand-tuned 0.857 on the v6.2.1 baseline; see
-  methodology §10.4). This is an observed result, not proof that no learned
-  model can do better.
+  methodology §10.4). This spring-2026 baseline is distinct from the later
+  post-freeze H/C diagnostic published in
+  [`benchmarks/ml_diagnostic_2026_08_29`](../benchmarks/ml_diagnostic_2026_08_29/README.md).
+  Neither experiment is proof that no learned model can do better, and neither
+  is independent prospective evidence on unseen incident families.
 - **Bootstrap confidence intervals are wide**: recall 62–91% at 95% CI
   reflects the genuine uncertainty from a small population
 - **Per-tier rates have limited statistical power**: T3 at 11/14 (79%) is

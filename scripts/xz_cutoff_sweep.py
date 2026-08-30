@@ -4,8 +4,9 @@
 Thesis §3.1 claims, for tukaani-project/xz under methodology v6.4.3:
   2024-01-01: score 80, responsibility shift about +60 pp;
   2024-03-01: score 80, shift about +53 pp;
-  first firing: 2023-04-01 (+33 pp); at 2023-03-01 the rule does not fire
-  (score 50).
+  daily-refined first firing: 2023-03-06 (+30.02 pp); at 2023-03-01 the
+  rule does not fire (score 50). The coarser monthly grid first fires on
+  2023-04-01 (+33 pp).
 An independent offline replay suggested ~+30.3 pp at 2023-03-01, which
 would be above the >30 pp rule threshold — so the March/April boundary
 claim is only trustworthy if checked through the *complete* frozen

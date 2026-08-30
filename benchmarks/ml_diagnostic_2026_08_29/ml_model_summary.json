@@ -1,0 +1,307 @@
+{
+ "protocol": {
+  "H": "repeated 5-fold StratifiedGroupKFold, 5 repeats (fitted earlier; OOF preserved)",
+  "C": "repeated 4-fold StratifiedGroupKFold, 5 repeats (fitted earlier; OOF preserved)",
+  "models": "L2 logistic (C=1.0), HistGBM (depth 3, lr 0.05, L2 1.0, min_samples_leaf 10), RF (depth 4, 300 trees, leaf 5)",
+  "preprocessing": "fold-local median imputation; standardisation for logreg; RF without scaling; GBM native NaN",
+  "no_hyperparameter_search": true,
+  "frustration_interaction": "not evaluated \u2014 zero events in H; declared unevaluable pre-fit",
+  "repair_note": "confusion matrices recomputed from y_true/y_pred; recall@FP-budget = max-recall threshold within budget (precision tie-break); same-population Ossuary comparators"
+ },
+ "ossuary_comparators": {
+  "H_population": {
+   "n": 123,
+   "n_pos": 28,
+   "TP": 23,
+   "FP": 14,
+   "TN": 81,
+   "FN": 5,
+   "precision": 0.6216,
+   "recall": 0.8214,
+   "f1": 0.7077
+  },
+  "C_population": {
+   "n": 133,
+   "n_pos": 13,
+   "TP": 9,
+   "FP": 2,
+   "TN": 118,
+   "FN": 4,
+   "precision": 0.8182,
+   "recall": 0.6923,
+   "f1": 0.75
+  },
+  "note": "H: frozen v6.4.3 scored at the exact matrix cutoffs (ossuary_h_scores.csv). C: frozen v6.4.3 on the exact 13 T_risk + 120 controls (ossuary_c_scores.csv). The global Scope B result (TP32/FN10/FP2/TN118) remains the primary validation result and is not an ML comparator."
+ },
+ "H": {
+  "regime": "H",
+  "n": 123,
+  "n_pos": 28,
+  "n_groups": 70,
+  "features": [
+   "top_contributor_concentration",
+   "code_bus_factor",
+   "unique_contributors",
+   "commits_last_year",
+   "zero_activity_flag",
+   "repo_age_years",
+   "lifetime_commit_count",
+   "lifetime_contributors",
+   "is_mature",
+   "inactive_contributor_ratio",
+   "takeover_shift_pp",
+   "takeover_suspect_tenure_years",
+   "frustration_commit_texts"
+  ],
+  "ossuary_fp_budget": 14,
+  "ossuary_recall_target": 0.8214,
+  "models": {
+   "logreg": {
+    "roc_auc": 0.8985,
+    "pr_auc": 0.6864,
+    "at_0.5": {
+     "threshold": 0.5,
+     "TP": 14,
+     "FP": 3,
+     "TN": 92,
+     "FN": 14,
+     "precision": 0.8235,
+     "recall": 0.5,
+     "f1": 0.6222
+    },
+    "recall_at_fp<=14": {
+     "threshold": 0.3202,
+     "TP": 21,
+     "FP": 14,
+     "TN": 81,
+     "FN": 7,
+     "precision": 0.6,
+     "recall": 0.75,
+     "f1": 0.6667
+    },
+    "precision_at_recall>=0.8214": {
+     "threshold": 0.2954,
+     "TP": 23,
+     "FP": 15,
+     "TN": 80,
+     "FN": 5,
+     "precision": 0.6053,
+     "recall": 0.8214,
+     "f1": 0.697
+    }
+   },
+   "gbm": {
+    "roc_auc": 0.888,
+    "pr_auc": 0.6898,
+    "at_0.5": {
+     "threshold": 0.5,
+     "TP": 21,
+     "FP": 7,
+     "TN": 88,
+     "FN": 7,
+     "precision": 0.75,
+     "recall": 0.75,
+     "f1": 0.75
+    },
+    "recall_at_fp<=14": {
+     "threshold": 0.198,
+     "TP": 24,
+     "FP": 14,
+     "TN": 81,
+     "FN": 4,
+     "precision": 0.6316,
+     "recall": 0.8571,
+     "f1": 0.7273
+    },
+    "precision_at_recall>=0.8214": {
+     "threshold": 0.4087,
+     "TP": 23,
+     "FP": 8,
+     "TN": 87,
+     "FN": 5,
+     "precision": 0.7419,
+     "recall": 0.8214,
+     "f1": 0.7797
+    }
+   },
+   "rf": {
+    "roc_auc": 0.9117,
+    "pr_auc": 0.6944,
+    "at_0.5": {
+     "threshold": 0.5,
+     "TP": 21,
+     "FP": 4,
+     "TN": 91,
+     "FN": 7,
+     "precision": 0.84,
+     "recall": 0.75,
+     "f1": 0.7925
+    },
+    "recall_at_fp<=14": {
+     "threshold": 0.3975,
+     "TP": 24,
+     "FP": 6,
+     "TN": 89,
+     "FN": 4,
+     "precision": 0.8,
+     "recall": 0.8571,
+     "f1": 0.8276
+    },
+    "precision_at_recall>=0.8214": {
+     "threshold": 0.4934,
+     "TP": 23,
+     "FP": 4,
+     "TN": 91,
+     "FN": 5,
+     "precision": 0.8519,
+     "recall": 0.8214,
+     "f1": 0.8364
+    }
+   }
+  }
+ },
+ "C": {
+  "regime": "C",
+  "n": 133,
+  "n_pos": 13,
+  "n_groups": 114,
+  "features": [
+   "top_contributor_concentration",
+   "code_bus_factor",
+   "unique_contributors",
+   "commits_last_year",
+   "zero_activity_flag",
+   "repo_age_years",
+   "lifetime_commit_count",
+   "lifetime_contributors",
+   "is_mature",
+   "inactive_contributor_ratio",
+   "takeover_shift_pp",
+   "takeover_suspect_tenure_years",
+   "frustration_commit_texts",
+   "account_age_years",
+   "account_age_years_missing",
+   "merge_bus_factor",
+   "merge_bus_factor_missing",
+   "merge_concentration",
+   "frustration_commit_count",
+   "frustration_issue_count",
+   "frustration_issue_texts",
+   "maintainer_public_repos",
+   "maintainer_total_stars",
+   "sponsor_count",
+   "has_github_sponsors",
+   "weekly_downloads",
+   "cii_badge_present",
+   "repo_stargazers",
+   "org_admin_count",
+   "is_org_owned"
+  ],
+  "ossuary_fp_budget": 2,
+  "ossuary_recall_target": 0.6923,
+  "models": {
+   "logreg": {
+    "roc_auc": 0.8962,
+    "pr_auc": 0.5651,
+    "at_0.5": {
+     "threshold": 0.5,
+     "TP": 7,
+     "FP": 3,
+     "TN": 117,
+     "FN": 6,
+     "precision": 0.7,
+     "recall": 0.5385,
+     "f1": 0.6087
+    },
+    "recall_at_fp<=2": {
+     "threshold": 0.8147,
+     "TP": 4,
+     "FP": 2,
+     "TN": 118,
+     "FN": 9,
+     "precision": 0.6667,
+     "recall": 0.3077,
+     "f1": 0.4211
+    },
+    "precision_at_recall>=0.6923": {
+     "threshold": 0.0913,
+     "TP": 9,
+     "FP": 16,
+     "TN": 104,
+     "FN": 4,
+     "precision": 0.36,
+     "recall": 0.6923,
+     "f1": 0.4737
+    }
+   },
+   "gbm": {
+    "roc_auc": 0.8231,
+    "pr_auc": 0.6015,
+    "at_0.5": {
+     "threshold": 0.5,
+     "TP": 5,
+     "FP": 2,
+     "TN": 118,
+     "FN": 8,
+     "precision": 0.7143,
+     "recall": 0.3846,
+     "f1": 0.5
+    },
+    "recall_at_fp<=2": {
+     "threshold": 0.6415,
+     "TP": 5,
+     "FP": 1,
+     "TN": 119,
+     "FN": 8,
+     "precision": 0.8333,
+     "recall": 0.3846,
+     "f1": 0.5263
+    },
+    "precision_at_recall>=0.6923": {
+     "threshold": 0.1044,
+     "TP": 10,
+     "FP": 14,
+     "TN": 106,
+     "FN": 3,
+     "precision": 0.4167,
+     "recall": 0.7692,
+     "f1": 0.5405
+    }
+   },
+   "rf": {
+    "roc_auc": 0.8407,
+    "pr_auc": 0.6016,
+    "at_0.5": {
+     "threshold": 0.5,
+     "TP": 6,
+     "FP": 1,
+     "TN": 119,
+     "FN": 7,
+     "precision": 0.8571,
+     "recall": 0.4615,
+     "f1": 0.6
+    },
+    "recall_at_fp<=2": {
+     "threshold": 0.4491,
+     "TP": 7,
+     "FP": 2,
+     "TN": 118,
+     "FN": 6,
+     "precision": 0.7778,
+     "recall": 0.5385,
+     "f1": 0.6364
+    },
+    "precision_at_recall>=0.6923": {
+     "threshold": 0.127,
+     "TP": 10,
+     "FP": 19,
+     "TN": 101,
+     "FN": 3,
+     "precision": 0.3448,
+     "recall": 0.7692,
+     "f1": 0.4762
+    }
+   }
+  }
+ }
+}

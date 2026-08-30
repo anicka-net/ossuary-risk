@@ -148,6 +148,10 @@ is also restricted to the top non-`[bot]` contributor; four false technical-phra
 hits disappear without changing a final score or classification.
 
 See [validation report](docs/validation.md) for full analysis.
+The separate [post-freeze diagnostic ML experiment](benchmarks/ml_diagnostic_2026_08_29/README.md)
+publishes its sanitized matrix, fixed model protocol, OOF predictions, and
+reviewed same-population comparisons. It is methodological support, not an
+independent prospective validation set.
 
 ## Development
 
